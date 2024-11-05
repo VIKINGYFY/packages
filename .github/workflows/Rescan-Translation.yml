@@ -1,0 +1,60 @@
+name: Rescan Translation
+
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - '**/htdocs/**'
+      - '**/root/**'
+
+env:
+  GITHUB_TOKEN: ${{secrets.GITHUB_TOKEN}}
+
+permissions: write-all
+
+jobs:
+  cleanup:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Delete Old Workflows
+        uses: Mattraks/delete-workflow-runs@main
+        with:
+          retain_days: 0
+          keep_minimum_runs: 1
+
+  scan:
+    runs-on: ubuntu-latest
+    needs: cleanup
+    steps:
+      - name: Checkout source tree
+        uses: actions/checkout@main
+
+      - name: Rescan translation
+        env:
+          DEBIAN_FRONTEND: noninteractive
+        run: |
+          sudo -E apt -yqq update
+          sudo -E apt -yqq install gettext
+
+          curl -LO "https://github.com/openwrt/luci/raw/master/build/i18n-scan.pl"
+          curl -LO "https://github.com/openwrt/luci/raw/master/build/i18n-update.pl"
+
+          perl "i18n-scan.pl" . > "luci-app-advancedplus/po/templates/advancedplus.pot"
+          perl "i18n-update.pl" "luci-app-advancedplus/po"
+          find luci-app-advancedplus/po/ -name '*.po~' -exec rm -f {} \;
+
+          perl "i18n-scan.pl" . > "luci-app-wolplus/po/templates/wolplus.pot"
+          perl "i18n-update.pl" "luci-app-wolplus/po"
+          find luci-app-wolplus/po/ -name '*.po~' -exec rm -f {} \;
+
+          rm -f "i18n-scan.pl" "i18n-update.pl"
+          [ -z "$(git status -s)" ] || echo -e "CHANGE_STAT=1" >> "$GITHUB_ENV"
+
+      - name: Commit changes
+        if: ${{ env.CHANGE_STAT }}
+        run: |
+          git config --local user.name "github-actions[bot]"
+          git config --local user.email "<github-actions[bot]@users.noreply.github.com>"
+          git add .
+          git commit -m "chore(po): rescan translation"
+          git push -f origin HEAD:main
