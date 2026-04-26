@@ -15,7 +15,7 @@ msgstr "客户端设置"
 
 #: luci-app-timewol/luasrc/model/cbi/timewol.lua:12
 msgid "Collecting data..."
-msgstr ""
+msgstr "收集信息中..."
 
 #: luci-app-timewol/luasrc/model/cbi/timewol.lua:10
 msgid "Current Status"
@@ -51,7 +51,7 @@ msgstr "月"
 
 #: luci-app-timewol/luasrc/view/timewol/index.htm:13
 msgid "NOT RUNNING"
-msgstr ""
+msgstr "未运行"
 
 #: luci-app-timewol/luasrc/model/cbi/timewol.lua:34
 msgid "Network Interface"
@@ -59,7 +59,7 @@ msgstr "网络接口"
 
 #: luci-app-timewol/luasrc/view/timewol/index.htm:13
 msgid "RUNNING"
-msgstr ""
+msgstr "运行中"
 
 #: luci-app-timewol/luasrc/model/cbi/timewol.lua:8
 msgid "Running Status"

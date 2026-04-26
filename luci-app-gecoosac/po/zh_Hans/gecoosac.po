@@ -92,7 +92,7 @@ msgstr "集客AC控制器 运行中"
 
 #: luci-app-gecoosac/luasrc/model/cbi/gecoosac.lua:9
 msgid "The current AC version %s, only supports AP %s and above."
-msgstr ""
+msgstr "当前 AC 版本 %s ，仅支持 %s 及以上版本的 AP 。"
 
 #: luci-app-gecoosac/luasrc/model/cbi/gecoosac.lua:58
 msgid "The path to store the config database"
@@ -105,6 +105,3 @@ msgstr "存放AP升级固件的路径"
 #: luci-app-gecoosac/luasrc/model/cbi/gecoosac.lua:53
 msgid "Upload dir path"
 msgstr "上传目录"
-
-#~ msgid "The current AC version %s, only supports AP 7.6 and above."
-#~ msgstr "当前 AC 版本 %s ，仅支持 AP 7.6 及以上版本。"
