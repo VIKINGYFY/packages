@@ -1,54 +1,54 @@
 msgid ""
-msgstr "Content-Type: text/plain; charset=UTF-8\n"
+msgstr "Content-Type: text/plain; charset=UTF-8"
 
 #: luci-app-gecoosac/luasrc/model/cbi/gecoosac.lua:39
 msgid "A certificate file must be specified, otherwise it will fail to start."
-msgstr "需要指定证书文件，否则开启失败。"
+msgstr ""
 
 #: luci-app-gecoosac/luasrc/model/cbi/gecoosac.lua:9
 #: luci-app-gecoosac/luasrc/model/cbi/gecoosac.lua:11
 msgid "Batch management Gecoos AP, Default password: admin"
-msgstr "批量集中管理集客 AP，默认密码：admin"
+msgstr ""
 
 #: luci-app-gecoosac/luasrc/model/cbi/gecoosac.lua:67
 msgid "Clear Upload Directory"
-msgstr "清理上传目录"
+msgstr ""
 
 #: luci-app-gecoosac/luasrc/view/gecoosac/gecoosac_status.htm:42
 msgid "Collecting data..."
-msgstr "收集数据..."
+msgstr ""
 
 #: luci-app-gecoosac/luasrc/model/cbi/gecoosac.lua:58
 msgid "Database dir path"
-msgstr "数据库目录"
+msgstr ""
 
 #: luci-app-gecoosac/luasrc/model/cbi/gecoosac.lua:29
 msgid ""
 "Do not enable the independent management port, only use one port for "
 "management."
-msgstr "不开启独立管理端口，只使用一个端口进行管理。"
+msgstr ""
 
 #: luci-app-gecoosac/luasrc/model/cbi/gecoosac.lua:39
 msgid "Enable HTTPS service"
-msgstr "开启 HTTPS 服务"
+msgstr ""
 
 #: luci-app-gecoosac/luasrc/model/cbi/gecoosac.lua:63
 msgid "Enable Log"
-msgstr "启用日志"
+msgstr ""
 
 #: luci-app-gecoosac/luasrc/model/cbi/gecoosac.lua:20
 msgid "Enabled AC"
-msgstr "启用集客AC"
+msgstr ""
 
 #: luci-app-gecoosac/luasrc/controller/gecoosac.lua:9
 #: luci-app-gecoosac/luasrc/model/cbi/gecoosac.lua:9
 #: luci-app-gecoosac/luasrc/model/cbi/gecoosac.lua:11
 msgid "Gecoos AC"
-msgstr "集客AC控制器"
+msgstr ""
 
 #: luci-app-gecoosac/luasrc/model/cbi/gecoosac.lua:16
 msgid "Global Settings"
-msgstr "全局设置"
+msgstr ""
 
 #: luci-app-gecoosac/root/usr/share/rpcd/acl.d/luci-app-gecoosac.json:3
 msgid "Grant UCI access for luci-app-gecoosac"
@@ -56,39 +56,39 @@ msgstr ""
 
 #: luci-app-gecoosac/luasrc/view/gecoosac/gecoosac_status.htm:24
 msgid "Open the mgmt page"
-msgstr "打开管理页面"
+msgstr ""
 
 #: luci-app-gecoosac/luasrc/model/cbi/gecoosac.lua:23
 msgid "Set interface port"
-msgstr "设置接口端口"
+msgstr ""
 
 #: luci-app-gecoosac/luasrc/model/cbi/gecoosac.lua:33
 msgid "Set management port"
-msgstr "设置管理端口"
+msgstr ""
 
 #: luci-app-gecoosac/luasrc/model/cbi/gecoosac.lua:29
 msgid "Single Port Mode"
-msgstr "单端口模式"
+msgstr ""
 
 #: luci-app-gecoosac/luasrc/model/cbi/gecoosac.lua:43
 msgid "Specify crt certificate file"
-msgstr "指定 crt 证书文件"
+msgstr ""
 
 #: luci-app-gecoosac/luasrc/model/cbi/gecoosac.lua:48
 msgid "Specify key certificate file"
-msgstr "指定 key 证书文件"
+msgstr ""
 
 #: luci-app-gecoosac/luasrc/model/cbi/gecoosac.lua:11
 msgid "The AC program does not exist, please check."
-msgstr "AC 程序不存在，请检查。"
+msgstr ""
 
 #: luci-app-gecoosac/luasrc/view/gecoosac/gecoosac_status.htm:27
 msgid "The GecoosAC service is not running."
-msgstr "集客AC控制器 未运行"
+msgstr ""
 
 #: luci-app-gecoosac/luasrc/view/gecoosac/gecoosac_status.htm:24
 msgid "The GecoosAC service is running."
-msgstr "集客AC控制器 运行中"
+msgstr ""
 
 #: luci-app-gecoosac/luasrc/model/cbi/gecoosac.lua:9
 msgid "The current AC version %s, only supports AP %s and above."
@@ -96,15 +96,12 @@ msgstr ""
 
 #: luci-app-gecoosac/luasrc/model/cbi/gecoosac.lua:58
 msgid "The path to store the config database"
-msgstr "存放配置数据库的路径"
+msgstr ""
 
 #: luci-app-gecoosac/luasrc/model/cbi/gecoosac.lua:53
 msgid "The path to upload AP upgrade firmware"
-msgstr "存放AP升级固件的路径"
+msgstr ""
 
 #: luci-app-gecoosac/luasrc/model/cbi/gecoosac.lua:53
 msgid "Upload dir path"
-msgstr "上传目录"
-
-#~ msgid "The current AC version %s, only supports AP 7.6 and above."
-#~ msgstr "当前 AC 版本 %s ，仅支持 AP 7.6 及以上版本。"
+msgstr ""

@@ -1,53 +1,85 @@
 msgid ""
 msgstr "Content-Type: text/plain; charset=UTF-8\n"
 
-msgid "Control"
-msgstr "管控"
-
-msgid "Timed WOL"
-msgstr "定时网络唤醒"
-
-msgid "Timed Wake on LAN"
-msgstr "定时网络唤醒"
-
-msgid "Wake up your local area network devices on schedule"
-msgstr "定时唤醒你的局域网设备"
-
-msgid "Running Status"
-msgstr "运行状态"
-
-msgid "Current Status"
-msgstr "当前状态"
-
+#: luci-app-timewol/luasrc/model/cbi/timewol.lua:15
 msgid "Basic Settings"
 msgstr "基本设置"
 
-msgid "Enable"
-msgstr "开启"
-
-msgid "Client Settings"
-msgstr "客户端设置"
-
+#: luci-app-timewol/luasrc/model/cbi/timewol.lua:27
 msgid "Client MAC"
 msgstr "客户端MAC"
 
-msgid "Network Interface"
-msgstr "网络接口"
+#: luci-app-timewol/luasrc/model/cbi/timewol.lua:21
+msgid "Client Settings"
+msgstr "客户端设置"
 
-msgid "Minute"
-msgstr "分钟"
+#: luci-app-timewol/luasrc/model/cbi/timewol.lua:12
+msgid "Collecting data..."
+msgstr ""
 
-msgid "Hour"
-msgstr "小时"
+#: luci-app-timewol/luasrc/model/cbi/timewol.lua:10
+msgid "Current Status"
+msgstr "当前状态"
 
+#: luci-app-timewol/luasrc/model/cbi/timewol.lua:62
 msgid "Day"
 msgstr "日"
 
+#: luci-app-timewol/luasrc/model/cbi/timewol.lua:17
+msgid "Enable"
+msgstr "开启"
+
+#: luci-app-timewol/root/usr/share/rpcd/acl.d/luci-app-timewol.json:3
+msgid "Grant UCI access for luci-app-timewol"
+msgstr ""
+
+#: luci-app-timewol/luasrc/model/cbi/timewol.lua:61
+msgid "Hour"
+msgstr "小时"
+
+#: luci-app-timewol/luasrc/model/cbi/timewol.lua:54
+msgid "Invalid value for %s: %s. Must be between %d and %d or '*'"
+msgstr "%s: %s 的值无效. 必须在 %d 和 %d 之间，或为 '*'"
+
+#: luci-app-timewol/luasrc/model/cbi/timewol.lua:60
+msgid "Minute"
+msgstr "分钟"
+
+#: luci-app-timewol/luasrc/model/cbi/timewol.lua:63
 msgid "Month"
 msgstr "月"
 
+#: luci-app-timewol/luasrc/view/timewol/index.htm:13
+msgid "NOT RUNNING"
+msgstr ""
+
+#: luci-app-timewol/luasrc/model/cbi/timewol.lua:34
+msgid "Network Interface"
+msgstr "网络接口"
+
+#: luci-app-timewol/luasrc/view/timewol/index.htm:13
+msgid "RUNNING"
+msgstr ""
+
+#: luci-app-timewol/luasrc/model/cbi/timewol.lua:8
+msgid "Running Status"
+msgstr "运行状态"
+
+#: luci-app-timewol/luasrc/controller/timewol.lua:13
+msgid "Timed WOL"
+msgstr "定时网络唤醒"
+
+#: luci-app-timewol/luasrc/model/cbi/timewol.lua:4
+msgid "Timed Wake on LAN"
+msgstr "定时网络唤醒"
+
+#: luci-app-timewol/luasrc/model/cbi/timewol.lua:4
+msgid "Wake up your local area network devices on schedule"
+msgstr "定时唤醒你的局域网设备"
+
+#: luci-app-timewol/luasrc/model/cbi/timewol.lua:64
 msgid "Week"
 msgstr "星期"
 
-msgid "Invalid value for %s: %s. Must be between %d and %d or '*'"
-msgstr "%s: %s 的值无效. 必须在 %d 和 %d 之间，或为 '*'"
+#~ msgid "Control"
+#~ msgstr "管控"
