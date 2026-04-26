@@ -1,3 +1,6 @@
+msgid ""
+msgstr "Content-Type: text/plain; charset=UTF-8\n"
+
 msgid "Control"
 msgstr "管控"
 
@@ -9,9 +12,6 @@ msgstr "定时网络唤醒"
 
 msgid "Wake up your local area network devices on schedule"
 msgstr "定时唤醒你的局域网设备"
-
-msgid "Timed WOL"
-msgstr "定时网络唤醒"
 
 msgid "Running Status"
 msgstr "运行状态"
