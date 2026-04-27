@@ -9,7 +9,7 @@ function M.index()
 		return
 	end
 
-	entry({"admin", "control"}, firstchild(), "Control", 44).dependent = false
+	entry({"admin", "control"}, firstchild(), _("Control"), 44).dependent = false
 	local page = entry({"admin", "control", "timewol"}, cbi("timewol"), _("Timed WOL"))
 	page.order = 95
 	page.dependent = true

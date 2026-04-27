@@ -1,10 +1,10 @@
-
 module("luci.controller.gecoosac", package.seeall)
 
 function index()
 	if not nixio.fs.access("/etc/config/gecoosac") then
 		return
 	end
+	entry({"admin", "control"}, firstchild(), _("Control"), 44).dependent = false
 	local page
 	page = entry({"admin", "control", "gecoosac"}, cbi("gecoosac"), _("Gecoos AC"), 100)
 	page.dependent = true
@@ -23,7 +23,7 @@ function act_status()
 end
 
 function clear_upload()
-    local path = "/tmp/gecoosac/upload/"
-    luci.sys.call("rm -rf " .. path .. "/*")
-    luci.http.status(200, "OK")
+	local path = "/tmp/gecoosac/upload/"
+	luci.sys.call("rm -rf " .. path .. "/*")
+	luci.http.status(200, "OK")
 end
