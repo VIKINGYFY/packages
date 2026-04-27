@@ -18,6 +18,10 @@ msgstr "清理上传目录"
 msgid "Collecting data..."
 msgstr "收集数据..."
 
+#: luci-app-gecoosac/luasrc/controller/gecoosac.lua:7
+msgid "Control"
+msgstr ""
+
 #: luci-app-gecoosac/luasrc/model/cbi/gecoosac.lua:58
 msgid "Database dir path"
 msgstr "数据库目录"

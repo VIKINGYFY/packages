@@ -17,6 +17,10 @@ msgstr ""
 msgid "Collecting data..."
 msgstr ""
 
+#: luci-app-timewol/luasrc/controller/timewol.lua:12
+msgid "Control"
+msgstr ""
+
 #: luci-app-timewol/luasrc/model/cbi/timewol.lua:10
 msgid "Current Status"
 msgstr ""

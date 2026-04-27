@@ -17,6 +17,10 @@ msgstr "客户端设置"
 msgid "Collecting data..."
 msgstr "收集信息中..."
 
+#: luci-app-timewol/luasrc/controller/timewol.lua:12
+msgid "Control"
+msgstr "管控"
+
 #: luci-app-timewol/luasrc/model/cbi/timewol.lua:10
 msgid "Current Status"
 msgstr "当前状态"
@@ -80,6 +84,3 @@ msgstr "定时唤醒你的局域网设备"
 #: luci-app-timewol/luasrc/model/cbi/timewol.lua:64
 msgid "Week"
 msgstr "星期"
-
-#~ msgid "Control"
-#~ msgstr "管控"

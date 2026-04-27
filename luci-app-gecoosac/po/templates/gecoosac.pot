@@ -18,6 +18,10 @@ msgstr ""
 msgid "Collecting data..."
 msgstr ""
 
+#: luci-app-gecoosac/luasrc/controller/gecoosac.lua:7
+msgid "Control"
+msgstr ""
+
 #: luci-app-gecoosac/luasrc/model/cbi/gecoosac.lua:58
 msgid "Database dir path"
 msgstr ""
