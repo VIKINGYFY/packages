@@ -79,7 +79,7 @@ msgid "Grant access to Athena LED configuration and service control"
 msgstr ""
 
 #: luci-app-athena-led/htdocs/luci-static/resources/view/athena_led.js:50
-msgid "JDCloud AX6600 LED Screen Ctrl"
+msgid "JDCloud Athena LED Ctrl"
 msgstr ""
 
 #: luci-app-athena-led/htdocs/luci-static/resources/view/athena_led.js:25
