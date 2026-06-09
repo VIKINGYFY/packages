@@ -47,7 +47,7 @@ return view.extend({
 	render: function() {
 		var m, s, o;
 
-		m = new form.Map('athena_led', _('Athena LED Ctrl'), _('JDCloud AX6600 LED Screen Ctrl'));
+		m = new form.Map('athena_led', _('Athena LED Ctrl'), _('JDCloud Athena LED Ctrl'));
 
 		s = m.section(form.TypedSection);
 		s.anonymous = true;
