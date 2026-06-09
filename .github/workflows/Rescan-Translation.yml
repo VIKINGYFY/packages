@@ -25,7 +25,7 @@ jobs:
           workflows_keep_day: 0
 
   scan:
-    runs-on: ubuntu-22.04
+    runs-on: ubuntu-latest
     needs: cleanup
     steps:
       - name: Checkout Projects
@@ -48,7 +48,7 @@ jobs:
           for dir in $(find . -maxdepth 1 -mindepth 1 -type d -not -path '*/\.*'); do
             PKG_PATH="$dir"
 
-            for folder in "$PKG_PATH/root/sbin" "$PKG_PATH/root/etc/hotplug.d" "$PKG_PATH/root/etc/init.d" "$PKG_PATH/root/etc/uci-defaults"; do
+            for folder in "$PKG_PATH/root/bin" "$PKG_PATH/root/sbin" "$PKG_PATH/root/usr/bin" "$PKG_PATH/root/usr/sbin" "$PKG_PATH/root/etc/hotplug.d" "$PKG_PATH/root/etc/init.d" "$PKG_PATH/root/etc/uci-defaults"; do
               if [ -d "$folder" ]; then
                 chmod 755 -R "$folder"
               fi
