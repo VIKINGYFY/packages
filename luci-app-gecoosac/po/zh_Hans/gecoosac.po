@@ -1,19 +1,19 @@
 msgid ""
 msgstr "Content-Type: text/plain; charset=UTF-8\n"
 
-#: luci-app-gecoosac/htdocs/luci-static/resources/view/gecoosac.js:127
+#: luci-app-gecoosac/htdocs/luci-static/resources/view/gecoosac.js:141
 msgid "A certificate file must be specified, otherwise it will fail to start."
 msgstr "需要指定证书文件，否则开启失败。"
 
-#: luci-app-gecoosac/htdocs/luci-static/resources/view/gecoosac.js:82
+#: luci-app-gecoosac/htdocs/luci-static/resources/view/gecoosac.js:104
 msgid "Batch management Gecoos AP, Default password: admin"
 msgstr "批量集中管理集客 AP，默认密码：admin"
 
-#: luci-app-gecoosac/htdocs/luci-static/resources/view/gecoosac.js:155
+#: luci-app-gecoosac/htdocs/luci-static/resources/view/gecoosac.js:169
 msgid "Clear Upload Directory"
 msgstr "清理上传目录"
 
-#: luci-app-gecoosac/htdocs/luci-static/resources/view/gecoosac.js:93
+#: luci-app-gecoosac/htdocs/luci-static/resources/view/gecoosac.js:83
 msgid "Collecting data..."
 msgstr "收集数据..."
 
@@ -21,39 +21,40 @@ msgstr "收集数据..."
 msgid "Control"
 msgstr "管控"
 
-#: luci-app-gecoosac/htdocs/luci-static/resources/view/gecoosac.js:146
+#: luci-app-gecoosac/htdocs/luci-static/resources/view/gecoosac.js:160
 msgid "Database dir path"
 msgstr "数据库目录"
 
-#: luci-app-gecoosac/htdocs/luci-static/resources/view/gecoosac.js:116
+#: luci-app-gecoosac/htdocs/luci-static/resources/view/gecoosac.js:130
 msgid ""
 "Do not enable the independent management port, only use one port for "
 "management."
 msgstr "不开启独立管理端口，只使用一个端口进行管理。"
 
-#: luci-app-gecoosac/htdocs/luci-static/resources/view/gecoosac.js:126
+#: luci-app-gecoosac/htdocs/luci-static/resources/view/gecoosac.js:140
 msgid "Enable HTTPS service"
 msgstr "开启 HTTPS 服务"
 
-#: luci-app-gecoosac/htdocs/luci-static/resources/view/gecoosac.js:151
+#: luci-app-gecoosac/htdocs/luci-static/resources/view/gecoosac.js:165
 msgid "Enable Log"
 msgstr "启用日志"
 
-#: luci-app-gecoosac/htdocs/luci-static/resources/view/gecoosac.js:106
+#: luci-app-gecoosac/htdocs/luci-static/resources/view/gecoosac.js:120
 msgid "Enabled AC"
 msgstr "启用集客AC"
 
-#: luci-app-gecoosac/htdocs/luci-static/resources/view/gecoosac.js:169
-#: luci-app-gecoosac/htdocs/luci-static/resources/view/gecoosac.js:172
+#: luci-app-gecoosac/htdocs/luci-static/resources/view/gecoosac.js:183
+#: luci-app-gecoosac/htdocs/luci-static/resources/view/gecoosac.js:186
 msgid "Failed to clear upload directory: %s"
 msgstr ""
 
-#: luci-app-gecoosac/htdocs/luci-static/resources/view/gecoosac.js:88
+#: luci-app-gecoosac/htdocs/luci-static/resources/view/gecoosac.js:46
+#: luci-app-gecoosac/htdocs/luci-static/resources/view/gecoosac.js:110
 #: luci-app-gecoosac/root/usr/share/luci/menu.d/luci-app-gecoosac.json:14
 msgid "Gecoos AC"
 msgstr "集客AC控制器"
 
-#: luci-app-gecoosac/htdocs/luci-static/resources/view/gecoosac.js:102
+#: luci-app-gecoosac/htdocs/luci-static/resources/view/gecoosac.js:116
 msgid "Global Settings"
 msgstr "全局设置"
 
@@ -61,62 +62,62 @@ msgstr "全局设置"
 msgid "Grant access to luci-app-gecoosac"
 msgstr ""
 
-#: luci-app-gecoosac/htdocs/luci-static/resources/view/gecoosac.js:57
-msgid "Open the mgmt page"
-msgstr "打开管理页面"
-
-#: luci-app-gecoosac/htdocs/luci-static/resources/view/gecoosac.js:109
-msgid "Set interface port"
-msgstr "设置接口端口"
-
-#: luci-app-gecoosac/htdocs/luci-static/resources/view/gecoosac.js:120
-msgid "Set management port"
-msgstr "设置管理端口"
-
-#: luci-app-gecoosac/htdocs/luci-static/resources/view/gecoosac.js:115
-msgid "Single Port Mode"
-msgstr "单端口模式"
-
-#: luci-app-gecoosac/htdocs/luci-static/resources/view/gecoosac.js:131
-msgid "Specify crt certificate file"
-msgstr "指定 crt 证书文件"
-
-#: luci-app-gecoosac/htdocs/luci-static/resources/view/gecoosac.js:136
-msgid "Specify key certificate file"
-msgstr "指定 key 证书文件"
-
-#: luci-app-gecoosac/htdocs/luci-static/resources/view/gecoosac.js:85
-msgid "The AC program does not exist, please check."
-msgstr "AC 程序不存在，请检查。"
-
-#: luci-app-gecoosac/htdocs/luci-static/resources/view/gecoosac.js:44
+#: luci-app-gecoosac/htdocs/luci-static/resources/view/gecoosac.js:46
 msgid "Not running"
 msgstr "未运行"
 
-#: luci-app-gecoosac/htdocs/luci-static/resources/view/gecoosac.js:44
+#: luci-app-gecoosac/htdocs/luci-static/resources/view/gecoosac.js:59
+msgid "Open the mgmt page"
+msgstr "打开管理页面"
+
+#: luci-app-gecoosac/htdocs/luci-static/resources/view/gecoosac.js:46
 msgid "Running"
 msgstr "运行中"
 
-#: luci-app-gecoosac/htdocs/luci-static/resources/view/gecoosac.js:84
+#: luci-app-gecoosac/htdocs/luci-static/resources/view/gecoosac.js:123
+msgid "Set interface port"
+msgstr "设置接口端口"
+
+#: luci-app-gecoosac/htdocs/luci-static/resources/view/gecoosac.js:134
+msgid "Set management port"
+msgstr "设置管理端口"
+
+#: luci-app-gecoosac/htdocs/luci-static/resources/view/gecoosac.js:129
+msgid "Single Port Mode"
+msgstr "单端口模式"
+
+#: luci-app-gecoosac/htdocs/luci-static/resources/view/gecoosac.js:145
+msgid "Specify crt certificate file"
+msgstr "指定 crt 证书文件"
+
+#: luci-app-gecoosac/htdocs/luci-static/resources/view/gecoosac.js:150
+msgid "Specify key certificate file"
+msgstr "指定 key 证书文件"
+
+#: luci-app-gecoosac/htdocs/luci-static/resources/view/gecoosac.js:107
+msgid "The AC program does not exist, please check."
+msgstr "AC 程序不存在，请检查。"
+
+#: luci-app-gecoosac/htdocs/luci-static/resources/view/gecoosac.js:106
 msgid "The current AC version %s, only supports AP %s and above."
 msgstr "当前 AC 版本 %s ，仅支持 %s 及以上版本的 AP 。"
 
-#: luci-app-gecoosac/htdocs/luci-static/resources/view/gecoosac.js:146
+#: luci-app-gecoosac/htdocs/luci-static/resources/view/gecoosac.js:160
 msgid "The path to store the config database"
 msgstr "存放配置数据库的路径"
 
-#: luci-app-gecoosac/htdocs/luci-static/resources/view/gecoosac.js:141
+#: luci-app-gecoosac/htdocs/luci-static/resources/view/gecoosac.js:155
 msgid "The path to upload AP upgrade firmware"
 msgstr "存放AP升级固件的路径"
 
-#: luci-app-gecoosac/htdocs/luci-static/resources/view/gecoosac.js:168
+#: luci-app-gecoosac/htdocs/luci-static/resources/view/gecoosac.js:182
 msgid "Unknown error"
 msgstr ""
 
-#: luci-app-gecoosac/htdocs/luci-static/resources/view/gecoosac.js:141
+#: luci-app-gecoosac/htdocs/luci-static/resources/view/gecoosac.js:155
 msgid "Upload dir path"
 msgstr "上传目录"
 
-#: luci-app-gecoosac/htdocs/luci-static/resources/view/gecoosac.js:165
+#: luci-app-gecoosac/htdocs/luci-static/resources/view/gecoosac.js:179
 msgid "Upload directory cleaned. Removed %d entries."
 msgstr ""

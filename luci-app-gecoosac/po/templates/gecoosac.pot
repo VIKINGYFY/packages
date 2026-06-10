@@ -1,19 +1,19 @@
 msgid ""
 msgstr "Content-Type: text/plain; charset=UTF-8"
 
-#: luci-app-gecoosac/htdocs/luci-static/resources/view/gecoosac.js:127
+#: luci-app-gecoosac/htdocs/luci-static/resources/view/gecoosac.js:141
 msgid "A certificate file must be specified, otherwise it will fail to start."
 msgstr ""
 
-#: luci-app-gecoosac/htdocs/luci-static/resources/view/gecoosac.js:82
+#: luci-app-gecoosac/htdocs/luci-static/resources/view/gecoosac.js:104
 msgid "Batch management Gecoos AP, Default password: admin"
 msgstr ""
 
-#: luci-app-gecoosac/htdocs/luci-static/resources/view/gecoosac.js:155
+#: luci-app-gecoosac/htdocs/luci-static/resources/view/gecoosac.js:169
 msgid "Clear Upload Directory"
 msgstr ""
 
-#: luci-app-gecoosac/htdocs/luci-static/resources/view/gecoosac.js:93
+#: luci-app-gecoosac/htdocs/luci-static/resources/view/gecoosac.js:83
 msgid "Collecting data..."
 msgstr ""
 
@@ -21,39 +21,40 @@ msgstr ""
 msgid "Control"
 msgstr ""
 
-#: luci-app-gecoosac/htdocs/luci-static/resources/view/gecoosac.js:146
+#: luci-app-gecoosac/htdocs/luci-static/resources/view/gecoosac.js:160
 msgid "Database dir path"
 msgstr ""
 
-#: luci-app-gecoosac/htdocs/luci-static/resources/view/gecoosac.js:116
+#: luci-app-gecoosac/htdocs/luci-static/resources/view/gecoosac.js:130
 msgid ""
 "Do not enable the independent management port, only use one port for "
 "management."
 msgstr ""
 
-#: luci-app-gecoosac/htdocs/luci-static/resources/view/gecoosac.js:126
+#: luci-app-gecoosac/htdocs/luci-static/resources/view/gecoosac.js:140
 msgid "Enable HTTPS service"
 msgstr ""
 
-#: luci-app-gecoosac/htdocs/luci-static/resources/view/gecoosac.js:151
+#: luci-app-gecoosac/htdocs/luci-static/resources/view/gecoosac.js:165
 msgid "Enable Log"
 msgstr ""
 
-#: luci-app-gecoosac/htdocs/luci-static/resources/view/gecoosac.js:106
+#: luci-app-gecoosac/htdocs/luci-static/resources/view/gecoosac.js:120
 msgid "Enabled AC"
 msgstr ""
 
-#: luci-app-gecoosac/htdocs/luci-static/resources/view/gecoosac.js:169
-#: luci-app-gecoosac/htdocs/luci-static/resources/view/gecoosac.js:172
+#: luci-app-gecoosac/htdocs/luci-static/resources/view/gecoosac.js:183
+#: luci-app-gecoosac/htdocs/luci-static/resources/view/gecoosac.js:186
 msgid "Failed to clear upload directory: %s"
 msgstr ""
 
-#: luci-app-gecoosac/htdocs/luci-static/resources/view/gecoosac.js:88
+#: luci-app-gecoosac/htdocs/luci-static/resources/view/gecoosac.js:46
+#: luci-app-gecoosac/htdocs/luci-static/resources/view/gecoosac.js:110
 #: luci-app-gecoosac/root/usr/share/luci/menu.d/luci-app-gecoosac.json:14
 msgid "Gecoos AC"
 msgstr ""
 
-#: luci-app-gecoosac/htdocs/luci-static/resources/view/gecoosac.js:102
+#: luci-app-gecoosac/htdocs/luci-static/resources/view/gecoosac.js:116
 msgid "Global Settings"
 msgstr ""
 
@@ -61,62 +62,62 @@ msgstr ""
 msgid "Grant access to luci-app-gecoosac"
 msgstr ""
 
-#: luci-app-gecoosac/htdocs/luci-static/resources/view/gecoosac.js:57
-msgid "Open the mgmt page"
-msgstr ""
-
-#: luci-app-gecoosac/htdocs/luci-static/resources/view/gecoosac.js:109
-msgid "Set interface port"
-msgstr ""
-
-#: luci-app-gecoosac/htdocs/luci-static/resources/view/gecoosac.js:120
-msgid "Set management port"
-msgstr ""
-
-#: luci-app-gecoosac/htdocs/luci-static/resources/view/gecoosac.js:115
-msgid "Single Port Mode"
-msgstr ""
-
-#: luci-app-gecoosac/htdocs/luci-static/resources/view/gecoosac.js:131
-msgid "Specify crt certificate file"
-msgstr ""
-
-#: luci-app-gecoosac/htdocs/luci-static/resources/view/gecoosac.js:136
-msgid "Specify key certificate file"
-msgstr ""
-
-#: luci-app-gecoosac/htdocs/luci-static/resources/view/gecoosac.js:85
-msgid "The AC program does not exist, please check."
-msgstr ""
-
-#: luci-app-gecoosac/htdocs/luci-static/resources/view/gecoosac.js:44
+#: luci-app-gecoosac/htdocs/luci-static/resources/view/gecoosac.js:46
 msgid "Not running"
 msgstr ""
 
-#: luci-app-gecoosac/htdocs/luci-static/resources/view/gecoosac.js:44
+#: luci-app-gecoosac/htdocs/luci-static/resources/view/gecoosac.js:59
+msgid "Open the mgmt page"
+msgstr ""
+
+#: luci-app-gecoosac/htdocs/luci-static/resources/view/gecoosac.js:46
 msgid "Running"
 msgstr ""
 
-#: luci-app-gecoosac/htdocs/luci-static/resources/view/gecoosac.js:84
+#: luci-app-gecoosac/htdocs/luci-static/resources/view/gecoosac.js:123
+msgid "Set interface port"
+msgstr ""
+
+#: luci-app-gecoosac/htdocs/luci-static/resources/view/gecoosac.js:134
+msgid "Set management port"
+msgstr ""
+
+#: luci-app-gecoosac/htdocs/luci-static/resources/view/gecoosac.js:129
+msgid "Single Port Mode"
+msgstr ""
+
+#: luci-app-gecoosac/htdocs/luci-static/resources/view/gecoosac.js:145
+msgid "Specify crt certificate file"
+msgstr ""
+
+#: luci-app-gecoosac/htdocs/luci-static/resources/view/gecoosac.js:150
+msgid "Specify key certificate file"
+msgstr ""
+
+#: luci-app-gecoosac/htdocs/luci-static/resources/view/gecoosac.js:107
+msgid "The AC program does not exist, please check."
+msgstr ""
+
+#: luci-app-gecoosac/htdocs/luci-static/resources/view/gecoosac.js:106
 msgid "The current AC version %s, only supports AP %s and above."
 msgstr ""
 
-#: luci-app-gecoosac/htdocs/luci-static/resources/view/gecoosac.js:146
+#: luci-app-gecoosac/htdocs/luci-static/resources/view/gecoosac.js:160
 msgid "The path to store the config database"
 msgstr ""
 
-#: luci-app-gecoosac/htdocs/luci-static/resources/view/gecoosac.js:141
+#: luci-app-gecoosac/htdocs/luci-static/resources/view/gecoosac.js:155
 msgid "The path to upload AP upgrade firmware"
 msgstr ""
 
-#: luci-app-gecoosac/htdocs/luci-static/resources/view/gecoosac.js:168
+#: luci-app-gecoosac/htdocs/luci-static/resources/view/gecoosac.js:182
 msgid "Unknown error"
 msgstr ""
 
-#: luci-app-gecoosac/htdocs/luci-static/resources/view/gecoosac.js:141
+#: luci-app-gecoosac/htdocs/luci-static/resources/view/gecoosac.js:155
 msgid "Upload dir path"
 msgstr ""
 
-#: luci-app-gecoosac/htdocs/luci-static/resources/view/gecoosac.js:165
+#: luci-app-gecoosac/htdocs/luci-static/resources/view/gecoosac.js:179
 msgid "Upload directory cleaned. Removed %d entries."
 msgstr ""
