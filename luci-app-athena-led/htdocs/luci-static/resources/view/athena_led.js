@@ -66,6 +66,27 @@ var SpaceSeparatedCheckboxValue = form.MultiValue.extend({
 		});
 		var node = widget.render();
 		var inputs = node.querySelectorAll('input[type="checkbox"]');
+		var items = node.querySelectorAll('.cbi-checkbox');
+
+		node.style.setProperty('display', 'inline-flex', 'important');
+		Object.assign(node.style, {
+			flexWrap: 'wrap',
+			alignItems: 'center',
+			columnGap: '1em',
+			rowGap: '.25em'
+		});
+
+		for (var i = node.childNodes.length - 1; i >= 0; i--)
+			if (node.childNodes[i].nodeType == 3)
+				node.removeChild(node.childNodes[i]);
+
+		for (var i = 0; i < items.length; i++) {
+			items[i].style.setProperty('display', 'inline-flex', 'important');
+			Object.assign(items[i].style, {
+				alignItems: 'center',
+				whiteSpace: 'nowrap'
+			});
+		}
 
 		widget.getValue = function() {
 			var values = [];
