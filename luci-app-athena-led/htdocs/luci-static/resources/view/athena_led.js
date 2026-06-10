@@ -107,7 +107,7 @@ var SpaceSeparatedCheckboxValue = form.MultiValue.extend({
 function renderStatus(running) {
 	return E('span', {
 		'style': 'font-weight:bold;font-style:italic;color:%s'.format(running ? 'green' : 'red')
-	}, [ _('Athena LED Ctrl'), '：', running ? _('Running') : _('Not running') ]);
+	}, [ _('Athena LED Ctrl'), ': ', running ? _('Running') : _('Not running') ]);
 }
 
 function isServiceRunning(res) {

@@ -19,7 +19,7 @@ var callHostHints = rpc.declare({
 function renderStatus(running) {
 	return E('span', {
 		'style': 'font-weight:bold;font-style:italic;color:%s'.format(running ? 'green' : 'red')
-	}, [ _('Timed Wake on LAN'), '：', running ? _('Running') : _('Not running') ]);
+	}, [ _('Timed Wake on LAN'), ': ', running ? _('Running') : _('Not running') ]);
 }
 
 function getRunningStatus() {

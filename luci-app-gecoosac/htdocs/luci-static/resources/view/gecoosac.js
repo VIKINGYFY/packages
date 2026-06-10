@@ -43,7 +43,7 @@ function mgmtUrl() {
 function renderStatus(running) {
 	var statusNode = E('span', {
 		'style': 'font-weight:bold;font-style:italic;color:%s'.format(running ? 'green' : 'red')
-	}, [ _('Gecoos AC'), '：', running ? _('Running') : _('Not running') ]);
+	}, [ _('Gecoos AC'), ': ', running ? _('Running') : _('Not running') ]);
 
 	if (running) {
 		return [
