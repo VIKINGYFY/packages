@@ -2,7 +2,7 @@ include $(TOPDIR)/rules.mk
 
 PKG_NAME:=luci-app-athena-led
 PKG_VERSION:=1.0
-PKG_RELEASE:=20260609
+PKG_RELEASE:=20260610
 
 LUCI_TITLE:=LuCI Support for JDCloud Athena LED Screen Control
 LUCI_DEPENDS:=+luci-base @aarch64

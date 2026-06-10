@@ -12,11 +12,12 @@ START=99
 CONFIG="timewol"
 CRONTAB_FILE="/etc/crontabs/root"
 ETHERWAKE_CMD="/usr/bin/etherwake"
+CRON_TAG="# timewol"
 
 # 从 UCI 配置中获取值，支持默认值
 uci_get_by_type() {
 	local type=$1 option=$2 default=$3 index=${4:-0}
-	uci get "$CONFIG.@$type[$index].$option" 2>/dev/null || echo "$default"
+	uci get "${CONFIG}.@${type}[${index}].${option}" 2>/dev/null || echo "$default"
 }
 
 # 判断布尔值是否为真
@@ -32,14 +33,17 @@ load_config() {
 	is_true "$(uci_get_by_type basic enable "0")"
 }
 
-# 清理 crontab 中的 etherwake 规则
+# 清理 crontab 中由本服务生成的 etherwake 规则
 clear_crontab() {
-	sed -i '/etherwake/d' "$CRONTAB_FILE"
+	[ -f "$CRONTAB_FILE" ] || return 0
+	sed -i "/[[:space:]]${CRON_TAG}$/d" "$CRONTAB_FILE"
 }
 
 # 添加 WoL 规则到 crontab
 add_rule() {
-	clear_crontab
+	mkdir -p "$(dirname "$CRONTAB_FILE")"
+	touch "$CRONTAB_FILE"
+
 	for i in $(seq 0 100); do
 		local macaddr maceth minute hour day month weeks
 
@@ -58,12 +62,13 @@ add_rule() {
 		weeks=$(uci_get_by_type macclient weeks "*" "$i")
 
 		# 添加规则
-		echo "$minute $hour $day $month $weeks $ETHERWAKE_CMD -b -D -i $maceth $macaddr" >> "$CRONTAB_FILE"
+		echo "$minute $hour $day $month $weeks $ETHERWAKE_CMD -b -D -i $maceth $macaddr $CRON_TAG" >> "$CRONTAB_FILE"
 	done
 }
 
 # 启动服务
 start() {
+	clear_crontab
 	load_config && add_rule
 }
 

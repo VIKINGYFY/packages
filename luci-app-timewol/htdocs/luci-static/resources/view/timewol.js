@@ -1,20 +1,39 @@
 'use strict';
 'require dom';
 'require form';
-'require fs';
 'require poll';
 'require rpc';
 'require uci';
 'require view';
 'require tools.widgets as widgets';
 
-var crontabFile = '/etc/crontabs/root';
-
 var callHostHints = rpc.declare({
 	object: 'luci-rpc',
 	method: 'getHostHints',
 	expect: { '': {} }
 });
+
+var callUciGet = rpc.declare({
+	object: 'uci',
+	method: 'get',
+	params: [ 'config' ],
+	expect: { values: {} }
+});
+
+function isTrue(value) {
+	if (typeof(value) == 'string')
+		value = value.toLowerCase();
+
+	return value === true || value === '1' || value === 'on' || value === 'true' || value === 'yes' || value === 'enabled';
+}
+
+function getBasicEnable(config) {
+	for (var sid in config)
+		if (config[sid] && config[sid]['.type'] == 'basic')
+			return config[sid].enable;
+
+	return '0';
+}
 
 function renderStatus(running) {
 	return E('span', {
@@ -23,8 +42,8 @@ function renderStatus(running) {
 }
 
 function getRunningStatus() {
-	return L.resolveDefault(fs.read(crontabFile), '').then(function(content) {
-		return /\betherwake\b/.test(content || '');
+	return L.resolveDefault(callUciGet('timewol'), {}).then(function(config) {
+		return isTrue(getBasicEnable(config));
 	});
 }
 
@@ -137,11 +156,5 @@ return view.extend({
 		});
 
 		return m.render();
-	},
-
-	handleSaveApply: function(ev, mode) {
-		return this.super('handleSaveApply', [ ev, mode ]).then(function() {
-			return fs.exec('/etc/init.d/timewol', [ 'restart' ]);
-		});
 	}
 });

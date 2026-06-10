@@ -2,22 +2,12 @@
 	"luci-app-timewol": {
 		"description": "Grant access to luci-app-timewol",
 		"read": {
-			"file": {
-				"/etc/crontabs/root": [ "read" ]
-			},
 			"ubus": {
-				"file": [ "read" ],
 				"luci-rpc": [ "getHostHints", "getNetworkDevices" ]
 			},
 			"uci": [ "timewol" ]
 		},
 		"write": {
-			"file": {
-				"/etc/init.d/timewol restart": [ "exec" ]
-			},
-			"ubus": {
-				"file": [ "exec" ]
-			},
 			"uci": [ "timewol" ]
 		}
 	}
