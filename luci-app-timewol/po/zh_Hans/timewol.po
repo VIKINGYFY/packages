@@ -1,19 +1,19 @@
 msgid ""
 msgstr "Content-Type: text/plain; charset=UTF-8\n"
 
-#: luci-app-timewol/htdocs/luci-static/resources/view/timewol.js:94
+#: luci-app-timewol/htdocs/luci-static/resources/view/timewol.js:113
 msgid "Basic Settings"
 msgstr "基本设置"
 
-#: luci-app-timewol/htdocs/luci-static/resources/view/timewol.js:106
+#: luci-app-timewol/htdocs/luci-static/resources/view/timewol.js:125
 msgid "Client MAC"
 msgstr "客户端MAC"
 
-#: luci-app-timewol/htdocs/luci-static/resources/view/timewol.js:100
+#: luci-app-timewol/htdocs/luci-static/resources/view/timewol.js:119
 msgid "Client Settings"
 msgstr "客户端设置"
 
-#: luci-app-timewol/htdocs/luci-static/resources/view/timewol.js:38
+#: luci-app-timewol/htdocs/luci-static/resources/view/timewol.js:57
 msgid "Collecting data..."
 msgstr "收集信息中..."
 
@@ -21,11 +21,11 @@ msgstr "收集信息中..."
 msgid "Control"
 msgstr "管控"
 
-#: luci-app-timewol/htdocs/luci-static/resources/view/timewol.js:120
+#: luci-app-timewol/htdocs/luci-static/resources/view/timewol.js:139
 msgid "Day"
 msgstr "日(1-31)"
 
-#: luci-app-timewol/htdocs/luci-static/resources/view/timewol.js:97
+#: luci-app-timewol/htdocs/luci-static/resources/view/timewol.js:116
 msgid "Enable"
 msgstr "开启"
 
@@ -33,31 +33,31 @@ msgstr "开启"
 msgid "Grant access to luci-app-timewol"
 msgstr ""
 
-#: luci-app-timewol/htdocs/luci-static/resources/view/timewol.js:119
+#: luci-app-timewol/htdocs/luci-static/resources/view/timewol.js:138
 msgid "Hour"
 msgstr "时(0-23)"
 
-#: luci-app-timewol/htdocs/luci-static/resources/view/timewol.js:72
+#: luci-app-timewol/htdocs/luci-static/resources/view/timewol.js:91
 msgid "Invalid value for %s: %s. Must be between %d and %d or \"*\" ."
 msgstr "%s: %s 的值无效。必须在 %d 和 %d 之间，或为 \"*\" 。"
 
-#: luci-app-timewol/htdocs/luci-static/resources/view/timewol.js:118
+#: luci-app-timewol/htdocs/luci-static/resources/view/timewol.js:137
 msgid "Minute"
 msgstr "分(0-59)"
 
-#: luci-app-timewol/htdocs/luci-static/resources/view/timewol.js:121
+#: luci-app-timewol/htdocs/luci-static/resources/view/timewol.js:140
 msgid "Month"
 msgstr "月(1-12)"
 
-#: luci-app-timewol/htdocs/luci-static/resources/view/timewol.js:111
+#: luci-app-timewol/htdocs/luci-static/resources/view/timewol.js:130
 msgid "Network Interface"
 msgstr "网络接口"
 
-#: luci-app-timewol/htdocs/luci-static/resources/view/timewol.js:22
+#: luci-app-timewol/htdocs/luci-static/resources/view/timewol.js:41
 msgid "Not running"
 msgstr "未运行"
 
-#: luci-app-timewol/htdocs/luci-static/resources/view/timewol.js:22
+#: luci-app-timewol/htdocs/luci-static/resources/view/timewol.js:41
 msgid "Running"
 msgstr "运行中"
 
@@ -65,15 +65,15 @@ msgstr "运行中"
 msgid "Timed WOL"
 msgstr "定时网络唤醒"
 
-#: luci-app-timewol/htdocs/luci-static/resources/view/timewol.js:22
-#: luci-app-timewol/htdocs/luci-static/resources/view/timewol.js:87
+#: luci-app-timewol/htdocs/luci-static/resources/view/timewol.js:41
+#: luci-app-timewol/htdocs/luci-static/resources/view/timewol.js:106
 msgid "Timed Wake on LAN"
 msgstr "定时网络唤醒"
 
-#: luci-app-timewol/htdocs/luci-static/resources/view/timewol.js:88
+#: luci-app-timewol/htdocs/luci-static/resources/view/timewol.js:107
 msgid "Wake up your local area network devices on schedule"
 msgstr "定时唤醒你的局域网设备"
 
-#: luci-app-timewol/htdocs/luci-static/resources/view/timewol.js:122
+#: luci-app-timewol/htdocs/luci-static/resources/view/timewol.js:141
 msgid "Week"
 msgstr "周(0-6)"
