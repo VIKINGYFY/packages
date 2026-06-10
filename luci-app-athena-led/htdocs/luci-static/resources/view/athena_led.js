@@ -20,6 +20,13 @@ function addChoices(option, choices) {
 	return option;
 }
 
+function addNumberChoices(option, min, max, formatLabel) {
+	for (var i = min; i <= max; i++)
+		option.value(String(i), formatLabel ? formatLabel(i) : String(i));
+
+	return option;
+}
+
 function toStringList(value) {
 	var values = L.toArray(value);
 	var list = [];
@@ -99,8 +106,8 @@ var SpaceSeparatedCheckboxValue = form.MultiValue.extend({
 
 function renderStatus(running) {
 	return E('span', {
-		'style': 'font-weight:bold;color:%s'.format(running ? 'green' : 'red')
-	}, [ running ? _('Running') : _('Not running') ]);
+		'style': 'font-weight:bold;font-style:italic;color:%s'.format(running ? 'green' : 'red')
+	}, [ _('Athena LED Ctrl'), '：', running ? _('Running') : _('Not running') ]);
 }
 
 function isServiceRunning(res) {
@@ -115,10 +122,28 @@ function isServiceRunning(res) {
 	return false;
 }
 
-function updateStatus(node) {
+function getRunningStatus() {
 	return L.resolveDefault(callServiceList('athena_led'), {}).then(function(res) {
-		dom.content(node, renderStatus(isServiceRunning(res)));
+		return isServiceRunning(res);
 	});
+}
+
+function updateStatus(node) {
+	return getRunningStatus().then(function(running) {
+		dom.content(node, renderStatus(running));
+	});
+}
+
+function renderStatusSection() {
+	var node = E('span', { 'id': 'athena-led-service-status' }, [ _('Collecting data...') ]);
+	var refresh = L.bind(updateStatus, null, node);
+
+	refresh();
+	poll.add(refresh, 3);
+
+	return E('div', { 'class': 'cbi-section' }, [
+		E('p', {}, [ node ])
+	]);
 }
 
 return view.extend({
@@ -129,18 +154,7 @@ return view.extend({
 
 		s = m.section(form.TypedSection);
 		s.anonymous = true;
-		s.render = function() {
-			var node = E('span', { 'id': 'athena-led-service-status' }, [ _('Collecting data...') ]);
-			var refresh = L.bind(updateStatus, null, node);
-
-			refresh();
-			poll.add(refresh, 3);
-
-			return E('div', { 'class': 'cbi-section' }, [
-				E('h3', _('Status')),
-				E('p', {}, [ _('Service status'), ': ', node ])
-			]);
-		};
+		s.render = renderStatusSection;
 
 		s = m.section(form.NamedSection, 'config', 'athena_led', _('Settings'));
 		s.anonymous = true;
@@ -152,16 +166,16 @@ return view.extend({
 		o = s.option(form.ListValue, 'seconds', _('Display interval time'), _('Enable carousel display and set interval time in seconds'));
 		o.default = '5';
 		o.rmempty = false;
-		for (var i = 1; i <= 5; i++)
-			o.value(String(i), _('%d seconds').format(i));
+		addNumberChoices(o, 1, 5, function(value) {
+			return _('%d seconds').format(value);
+		});
 
 		o = s.option(form.ListValue, 'lightLevel', _('Display light level'), _('Display light level desc'));
 		o.default = '5';
 		o.rmempty = false;
-		for (var j = 0; j <= 7; j++)
-			o.value(String(j));
+		addNumberChoices(o, 0, 7);
 
-			o = s.option(SpaceSeparatedCheckboxValue, 'status', _('Side LED status'), _('side led status desc'));
+		o = s.option(SpaceSeparatedCheckboxValue, 'status', _('Side LED status'), _('side led status desc'));
 		o.rmempty = true;
 		addChoices(o, [
 			[ 'time', _('status time') ],

@@ -21,10 +21,6 @@ msgstr ""
 msgid "Control"
 msgstr ""
 
-#: luci-app-timewol/htdocs/luci-static/resources/view/timewol.js:71
-msgid "Current Status"
-msgstr ""
-
 #: luci-app-timewol/htdocs/luci-static/resources/view/timewol.js:107
 msgid "Day"
 msgstr ""
@@ -54,7 +50,7 @@ msgid "Month"
 msgstr ""
 
 #: luci-app-timewol/htdocs/luci-static/resources/view/timewol.js:16
-msgid "NOT RUNNING"
+msgid "Not running"
 msgstr ""
 
 #: luci-app-timewol/htdocs/luci-static/resources/view/timewol.js:98
@@ -62,12 +58,7 @@ msgid "Network Interface"
 msgstr ""
 
 #: luci-app-timewol/htdocs/luci-static/resources/view/timewol.js:16
-msgid "RUNNING"
-msgstr ""
-
-#: luci-app-timewol/htdocs/luci-static/resources/view/timewol.js:60
-#: luci-app-timewol/htdocs/luci-static/resources/view/timewol.js:70
-msgid "Running Status"
+msgid "Running"
 msgstr ""
 
 #: luci-app-timewol/root/usr/share/luci/menu.d/luci-app-timewol.json:14

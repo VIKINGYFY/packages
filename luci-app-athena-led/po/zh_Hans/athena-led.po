@@ -102,10 +102,6 @@ msgstr "选择一个或多个显示模式"
 msgid "Select the temperature sensor, Only effective on 'Display Type temp'"
 msgstr "选择温度传感器（仅在『温度』模式下生效）"
 
-#: luci-app-athena-led/htdocs/luci-static/resources/view/athena_led.js:141
-msgid "Service status"
-msgstr "服务状态"
-
 #: luci-app-athena-led/htdocs/luci-static/resources/view/athena_led.js:186
 msgid ""
 "Set the custom message to display on the LED screen, Only effective on "
@@ -119,10 +115,6 @@ msgstr "设置"
 #: luci-app-athena-led/htdocs/luci-static/resources/view/athena_led.js:164
 msgid "Side LED status"
 msgstr "侧边状态灯"
-
-#: luci-app-athena-led/htdocs/luci-static/resources/view/athena_led.js:140
-msgid "Status"
-msgstr "状态"
 
 #: luci-app-athena-led/htdocs/luci-static/resources/view/athena_led.js:193
 msgid "api url for get content des"

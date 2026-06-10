@@ -102,10 +102,6 @@ msgstr ""
 msgid "Select the temperature sensor, Only effective on 'Display Type temp'"
 msgstr ""
 
-#: luci-app-athena-led/htdocs/luci-static/resources/view/athena_led.js:141
-msgid "Service status"
-msgstr ""
-
 #: luci-app-athena-led/htdocs/luci-static/resources/view/athena_led.js:186
 msgid ""
 "Set the custom message to display on the LED screen, Only effective on "
@@ -118,10 +114,6 @@ msgstr ""
 
 #: luci-app-athena-led/htdocs/luci-static/resources/view/athena_led.js:164
 msgid "Side LED status"
-msgstr ""
-
-#: luci-app-athena-led/htdocs/luci-static/resources/view/athena_led.js:140
-msgid "Status"
 msgstr ""
 
 #: luci-app-athena-led/htdocs/luci-static/resources/view/athena_led.js:193

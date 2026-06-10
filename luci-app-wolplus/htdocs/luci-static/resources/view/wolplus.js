@@ -6,23 +6,35 @@
 'require view';
 'require tools.widgets as widgets';
 
+var callWake = rpc.declare({
+	object: 'luci.wolplus',
+	method: 'wake',
+	params: [ 'iface', 'mac' ],
+	expect: { '': {} }
+});
+
+var callHostHints = rpc.declare({
+	object: 'luci-rpc',
+	method: 'getHostHints',
+	expect: { '': {} }
+});
+
+function addHostHints(option, hosts) {
+	L.sortedKeys(hosts).forEach(function(mac) {
+		var hint = hosts[mac].name ||
+			L.toArray(hosts[mac].ipaddrs || hosts[mac].ipv4)[0] ||
+			L.toArray(hosts[mac].ip6addrs || hosts[mac].ipv6)[0];
+
+		option.value(mac, hint ? '%s (%s)'.format(mac, hint) : mac);
+	});
+
+	return option;
+}
+
 return view.extend({
-	callWake: rpc.declare({
-		object: 'luci.wolplus',
-		method: 'wake',
-		params: [ 'iface', 'mac' ],
-		expect: { '': {} }
-	}),
-
-	callHostHints: rpc.declare({
-		object: 'luci-rpc',
-		method: 'getHostHints',
-		expect: { '': {} }
-	}),
-
 	load: function() {
 		return Promise.all([
-			L.resolveDefault(this.callHostHints(), {}),
+			L.resolveDefault(callHostHints(), {}),
 			uci.load('wolplus')
 		]);
 	},
@@ -47,13 +59,7 @@ return view.extend({
 		o = s.option(form.Value, 'macaddr', _('MAC Address'));
 		o.rmempty = false;
 		o.datatype = 'macaddr';
-		L.sortedKeys(hosts).forEach(function(mac) {
-			var hint = hosts[mac].name ||
-				L.toArray(hosts[mac].ipaddrs || hosts[mac].ipv4)[0] ||
-				L.toArray(hosts[mac].ip6addrs || hosts[mac].ipv6)[0];
-
-			o.value(mac, hint ? '%s (%s)'.format(mac, hint) : mac);
-		});
+		addHostHints(o, hosts);
 
 		o = s.option(widgets.DeviceSelect, 'maceth', _('Network Interface'));
 		o.rmempty = false;
@@ -93,10 +99,13 @@ return view.extend({
 			return Promise.resolve();
 		}
 
-		return this.callWake(iface, mac).then(function(res) {
-			var output = (res.stdout || res.stderr || '').replace(/\s+$/, '').trim();
-			var message = output || _('Wake command completed with code %d.').format(res.code || 0);
-			var level = (res.code == null || res.code === 0) ? 'info' : 'error';
+		return callWake(iface, mac).then(function(res) {
+			res = res || {};
+
+			var output = (res.stdout || res.stderr || '').trim();
+			var code = res.code;
+			var message = output || _('Wake command completed with code %d.').format(code || 0);
+			var level = (code == null || code === 0) ? 'info' : 'error';
 
 			ui.addNotification(null, E('p', [
 				_('Wake Up Host'), ': ', name, ' (', mac, ')',

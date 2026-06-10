@@ -89,13 +89,13 @@ msgstr "指定 key 证书文件"
 msgid "The AC program does not exist, please check."
 msgstr "AC 程序不存在，请检查。"
 
-#: luci-app-gecoosac/htdocs/luci-static/resources/view/gecoosac.js:62
-msgid "The GecoosAC service is not running."
-msgstr "集客AC控制器 未运行"
+#: luci-app-gecoosac/htdocs/luci-static/resources/view/gecoosac.js:44
+msgid "Not running"
+msgstr "未运行"
 
-#: luci-app-gecoosac/htdocs/luci-static/resources/view/gecoosac.js:47
-msgid "The GecoosAC service is running."
-msgstr "集客AC控制器 运行中"
+#: luci-app-gecoosac/htdocs/luci-static/resources/view/gecoosac.js:44
+msgid "Running"
+msgstr "运行中"
 
 #: luci-app-gecoosac/htdocs/luci-static/resources/view/gecoosac.js:84
 msgid "The current AC version %s, only supports AP %s and above."

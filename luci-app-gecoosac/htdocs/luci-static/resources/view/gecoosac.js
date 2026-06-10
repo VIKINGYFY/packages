@@ -40,12 +40,14 @@ function mgmtUrl() {
 	return scheme + window.location.hostname + ':' + port;
 }
 
-function renderStatus(status) {
-	if (status && status.running) {
+function renderStatus(running) {
+	var statusNode = E('span', {
+		'style': 'font-weight:bold;font-style:italic;color:%s'.format(running ? 'green' : 'red')
+	}, [ _('Gecoos AC'), '：', running ? _('Running') : _('Not running') ]);
+
+	if (running) {
 		return [
-			E('span', { 'style': 'font-weight:bold;color:green' }, [
-				_('The GecoosAC service is running.')
-			]),
+			statusNode,
 			' ',
 			E('button', {
 				'type': 'button',
@@ -58,21 +60,41 @@ function renderStatus(status) {
 		];
 	}
 
-	return E('span', { 'style': 'font-weight:bold;color:red' }, [
-		_('The GecoosAC service is not running.')
-	]);
+	return statusNode;
+}
+
+function getServiceStatus() {
+	return L.resolveDefault(callStatus(), {});
+}
+
+function getRunningStatus() {
+	return getServiceStatus().then(function(status) {
+		return !!(status && status.running);
+	});
 }
 
 function updateStatus(node) {
-	return L.resolveDefault(callStatus(), {}).then(function(status) {
-		dom.content(node, renderStatus(status));
+	return getRunningStatus().then(function(running) {
+		dom.content(node, renderStatus(running));
 	});
+}
+
+function renderStatusSection() {
+	var node = E('span', [ _('Collecting data...') ]);
+	var refresh = L.bind(updateStatus, null, node);
+
+	refresh();
+	poll.add(refresh, 3);
+
+	return E('div', { 'class': 'cbi-section' }, [
+		E('p', {}, [ node ])
+	]);
 }
 
 return view.extend({
 	load: function() {
 		return Promise.all([
-			L.resolveDefault(callStatus(), {}),
+			getServiceStatus(),
 			uci.load('gecoosac')
 		]);
 	},
@@ -89,15 +111,7 @@ return view.extend({
 
 		s = m.section(form.TypedSection);
 		s.anonymous = true;
-		s.render = function() {
-			var node = E('p', [ _('Collecting data...') ]);
-			var refresh = L.bind(updateStatus, null, node);
-
-			refresh();
-			poll.add(refresh, 3);
-
-			return E('div', { 'class': 'cbi-section' }, [ node ]);
-		};
+		s.render = renderStatusSection;
 
 		s = m.section(form.NamedSection, 'config', 'gecoosac', _('Global Settings'));
 		s.addremove = false;

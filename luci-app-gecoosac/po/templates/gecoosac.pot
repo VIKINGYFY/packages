@@ -89,12 +89,12 @@ msgstr ""
 msgid "The AC program does not exist, please check."
 msgstr ""
 
-#: luci-app-gecoosac/htdocs/luci-static/resources/view/gecoosac.js:62
-msgid "The GecoosAC service is not running."
+#: luci-app-gecoosac/htdocs/luci-static/resources/view/gecoosac.js:44
+msgid "Not running"
 msgstr ""
 
-#: luci-app-gecoosac/htdocs/luci-static/resources/view/gecoosac.js:47
-msgid "The GecoosAC service is running."
+#: luci-app-gecoosac/htdocs/luci-static/resources/view/gecoosac.js:44
+msgid "Running"
 msgstr ""
 
 #: luci-app-gecoosac/htdocs/luci-static/resources/view/gecoosac.js:84
