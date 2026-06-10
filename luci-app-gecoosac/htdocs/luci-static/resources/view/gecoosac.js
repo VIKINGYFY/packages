@@ -48,7 +48,8 @@ function renderStatus(status) {
 			]),
 			' ',
 			E('button', {
-				'class': 'cbi-button cbi-button-action',
+				'type': 'button',
+				'class': 'btn cbi-button cbi-button-action',
 				'click': function(ev) {
 					ev.preventDefault();
 					window.open(mgmtUrl(), '_blank', 'noopener');
@@ -152,7 +153,6 @@ return view.extend({
 		o.rmempty = false;
 
 		o = s.option(form.Button, '_clear_upload', _('Clear Upload Directory'));
-		o.inputtitle = _('Clear');
 		o.inputstyle = 'remove';
 		o.onclick = function(section_id) {
 			var opt = L.toArray(m.lookupOption('upload_dir', section_id))[0];
