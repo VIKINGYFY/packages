@@ -4,11 +4,57 @@
 'require fs';
 'require poll';
 'require rpc';
+'require ui';
 'require uci';
 'require view';
 'require tools.widgets as widgets';
 
 var crontabFile = '/etc/crontabs/root';
+
+function renderDragHandle(section) {
+	var touchSort = ('ontouchstart' in window);
+
+	return E('button', {
+		'type': 'button',
+		'title': _('Drag to reorder'),
+		'class': 'cbi-button drag-handle center',
+		'style': 'cursor:move; user-select:none; -webkit-user-select:none; display:inline-block;',
+		'draggable': !touchSort,
+		'dragstart': !touchSort ? L.bind(function(ev) {
+			this.handleDragStart(ev, ev.currentTarget.closest('.tr'));
+		}, section) : null,
+		'dragend': !touchSort ? L.bind(function(ev) {
+			this.handleDragEnd(ev, ev.currentTarget.closest('.tr'));
+		}, section) : null,
+		'touchmove': touchSort ? L.bind(function(ev) {
+			this.handleTouchMove(ev);
+		}, section) : null,
+		'touchend': touchSort ? L.bind(function(ev) {
+			this.handleTouchEnd(ev);
+		}, section) : null
+	}, '☰');
+}
+
+function renderEditButton(section, section_id) {
+	return E('button', {
+		'type': 'button',
+		'title': _('Edit'),
+		'class': 'btn cbi-button cbi-button-edit',
+		'click': ui.createHandlerFn(section, 'renderMoreOptionsModal', section_id)
+	}, [ _('Edit') ]);
+}
+
+function renderDeleteButton(section, section_id) {
+	var title = section.titleFn('delbtntitle', section_id) || _('Delete');
+
+	return E('button', {
+		'type': 'button',
+		'title': title,
+		'class': 'btn cbi-button cbi-button-remove',
+		'click': ui.createHandlerFn(section, 'handleRemove', section_id),
+		'disabled': section.map.readonly || null
+	}, [ title ]);
+}
 
 function renderStatus(running) {
 	return E('span', {
@@ -83,6 +129,16 @@ return view.extend({
 		s.addremove = true;
 		s.sortable = true;
 		s.nodescriptions = true;
+		s.actionstitle = _('Operation');
+		s.renderRowActions = function(section_id) {
+			return E('td', {
+				'class': 'td cbi-section-table-cell nowrap cbi-section-actions'
+			}, E('div', [
+				renderDragHandle(this),
+				renderEditButton(this, section_id),
+				renderDeleteButton(this, section_id)
+			]));
+		};
 
 		o = s.option(form.Value, 'macaddr', _('Client MAC'));
 		o.rmempty = false;

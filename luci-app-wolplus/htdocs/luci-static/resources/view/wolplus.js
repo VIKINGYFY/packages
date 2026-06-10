@@ -6,6 +6,51 @@
 'require view';
 'require tools.widgets as widgets';
 
+function renderDragHandle(section) {
+	var touchSort = ('ontouchstart' in window);
+
+	return E('button', {
+		'type': 'button',
+		'title': _('Drag to reorder'),
+		'class': 'cbi-button drag-handle center',
+		'style': 'cursor:move; user-select:none; -webkit-user-select:none; display:inline-block;',
+		'draggable': !touchSort,
+		'dragstart': !touchSort ? L.bind(function(ev) {
+			this.handleDragStart(ev, ev.currentTarget.closest('.tr'));
+		}, section) : null,
+		'dragend': !touchSort ? L.bind(function(ev) {
+			this.handleDragEnd(ev, ev.currentTarget.closest('.tr'));
+		}, section) : null,
+		'touchmove': touchSort ? L.bind(function(ev) {
+			this.handleTouchMove(ev);
+		}, section) : null,
+		'touchend': touchSort ? L.bind(function(ev) {
+			this.handleTouchEnd(ev);
+		}, section) : null
+	}, '☰');
+}
+
+function renderEditButton(section, section_id) {
+	return E('button', {
+		'type': 'button',
+		'title': _('Edit'),
+		'class': 'btn cbi-button cbi-button-edit',
+		'click': ui.createHandlerFn(section, 'renderMoreOptionsModal', section_id)
+	}, [ _('Edit') ]);
+}
+
+function renderDeleteButton(section, section_id) {
+	var title = section.titleFn('delbtntitle', section_id) || _('Delete');
+
+	return E('button', {
+		'type': 'button',
+		'title': title,
+		'class': 'btn cbi-button cbi-button-remove',
+		'click': ui.createHandlerFn(section, 'handleRemove', section_id),
+		'disabled': section.map.readonly || null
+	}, [ title ]);
+}
+
 return view.extend({
 	callWake: rpc.declare({
 		object: 'luci.wolplus',
@@ -30,6 +75,7 @@ return view.extend({
 	render: function(data) {
 		var hosts = data[0] || {};
 		var m, s, o;
+		var view = this;
 
 		m = new form.Map('wolplus', _('Wake on LAN +'),
 			_('Wake on LAN + is a mechanism to remotely boot computers in the local network.'));
@@ -39,6 +85,7 @@ return view.extend({
 		s.addremove = true;
 		s.sortable = true;
 		s.nodescriptions = true;
+		s.actionstitle = _('Operation');
 
 		o = s.option(form.Value, 'name', _('Name'));
 		o.rmempty = false;
@@ -60,22 +107,24 @@ return view.extend({
 		o.noaliases = true;
 		o.noinactive = true;
 
-		var gridSection = s;
-		s.renderRowActions = L.bind(function(section_id) {
-			var defaultButtons = form.GridSection.prototype.renderRowActions.call(gridSection, section_id, _('Edit'));
+		s.renderRowActions = function(section_id) {
 			var wakeButton = E('button', {
-				'class': 'cbi-button cbi-button-action',
+				'type': 'button',
+				'class': 'btn cbi-button cbi-button-action',
 				'click': ui.createHandlerFn(this, function() {
-					return this.handleWakeup(section_id);
+					return view.handleWakeup(section_id);
 				})
 			}, _('Awake'));
-			var container = defaultButtons.querySelector('div');
 
-			if (container)
-				container.insertBefore(wakeButton, container.firstChild);
-
-			return defaultButtons;
-		}, this);
+			return E('td', {
+				'class': 'td cbi-section-table-cell nowrap cbi-section-actions'
+			}, E('div', [
+				renderDragHandle(this),
+				wakeButton,
+				renderEditButton(this, section_id),
+				renderDeleteButton(this, section_id)
+			]));
+		};
 
 		return m.render();
 	},
