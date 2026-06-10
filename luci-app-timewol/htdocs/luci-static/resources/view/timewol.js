@@ -33,7 +33,7 @@ function validateCronField(name, value, min, max) {
 			return true;
 	}
 
-	return _('Invalid value for %s: %s. Must be between %d and %d or "*".').format(name, value, min, max);
+	return _('Invalid value for %s: %s. Must be between %d and %d or "*" .').format(name, value, min, max);
 }
 
 return view.extend({

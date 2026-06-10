@@ -27,7 +27,7 @@ msgstr "网络接口"
 
 #: luci-app-wolplus/htdocs/luci-static/resources/view/wolplus.js:92
 msgid "Please save the client before waking it up."
-msgstr ""
+msgstr "请先保存客户端再唤醒。"
 
 #: luci-app-wolplus/htdocs/luci-static/resources/view/wolplus.js:102
 msgid "Wake Up Host"
@@ -35,11 +35,11 @@ msgstr "唤醒主机"
 
 #: luci-app-wolplus/htdocs/luci-static/resources/view/wolplus.js:98
 msgid "Wake command completed with code %d."
-msgstr ""
+msgstr "唤醒命令完成，返回码 %d"
 
 #: luci-app-wolplus/htdocs/luci-static/resources/view/wolplus.js:106
 msgid "Wake command failed: %s"
-msgstr ""
+msgstr "唤醒命令失败：%s"
 
 #: luci-app-wolplus/htdocs/luci-static/resources/view/wolplus.js:35
 #: luci-app-wolplus/root/usr/share/luci/menu.d/luci-app-wolplus.json:3
@@ -50,9 +50,3 @@ msgstr ""
 msgid ""
 "Wake on LAN + is a mechanism to remotely boot computers in the local network."
 msgstr "网络唤醒是一种远程启动局域网内计算机的机制。"
-
-#~ msgid "Grant UCI access for luci-app-wolplus"
-#~ msgstr "授予 luci-app-wolplus UCI 访问权限"
-
-#~ msgid "Please [Save & Apply] your changes first"
-#~ msgstr "请先 [保存并应用] 您的更改"

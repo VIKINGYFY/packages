@@ -27,7 +27,7 @@ msgstr "当前状态"
 
 #: luci-app-timewol/htdocs/luci-static/resources/view/timewol.js:107
 msgid "Day"
-msgstr "日"
+msgstr "日(1-31)"
 
 #: luci-app-timewol/htdocs/luci-static/resources/view/timewol.js:78
 msgid "Enable"
@@ -39,19 +39,19 @@ msgstr ""
 
 #: luci-app-timewol/htdocs/luci-static/resources/view/timewol.js:106
 msgid "Hour"
-msgstr "小时"
+msgstr "时(0-23)"
 
 #: luci-app-timewol/htdocs/luci-static/resources/view/timewol.js:36
-msgid "Invalid value for %s: %s. Must be between %d and %d or \"*\"."
-msgstr ""
+msgid "Invalid value for %s: %s. Must be between %d and %d or \"*\" ."
+msgstr "%s: %s 的值无效。必须在 %d 和 %d 之间，或为 \"*\" 。"
 
 #: luci-app-timewol/htdocs/luci-static/resources/view/timewol.js:105
 msgid "Minute"
-msgstr "分钟"
+msgstr "分(0-59)"
 
 #: luci-app-timewol/htdocs/luci-static/resources/view/timewol.js:108
 msgid "Month"
-msgstr "月"
+msgstr "月(1-12)"
 
 #: luci-app-timewol/htdocs/luci-static/resources/view/timewol.js:16
 msgid "NOT RUNNING"
@@ -84,7 +84,4 @@ msgstr "定时唤醒你的局域网设备"
 
 #: luci-app-timewol/htdocs/luci-static/resources/view/timewol.js:109
 msgid "Week"
-msgstr "星期"
-
-#~ msgid "Invalid value for %s: %s. Must be between %d and %d or '*'"
-#~ msgstr "%s: %s 的值无效. 必须在 %d 和 %d 之间，或为 '*'"
+msgstr "周(0-6)"

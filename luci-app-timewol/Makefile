@@ -5,7 +5,8 @@
 
 include $(TOPDIR)/rules.mk
 
-PKG_VERSION:=1.1
+PKG_NAME:=luci-app-timewol
+PKG_VERSION:=2.0
 PKG_RELEASE:=20260609
 
 LUCI_TITLE:=LuCI support for Timewol
