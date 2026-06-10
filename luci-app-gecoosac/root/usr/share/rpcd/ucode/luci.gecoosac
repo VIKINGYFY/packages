@@ -1,0 +1,129 @@
+#!/usr/bin/ucode
+
+'use strict';
+
+import { access, lsdir, rmdir, stat, unlink } from 'fs';
+import { process_list } from 'luci.sys';
+
+const binpath = '/usr/bin/gecoosac';
+const defaultUploadDir = '/tmp/gecoosac/upload/';
+const protectedDirs = {
+	'/': true,
+	'/bin': true,
+	'/dev': true,
+	'/etc': true,
+	'/lib': true,
+	'/mnt': true,
+	'/overlay': true,
+	'/proc': true,
+	'/rom': true,
+	'/root': true,
+	'/sbin': true,
+	'/sys': true,
+	'/tmp': true,
+	'/usr': true,
+	'/var': true
+};
+
+function process_running() {
+	for (let proc in process_list())
+		if (index(proc.COMMAND, 'gecoosac') >= 0)
+			return true;
+
+	return false;
+}
+
+function sanitize_path(path) {
+	path = trim(path || defaultUploadDir);
+
+	if (!match(path, /^\//))
+		return { ok: false, message: 'path must be absolute' };
+
+	path = replace(path, /\/+$/, '');
+
+	if (path == '')
+		path = '/';
+
+	for (let part in split(path, '/'))
+		if (part == '..')
+			return { ok: false, message: 'path must not contain ..' };
+
+	if (protectedDirs[path])
+		return { ok: false, message: 'refusing to clear protected directory ' + path };
+
+	return { ok: true, path: path };
+}
+
+function remove_contents(path) {
+	let deleted = 0;
+	let errors = [];
+	let entries = lsdir(path);
+
+	if (entries == null)
+		return { deleted: 0, errors: [ 'failed to list ' + path ] };
+
+	for (let name in entries) {
+		if (name == '.' || name == '..')
+			continue;
+
+		let full = path + '/' + name;
+		let st = stat(full);
+
+		if (st?.type == 'directory') {
+			let child = remove_contents(full);
+			deleted += child.deleted;
+
+			for (let err in child.errors)
+				push(errors, err);
+
+			if (rmdir(full))
+				deleted++;
+			else
+				push(errors, 'failed to remove directory ' + full);
+		}
+		else if (unlink(full)) {
+			deleted++;
+		}
+		else {
+			push(errors, 'failed to remove ' + full);
+		}
+	}
+
+	return { deleted: deleted, errors: errors };
+}
+
+const methods = {
+	status: {
+		call: function() {
+			return {
+				exists: !!access(binpath, 'x'),
+				running: process_running()
+			};
+		}
+	},
+
+	clear_upload: {
+		args: { path: 'string' },
+		call: function(request) {
+			let checked = sanitize_path(request.args.path);
+
+			if (!checked.ok)
+				return { success: false, deleted: 0, message: checked.message };
+
+			let st = stat(checked.path);
+
+			if (st?.type != 'directory')
+				return { success: false, deleted: 0, message: 'upload directory does not exist' };
+
+			let result = remove_contents(checked.path);
+
+			return {
+				success: length(result.errors) == 0,
+				deleted: result.deleted,
+				errors: result.errors
+			};
+		}
+	}
+};
+
+return { 'luci.gecoosac': methods };

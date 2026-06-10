@@ -5,12 +5,13 @@
 
 include $(TOPDIR)/rules.mk
 
-LUCI_TITLE:=LuCI support for Timewol
 PKG_VERSION:=1.1
-PKG_RELEASE:=1-20240520
+PKG_RELEASE:=20260609
+
+LUCI_TITLE:=LuCI support for Timewol
+LUCI_DEPENDS:=+luci-base +etherwake
+LUCI_PKGARCH:=all
 
 include $(TOPDIR)/feeds/luci/luci.mk
 
 # call BuildPackage - OpenWrt buildroot signature
-
-

@@ -5,12 +5,14 @@
 
 include $(TOPDIR)/rules.mk
 
-LUCI_TITLE:=LuCI support for wolplus From sundaqiang
-LUCI_DEPENDS:=+etherwake
-LUCI_PKGARCH:=all
 PKG_VERSION:=1.1
-PKG_RELEASE:=20230724
+PKG_RELEASE:=20260609
 PKG_MAINTAINER:=sundaqiang
+PKG_LICENSE:=Apache-2.0
+
+LUCI_TITLE:=LuCI support for Wake on LAN +
+LUCI_DEPENDS:=+luci-base +etherwake
+LUCI_PKGARCH:=all
 
 include $(TOPDIR)/feeds/luci/luci.mk
 

@@ -1,111 +1,82 @@
 msgid ""
 msgstr "Content-Type: text/plain; charset=UTF-8"
 
-#: luci-app-gecoosac/luasrc/model/cbi/gecoosac.lua:39
 msgid "A certificate file must be specified, otherwise it will fail to start."
 msgstr ""
 
-#: luci-app-gecoosac/luasrc/model/cbi/gecoosac.lua:9
-#: luci-app-gecoosac/luasrc/model/cbi/gecoosac.lua:11
 msgid "Batch management Gecoos AP, Default password: admin"
 msgstr ""
 
-#: luci-app-gecoosac/luasrc/model/cbi/gecoosac.lua:67
 msgid "Clear Upload Directory"
 msgstr ""
 
-#: luci-app-gecoosac/luasrc/view/gecoosac/gecoosac_status.htm:42
 msgid "Collecting data..."
 msgstr ""
 
-#: luci-app-gecoosac/luasrc/controller/gecoosac.lua:7
 msgid "Control"
 msgstr ""
 
-#: luci-app-gecoosac/luasrc/model/cbi/gecoosac.lua:58
 msgid "Database dir path"
 msgstr ""
 
-#: luci-app-gecoosac/luasrc/model/cbi/gecoosac.lua:29
 msgid ""
 "Do not enable the independent management port, only use one port for "
 "management."
 msgstr ""
 
-#: luci-app-gecoosac/luasrc/model/cbi/gecoosac.lua:39
 msgid "Enable HTTPS service"
 msgstr ""
 
-#: luci-app-gecoosac/luasrc/model/cbi/gecoosac.lua:63
 msgid "Enable Log"
 msgstr ""
 
-#: luci-app-gecoosac/luasrc/model/cbi/gecoosac.lua:20
 msgid "Enabled AC"
 msgstr ""
 
-#: luci-app-gecoosac/luasrc/controller/gecoosac.lua:9
-#: luci-app-gecoosac/luasrc/model/cbi/gecoosac.lua:9
-#: luci-app-gecoosac/luasrc/model/cbi/gecoosac.lua:11
 msgid "Gecoos AC"
 msgstr ""
 
-#: luci-app-gecoosac/luasrc/model/cbi/gecoosac.lua:16
 msgid "Global Settings"
 msgstr ""
 
-#: luci-app-gecoosac/root/usr/share/rpcd/acl.d/luci-app-gecoosac.json:3
 msgid "Grant UCI access for luci-app-gecoosac"
 msgstr ""
 
-#: luci-app-gecoosac/luasrc/view/gecoosac/gecoosac_status.htm:24
 msgid "Open the mgmt page"
 msgstr ""
 
-#: luci-app-gecoosac/luasrc/model/cbi/gecoosac.lua:23
 msgid "Set interface port"
 msgstr ""
 
-#: luci-app-gecoosac/luasrc/model/cbi/gecoosac.lua:33
 msgid "Set management port"
 msgstr ""
 
-#: luci-app-gecoosac/luasrc/model/cbi/gecoosac.lua:29
 msgid "Single Port Mode"
 msgstr ""
 
-#: luci-app-gecoosac/luasrc/model/cbi/gecoosac.lua:43
 msgid "Specify crt certificate file"
 msgstr ""
 
-#: luci-app-gecoosac/luasrc/model/cbi/gecoosac.lua:48
 msgid "Specify key certificate file"
 msgstr ""
 
-#: luci-app-gecoosac/luasrc/model/cbi/gecoosac.lua:11
 msgid "The AC program does not exist, please check."
 msgstr ""
 
-#: luci-app-gecoosac/luasrc/view/gecoosac/gecoosac_status.htm:27
 msgid "The GecoosAC service is not running."
 msgstr ""
 
-#: luci-app-gecoosac/luasrc/view/gecoosac/gecoosac_status.htm:24
 msgid "The GecoosAC service is running."
 msgstr ""
 
-#: luci-app-gecoosac/luasrc/model/cbi/gecoosac.lua:9
 msgid "The current AC version %s, only supports AP %s and above."
 msgstr ""
 
-#: luci-app-gecoosac/luasrc/model/cbi/gecoosac.lua:58
 msgid "The path to store the config database"
 msgstr ""
 
-#: luci-app-gecoosac/luasrc/model/cbi/gecoosac.lua:53
 msgid "The path to upload AP upgrade firmware"
 msgstr ""
 
-#: luci-app-gecoosac/luasrc/model/cbi/gecoosac.lua:53
 msgid "Upload dir path"
 msgstr ""

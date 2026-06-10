@@ -1,0 +1,134 @@
+'use strict';
+'require dom';
+'require form';
+'require fs';
+'require poll';
+'require rpc';
+'require uci';
+'require view';
+'require tools.widgets as widgets';
+
+var crontabFile = '/etc/crontabs/root';
+
+function renderStatus(running) {
+	return E('span', {
+		'style': 'font-weight:bold;color:%s'.format(running ? 'green' : 'red')
+	}, [ running ? _('RUNNING') : _('NOT RUNNING') ]);
+}
+
+function updateStatus(node) {
+	return L.resolveDefault(fs.read(crontabFile), '').then(function(content) {
+		dom.content(node, renderStatus(/\betherwake\b/.test(content || '')));
+	});
+}
+
+function validateCronField(name, value, min, max) {
+	if (value === '*')
+		return true;
+
+	if (/^[0-9]+$/.test(value)) {
+		var n = +value;
+
+		if (n >= min && n <= max)
+			return true;
+	}
+
+	return _('Invalid value for %s: %s. Must be between %d and %d or "*".').format(name, value, min, max);
+}
+
+return view.extend({
+	callHostHints: rpc.declare({
+		object: 'luci-rpc',
+		method: 'getHostHints',
+		expect: { '': {} }
+	}),
+
+	load: function() {
+		return Promise.all([
+			L.resolveDefault(this.callHostHints(), {}),
+			uci.load('timewol')
+		]);
+	},
+
+	render: function(data) {
+		var hosts = data[0] || {};
+		var m, s, o;
+
+		m = new form.Map('timewol', _('Timed Wake on LAN'),
+			_('Wake up your local area network devices on schedule'));
+
+		s = m.section(form.TypedSection, 'basic', _('Running Status'));
+		s.anonymous = true;
+		s.render = function() {
+			var node = E('span', [ _('Collecting data...') ]);
+			var refresh = L.bind(updateStatus, null, node);
+
+			refresh();
+			poll.add(refresh, 2);
+
+			return E('div', { 'class': 'cbi-section' }, [
+				E('h3', _('Running Status')),
+				E('p', {}, [ _('Current Status'), ': ', node ])
+			]);
+		};
+
+		s = m.section(form.TypedSection, 'basic', _('Basic Settings'));
+		s.anonymous = true;
+
+		o = s.option(form.Flag, 'enable', _('Enable'));
+		o.rmempty = false;
+
+		s = m.section(form.GridSection, 'macclient', _('Client Settings'));
+		s.anonymous = true;
+		s.addremove = true;
+		s.sortable = true;
+		s.nodescriptions = true;
+
+		o = s.option(form.Value, 'macaddr', _('Client MAC'));
+		o.rmempty = false;
+		o.datatype = 'macaddr';
+		L.sortedKeys(hosts).forEach(function(mac) {
+			var hint = hosts[mac].name ||
+				L.toArray(hosts[mac].ipaddrs || hosts[mac].ipv4)[0] ||
+				L.toArray(hosts[mac].ip6addrs || hosts[mac].ipv6)[0];
+
+			o.value(mac, hint ? '%s (%s)'.format(mac, hint) : mac);
+		});
+
+		o = s.option(widgets.DeviceSelect, 'maceth', _('Network Interface'));
+		o.rmempty = false;
+		o.default = 'br-lan';
+		o.noaliases = true;
+		o.noinactive = true;
+
+		[
+			[ 'minute', _('Minute'), 0, 59, '0' ],
+			[ 'hour', _('Hour'), 0, 23, '0' ],
+			[ 'day', _('Day'), 1, 31, '*' ],
+			[ 'month', _('Month'), 1, 12, '*' ],
+			[ 'weeks', _('Week'), 0, 6, '*' ]
+		].forEach(function(spec) {
+			var name = spec[0];
+			var title = spec[1];
+			var min = spec[2];
+			var max = spec[3];
+			var def = spec[4];
+
+			o = s.option(form.Value, name, title);
+			o.default = def;
+			o.placeholder = def;
+			o.rmempty = false;
+			o.validate = function(section_id, value) {
+				return validateCronField(title, value, min, max);
+			};
+		});
+
+		return m.render();
+	},
+
+	handleSaveApply: function(ev, mode) {
+		return this.super('handleSaveApply', [ ev, mode ]).then(function() {
+			return fs.exec('/etc/init.d/timewol', [ 'restart' ]);
+		});
+	}
+});
