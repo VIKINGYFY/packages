@@ -1,65 +1,87 @@
 msgid ""
 msgstr "Content-Type: text/plain; charset=UTF-8"
 
+#: luci-app-timewol/htdocs/luci-static/resources/view/timewol.js:75
 msgid "Basic Settings"
 msgstr ""
 
+#: luci-app-timewol/htdocs/luci-static/resources/view/timewol.js:87
 msgid "Client MAC"
 msgstr ""
 
+#: luci-app-timewol/htdocs/luci-static/resources/view/timewol.js:81
 msgid "Client Settings"
 msgstr ""
 
+#: luci-app-timewol/htdocs/luci-static/resources/view/timewol.js:63
 msgid "Collecting data..."
 msgstr ""
 
+#: luci-app-timewol/root/usr/share/luci/menu.d/luci-app-timewol.json:3
 msgid "Control"
 msgstr ""
 
+#: luci-app-timewol/htdocs/luci-static/resources/view/timewol.js:71
 msgid "Current Status"
 msgstr ""
 
+#: luci-app-timewol/htdocs/luci-static/resources/view/timewol.js:107
 msgid "Day"
 msgstr ""
 
+#: luci-app-timewol/htdocs/luci-static/resources/view/timewol.js:78
 msgid "Enable"
 msgstr ""
 
-msgid "Grant UCI access for luci-app-timewol"
+#: luci-app-timewol/root/usr/share/rpcd/acl.d/luci-app-timewol.json:3
+msgid "Grant access to luci-app-timewol"
 msgstr ""
 
+#: luci-app-timewol/htdocs/luci-static/resources/view/timewol.js:106
 msgid "Hour"
 msgstr ""
 
-msgid "Invalid value for %s: %s. Must be between %d and %d or '*'"
+#: luci-app-timewol/htdocs/luci-static/resources/view/timewol.js:36
+msgid "Invalid value for %s: %s. Must be between %d and %d or \"*\"."
 msgstr ""
 
+#: luci-app-timewol/htdocs/luci-static/resources/view/timewol.js:105
 msgid "Minute"
 msgstr ""
 
+#: luci-app-timewol/htdocs/luci-static/resources/view/timewol.js:108
 msgid "Month"
 msgstr ""
 
+#: luci-app-timewol/htdocs/luci-static/resources/view/timewol.js:16
 msgid "NOT RUNNING"
 msgstr ""
 
+#: luci-app-timewol/htdocs/luci-static/resources/view/timewol.js:98
 msgid "Network Interface"
 msgstr ""
 
+#: luci-app-timewol/htdocs/luci-static/resources/view/timewol.js:16
 msgid "RUNNING"
 msgstr ""
 
+#: luci-app-timewol/htdocs/luci-static/resources/view/timewol.js:60
+#: luci-app-timewol/htdocs/luci-static/resources/view/timewol.js:70
 msgid "Running Status"
 msgstr ""
 
+#: luci-app-timewol/root/usr/share/luci/menu.d/luci-app-timewol.json:14
 msgid "Timed WOL"
 msgstr ""
 
+#: luci-app-timewol/htdocs/luci-static/resources/view/timewol.js:57
 msgid "Timed Wake on LAN"
 msgstr ""
 
+#: luci-app-timewol/htdocs/luci-static/resources/view/timewol.js:58
 msgid "Wake up your local area network devices on schedule"
 msgstr ""
 
+#: luci-app-timewol/htdocs/luci-static/resources/view/timewol.js:109
 msgid "Week"
 msgstr ""

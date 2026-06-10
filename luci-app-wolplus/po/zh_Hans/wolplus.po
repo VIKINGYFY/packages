@@ -1,36 +1,62 @@
 msgid ""
 msgstr "Content-Type: text/plain; charset=UTF-8\n"
 
-msgid "&"
-msgstr ""
-
+#: luci-app-wolplus/htdocs/luci-static/resources/view/wolplus.js:71
 msgid "Awake"
 msgstr "唤醒"
 
-msgid "Grant UCI access for luci-app-wolplus"
-msgstr "授予 luci-app-wolplus UCI 访问权限"
+#: luci-app-wolplus/htdocs/luci-static/resources/view/wolplus.js:65
+msgid "Edit"
+msgstr ""
 
+#: luci-app-wolplus/root/usr/share/rpcd/acl.d/luci-app-wolplus.json:3
+msgid "Grant access to luci-app-wolplus"
+msgstr ""
+
+#: luci-app-wolplus/htdocs/luci-static/resources/view/wolplus.js:37
 msgid "Host Clients"
 msgstr "客户端"
 
+#: luci-app-wolplus/htdocs/luci-static/resources/view/wolplus.js:46
 msgid "MAC Address"
 msgstr "硬件地址"
 
+#: luci-app-wolplus/htdocs/luci-static/resources/view/wolplus.js:43
 msgid "Name"
 msgstr "主机名称"
 
+#: luci-app-wolplus/htdocs/luci-static/resources/view/wolplus.js:57
 msgid "Network Interface"
 msgstr "网络接口"
 
-msgid "Please [Save & Apply] your changes first"
-msgstr "请先 [保存并应用] 您的更改"
+#: luci-app-wolplus/htdocs/luci-static/resources/view/wolplus.js:89
+msgid "Please save the client before waking it up."
+msgstr ""
 
+#: luci-app-wolplus/htdocs/luci-static/resources/view/wolplus.js:99
 msgid "Wake Up Host"
 msgstr "唤醒主机"
 
+#: luci-app-wolplus/htdocs/luci-static/resources/view/wolplus.js:95
+msgid "Wake command completed with code %d."
+msgstr ""
+
+#: luci-app-wolplus/htdocs/luci-static/resources/view/wolplus.js:103
+msgid "Wake command failed: %s"
+msgstr ""
+
+#: luci-app-wolplus/htdocs/luci-static/resources/view/wolplus.js:34
+#: luci-app-wolplus/root/usr/share/luci/menu.d/luci-app-wolplus.json:3
 msgid "Wake on LAN +"
 msgstr ""
 
+#: luci-app-wolplus/htdocs/luci-static/resources/view/wolplus.js:35
 msgid ""
 "Wake on LAN + is a mechanism to remotely boot computers in the local network."
 msgstr "网络唤醒是一种远程启动局域网内计算机的机制。"
+
+#~ msgid "Grant UCI access for luci-app-wolplus"
+#~ msgstr "授予 luci-app-wolplus UCI 访问权限"
+
+#~ msgid "Please [Save & Apply] your changes first"
+#~ msgstr "请先 [保存并应用] 您的更改"

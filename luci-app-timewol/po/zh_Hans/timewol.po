@@ -1,65 +1,90 @@
 msgid ""
 msgstr "Content-Type: text/plain; charset=UTF-8\n"
 
+#: luci-app-timewol/htdocs/luci-static/resources/view/timewol.js:75
 msgid "Basic Settings"
 msgstr "基本设置"
 
+#: luci-app-timewol/htdocs/luci-static/resources/view/timewol.js:87
 msgid "Client MAC"
 msgstr "客户端MAC"
 
+#: luci-app-timewol/htdocs/luci-static/resources/view/timewol.js:81
 msgid "Client Settings"
 msgstr "客户端设置"
 
+#: luci-app-timewol/htdocs/luci-static/resources/view/timewol.js:63
 msgid "Collecting data..."
 msgstr "收集信息中..."
 
+#: luci-app-timewol/root/usr/share/luci/menu.d/luci-app-timewol.json:3
 msgid "Control"
 msgstr "管控"
 
+#: luci-app-timewol/htdocs/luci-static/resources/view/timewol.js:71
 msgid "Current Status"
 msgstr "当前状态"
 
+#: luci-app-timewol/htdocs/luci-static/resources/view/timewol.js:107
 msgid "Day"
 msgstr "日"
 
+#: luci-app-timewol/htdocs/luci-static/resources/view/timewol.js:78
 msgid "Enable"
 msgstr "开启"
 
-msgid "Grant UCI access for luci-app-timewol"
+#: luci-app-timewol/root/usr/share/rpcd/acl.d/luci-app-timewol.json:3
+msgid "Grant access to luci-app-timewol"
 msgstr ""
 
+#: luci-app-timewol/htdocs/luci-static/resources/view/timewol.js:106
 msgid "Hour"
 msgstr "小时"
 
-msgid "Invalid value for %s: %s. Must be between %d and %d or '*'"
-msgstr "%s: %s 的值无效. 必须在 %d 和 %d 之间，或为 '*'"
+#: luci-app-timewol/htdocs/luci-static/resources/view/timewol.js:36
+msgid "Invalid value for %s: %s. Must be between %d and %d or \"*\"."
+msgstr ""
 
+#: luci-app-timewol/htdocs/luci-static/resources/view/timewol.js:105
 msgid "Minute"
 msgstr "分钟"
 
+#: luci-app-timewol/htdocs/luci-static/resources/view/timewol.js:108
 msgid "Month"
 msgstr "月"
 
+#: luci-app-timewol/htdocs/luci-static/resources/view/timewol.js:16
 msgid "NOT RUNNING"
 msgstr "未运行"
 
+#: luci-app-timewol/htdocs/luci-static/resources/view/timewol.js:98
 msgid "Network Interface"
 msgstr "网络接口"
 
+#: luci-app-timewol/htdocs/luci-static/resources/view/timewol.js:16
 msgid "RUNNING"
 msgstr "运行中"
 
+#: luci-app-timewol/htdocs/luci-static/resources/view/timewol.js:60
+#: luci-app-timewol/htdocs/luci-static/resources/view/timewol.js:70
 msgid "Running Status"
 msgstr "运行状态"
 
+#: luci-app-timewol/root/usr/share/luci/menu.d/luci-app-timewol.json:14
 msgid "Timed WOL"
 msgstr "定时网络唤醒"
 
+#: luci-app-timewol/htdocs/luci-static/resources/view/timewol.js:57
 msgid "Timed Wake on LAN"
 msgstr "定时网络唤醒"
 
+#: luci-app-timewol/htdocs/luci-static/resources/view/timewol.js:58
 msgid "Wake up your local area network devices on schedule"
 msgstr "定时唤醒你的局域网设备"
 
+#: luci-app-timewol/htdocs/luci-static/resources/view/timewol.js:109
 msgid "Week"
 msgstr "星期"
+
+#~ msgid "Invalid value for %s: %s. Must be between %d and %d or '*'"
+#~ msgstr "%s: %s 的值无效. 必须在 %d 和 %d 之间，或为 '*'"

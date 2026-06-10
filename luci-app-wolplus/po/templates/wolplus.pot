@@ -1,36 +1,56 @@
 msgid ""
 msgstr "Content-Type: text/plain; charset=UTF-8"
 
-msgid "&"
-msgstr ""
-
+#: luci-app-wolplus/htdocs/luci-static/resources/view/wolplus.js:71
 msgid "Awake"
 msgstr ""
 
-msgid "Grant UCI access for luci-app-wolplus"
+#: luci-app-wolplus/htdocs/luci-static/resources/view/wolplus.js:65
+msgid "Edit"
 msgstr ""
 
+#: luci-app-wolplus/root/usr/share/rpcd/acl.d/luci-app-wolplus.json:3
+msgid "Grant access to luci-app-wolplus"
+msgstr ""
+
+#: luci-app-wolplus/htdocs/luci-static/resources/view/wolplus.js:37
 msgid "Host Clients"
 msgstr ""
 
+#: luci-app-wolplus/htdocs/luci-static/resources/view/wolplus.js:46
 msgid "MAC Address"
 msgstr ""
 
+#: luci-app-wolplus/htdocs/luci-static/resources/view/wolplus.js:43
 msgid "Name"
 msgstr ""
 
+#: luci-app-wolplus/htdocs/luci-static/resources/view/wolplus.js:57
 msgid "Network Interface"
 msgstr ""
 
-msgid "Please [Save & Apply] your changes first"
+#: luci-app-wolplus/htdocs/luci-static/resources/view/wolplus.js:89
+msgid "Please save the client before waking it up."
 msgstr ""
 
+#: luci-app-wolplus/htdocs/luci-static/resources/view/wolplus.js:99
 msgid "Wake Up Host"
 msgstr ""
 
+#: luci-app-wolplus/htdocs/luci-static/resources/view/wolplus.js:95
+msgid "Wake command completed with code %d."
+msgstr ""
+
+#: luci-app-wolplus/htdocs/luci-static/resources/view/wolplus.js:103
+msgid "Wake command failed: %s"
+msgstr ""
+
+#: luci-app-wolplus/htdocs/luci-static/resources/view/wolplus.js:34
+#: luci-app-wolplus/root/usr/share/luci/menu.d/luci-app-wolplus.json:3
 msgid "Wake on LAN +"
 msgstr ""
 
+#: luci-app-wolplus/htdocs/luci-static/resources/view/wolplus.js:35
 msgid ""
 "Wake on LAN + is a mechanism to remotely boot computers in the local network."
 msgstr ""
