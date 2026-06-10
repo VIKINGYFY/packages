@@ -42,7 +42,7 @@ msgid "Hour"
 msgstr ""
 
 #: luci-app-timewol/htdocs/luci-static/resources/view/timewol.js:36
-msgid "Invalid value for %s: %s. Must be between %d and %d or \"*\"."
+msgid "Invalid value for %s: %s. Must be between %d and %d or \"*\" ."
 msgstr ""
 
 #: luci-app-timewol/htdocs/luci-static/resources/view/timewol.js:105
