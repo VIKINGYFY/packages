@@ -1,69 +1,52 @@
 msgid ""
 msgstr "Content-Type: text/plain; charset=UTF-8\n"
 
-#: luci-app-wolplus/htdocs/luci-static/resources/view/wolplus.js:117
+#: luci-app-wolplus/htdocs/luci-static/resources/view/wolplus.js:73
 msgid "Awake"
 msgstr "唤醒"
-
-#: luci-app-wolplus/htdocs/luci-static/resources/view/wolplus.js:43
-msgid "Delete"
-msgstr ""
-
-#: luci-app-wolplus/htdocs/luci-static/resources/view/wolplus.js:14
-msgid "Drag to reorder"
-msgstr ""
-
-#: luci-app-wolplus/htdocs/luci-static/resources/view/wolplus.js:36
-#: luci-app-wolplus/htdocs/luci-static/resources/view/wolplus.js:39
-msgid "Edit"
-msgstr ""
 
 #: luci-app-wolplus/root/usr/share/rpcd/acl.d/luci-app-wolplus.json:3
 msgid "Grant access to luci-app-wolplus"
 msgstr ""
 
-#: luci-app-wolplus/htdocs/luci-static/resources/view/wolplus.js:83
+#: luci-app-wolplus/htdocs/luci-static/resources/view/wolplus.js:38
 msgid "Host Clients"
 msgstr "客户端"
 
-#: luci-app-wolplus/htdocs/luci-static/resources/view/wolplus.js:93
+#: luci-app-wolplus/htdocs/luci-static/resources/view/wolplus.js:47
 msgid "MAC Address"
 msgstr "硬件地址"
 
-#: luci-app-wolplus/htdocs/luci-static/resources/view/wolplus.js:90
+#: luci-app-wolplus/htdocs/luci-static/resources/view/wolplus.js:44
 msgid "Name"
 msgstr "主机名称"
 
-#: luci-app-wolplus/htdocs/luci-static/resources/view/wolplus.js:104
+#: luci-app-wolplus/htdocs/luci-static/resources/view/wolplus.js:58
 msgid "Network Interface"
 msgstr "网络接口"
 
-#: luci-app-wolplus/htdocs/luci-static/resources/view/wolplus.js:88
-msgid "Operation"
-msgstr ""
-
-#: luci-app-wolplus/htdocs/luci-static/resources/view/wolplus.js:138
+#: luci-app-wolplus/htdocs/luci-static/resources/view/wolplus.js:92
 msgid "Please save the client before waking it up."
 msgstr ""
 
-#: luci-app-wolplus/htdocs/luci-static/resources/view/wolplus.js:148
+#: luci-app-wolplus/htdocs/luci-static/resources/view/wolplus.js:102
 msgid "Wake Up Host"
 msgstr "唤醒主机"
 
-#: luci-app-wolplus/htdocs/luci-static/resources/view/wolplus.js:144
+#: luci-app-wolplus/htdocs/luci-static/resources/view/wolplus.js:98
 msgid "Wake command completed with code %d."
 msgstr ""
 
-#: luci-app-wolplus/htdocs/luci-static/resources/view/wolplus.js:152
+#: luci-app-wolplus/htdocs/luci-static/resources/view/wolplus.js:106
 msgid "Wake command failed: %s"
 msgstr ""
 
-#: luci-app-wolplus/htdocs/luci-static/resources/view/wolplus.js:80
+#: luci-app-wolplus/htdocs/luci-static/resources/view/wolplus.js:35
 #: luci-app-wolplus/root/usr/share/luci/menu.d/luci-app-wolplus.json:3
 msgid "Wake on LAN +"
 msgstr ""
 
-#: luci-app-wolplus/htdocs/luci-static/resources/view/wolplus.js:81
+#: luci-app-wolplus/htdocs/luci-static/resources/view/wolplus.js:36
 msgid ""
 "Wake on LAN + is a mechanism to remotely boot computers in the local network."
 msgstr "网络唤醒是一种远程启动局域网内计算机的机制。"

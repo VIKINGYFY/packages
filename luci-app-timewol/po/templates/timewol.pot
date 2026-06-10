@@ -1,19 +1,19 @@
 msgid ""
 msgstr "Content-Type: text/plain; charset=UTF-8"
 
-#: luci-app-timewol/htdocs/luci-static/resources/view/timewol.js:121
+#: luci-app-timewol/htdocs/luci-static/resources/view/timewol.js:75
 msgid "Basic Settings"
 msgstr ""
 
-#: luci-app-timewol/htdocs/luci-static/resources/view/timewol.js:143
+#: luci-app-timewol/htdocs/luci-static/resources/view/timewol.js:87
 msgid "Client MAC"
 msgstr ""
 
-#: luci-app-timewol/htdocs/luci-static/resources/view/timewol.js:127
+#: luci-app-timewol/htdocs/luci-static/resources/view/timewol.js:81
 msgid "Client Settings"
 msgstr ""
 
-#: luci-app-timewol/htdocs/luci-static/resources/view/timewol.js:109
+#: luci-app-timewol/htdocs/luci-static/resources/view/timewol.js:63
 msgid "Collecting data..."
 msgstr ""
 
@@ -21,28 +21,15 @@ msgstr ""
 msgid "Control"
 msgstr ""
 
-#: luci-app-timewol/htdocs/luci-static/resources/view/timewol.js:117
+#: luci-app-timewol/htdocs/luci-static/resources/view/timewol.js:71
 msgid "Current Status"
 msgstr ""
 
-#: luci-app-timewol/htdocs/luci-static/resources/view/timewol.js:163
+#: luci-app-timewol/htdocs/luci-static/resources/view/timewol.js:107
 msgid "Day"
 msgstr ""
 
-#: luci-app-timewol/htdocs/luci-static/resources/view/timewol.js:48
-msgid "Delete"
-msgstr ""
-
-#: luci-app-timewol/htdocs/luci-static/resources/view/timewol.js:19
-msgid "Drag to reorder"
-msgstr ""
-
-#: luci-app-timewol/htdocs/luci-static/resources/view/timewol.js:41
-#: luci-app-timewol/htdocs/luci-static/resources/view/timewol.js:44
-msgid "Edit"
-msgstr ""
-
-#: luci-app-timewol/htdocs/luci-static/resources/view/timewol.js:124
+#: luci-app-timewol/htdocs/luci-static/resources/view/timewol.js:78
 msgid "Enable"
 msgstr ""
 
@@ -50,40 +37,36 @@ msgstr ""
 msgid "Grant access to luci-app-timewol"
 msgstr ""
 
-#: luci-app-timewol/htdocs/luci-static/resources/view/timewol.js:162
+#: luci-app-timewol/htdocs/luci-static/resources/view/timewol.js:106
 msgid "Hour"
 msgstr ""
 
-#: luci-app-timewol/htdocs/luci-static/resources/view/timewol.js:82
+#: luci-app-timewol/htdocs/luci-static/resources/view/timewol.js:36
 msgid "Invalid value for %s: %s. Must be between %d and %d or \"*\"."
 msgstr ""
 
-#: luci-app-timewol/htdocs/luci-static/resources/view/timewol.js:161
+#: luci-app-timewol/htdocs/luci-static/resources/view/timewol.js:105
 msgid "Minute"
 msgstr ""
 
-#: luci-app-timewol/htdocs/luci-static/resources/view/timewol.js:164
+#: luci-app-timewol/htdocs/luci-static/resources/view/timewol.js:108
 msgid "Month"
 msgstr ""
 
-#: luci-app-timewol/htdocs/luci-static/resources/view/timewol.js:62
+#: luci-app-timewol/htdocs/luci-static/resources/view/timewol.js:16
 msgid "NOT RUNNING"
 msgstr ""
 
-#: luci-app-timewol/htdocs/luci-static/resources/view/timewol.js:154
+#: luci-app-timewol/htdocs/luci-static/resources/view/timewol.js:98
 msgid "Network Interface"
 msgstr ""
 
-#: luci-app-timewol/htdocs/luci-static/resources/view/timewol.js:132
-msgid "Operation"
-msgstr ""
-
-#: luci-app-timewol/htdocs/luci-static/resources/view/timewol.js:62
+#: luci-app-timewol/htdocs/luci-static/resources/view/timewol.js:16
 msgid "RUNNING"
 msgstr ""
 
-#: luci-app-timewol/htdocs/luci-static/resources/view/timewol.js:106
-#: luci-app-timewol/htdocs/luci-static/resources/view/timewol.js:116
+#: luci-app-timewol/htdocs/luci-static/resources/view/timewol.js:60
+#: luci-app-timewol/htdocs/luci-static/resources/view/timewol.js:70
 msgid "Running Status"
 msgstr ""
 
@@ -91,14 +74,14 @@ msgstr ""
 msgid "Timed WOL"
 msgstr ""
 
-#: luci-app-timewol/htdocs/luci-static/resources/view/timewol.js:103
+#: luci-app-timewol/htdocs/luci-static/resources/view/timewol.js:57
 msgid "Timed Wake on LAN"
 msgstr ""
 
-#: luci-app-timewol/htdocs/luci-static/resources/view/timewol.js:104
+#: luci-app-timewol/htdocs/luci-static/resources/view/timewol.js:58
 msgid "Wake up your local area network devices on schedule"
 msgstr ""
 
-#: luci-app-timewol/htdocs/luci-static/resources/view/timewol.js:165
+#: luci-app-timewol/htdocs/luci-static/resources/view/timewol.js:109
 msgid "Week"
 msgstr ""
