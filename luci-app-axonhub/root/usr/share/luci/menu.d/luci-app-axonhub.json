@@ -1,0 +1,14 @@
+{
+	"admin/services/axonhub": {
+		"title": "AxonHub",
+		"order": 90,
+		"action": {
+			"type": "view",
+			"path": "axonhub"
+		},
+		"depends": {
+			"acl": [ "luci-app-axonhub" ],
+			"fs": { "/etc/config/axonhub": "file" }
+		}
+	}
+}

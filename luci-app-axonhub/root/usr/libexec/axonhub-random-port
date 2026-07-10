@@ -1,0 +1,36 @@
+#!/bin/sh
+
+port_in_use() {
+	local hex
+
+	hex="$(printf '%04X' "$1")"
+	if [ -r /proc/net/tcp6 ]; then
+		awk -v suffix=":$hex" '
+			FNR > 1 && substr($2, length($2) - 4) == suffix { found = 1 }
+			END { exit(found ? 0 : 1) }
+		' /proc/net/tcp /proc/net/tcp6 2>/dev/null
+	else
+		awk -v suffix=":$hex" '
+			FNR > 1 && substr($2, length($2) - 4) == suffix { found = 1 }
+			END { exit(found ? 0 : 1) }
+		' /proc/net/tcp 2>/dev/null
+	fi
+}
+
+tries=0
+while [ "$tries" -lt 32 ]; do
+	random="$(od -An -N2 -tu2 /dev/urandom 2>/dev/null | tr -d '[:space:]')"
+	case "$random" in
+		''|*[!0-9]*) random="$(date +%s)$$" ;;
+	esac
+
+	port=$((20000 + random % 40000))
+	if ! port_in_use "$port"; then
+		printf '%s\n' "$port"
+		exit 0
+	fi
+
+	tries=$((tries + 1))
+done
+
+printf '%s\n' '9069'

@@ -1,0 +1,40 @@
+#!/bin/sh
+
+. /lib/functions.sh
+
+STORAGE_HELPER=/usr/libexec/axonhub-find-storage
+
+config_load axonhub
+config_get data_dir main data_dir 'auto'
+config_get cleanup_schedule main log_cleanup_schedule 'weekly'
+config_get_bool log_to_syslog main log_to_syslog 0
+
+[ "$log_to_syslog" -eq 0 ] || exit 0
+
+case "$cleanup_schedule" in
+	disabled) exit 0 ;;
+	daily|weekly|monthly) ;;
+	*) cleanup_schedule='weekly' ;;
+esac
+
+if [ "$data_dir" = 'auto' ]; then
+	data_dir="$($STORAGE_HELPER)"
+fi
+data_dir="${data_dir%/}"
+
+case "$data_dir" in
+	/|/tmp|/tmp/*|/var|/var/*|/rom|/rom/*|/proc|/proc/*|/sys|/sys/*|/dev|/dev/*)
+		exit 1
+		;;
+	/*) ;;
+	*) exit 1 ;;
+esac
+case "$data_dir" in
+	*..*|*[!A-Za-z0-9_./-]*) exit 1 ;;
+esac
+
+log_dir="$data_dir/logs"
+log_file="$log_dir/axonhub.log"
+
+[ ! -f "$log_file" ] || : > "$log_file"
+rm -f "$log_file".* "$data_dir/.log-cleanup.timestamp"

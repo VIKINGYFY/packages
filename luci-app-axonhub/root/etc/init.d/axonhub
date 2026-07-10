@@ -1,0 +1,238 @@
+#!/bin/sh /etc/rc.common
+
+USE_PROCD=1
+START=95
+STOP=10
+
+PROG=/usr/bin/axonhub
+STORAGE_HELPER=/usr/libexec/axonhub-find-storage
+PORT_HELPER=/usr/libexec/axonhub-random-port
+CRON_FILE=/etc/crontabs/root
+CRON_LOCK=/var/lock/axonhub-cron
+
+extra_command "sync_cron" "Update the AxonHub log cleanup schedule"
+
+log_error() {
+	logger -t axonhub -p daemon.err "$*"
+}
+
+validate_data_dir() {
+	case "$1" in
+		/|/tmp|/tmp/*|/var|/var/*|/rom|/rom/*|/proc|/proc/*|/sys|/sys/*|/dev|/dev/*)
+			return 1
+			;;
+		/*) ;;
+		*) return 1 ;;
+	esac
+
+	case "$1" in
+		*..*|*[!A-Za-z0-9_./-]*) return 1 ;;
+	esac
+
+	return 0
+}
+
+external_mount_ready() {
+	case "$1" in
+		/mnt/*|/media/*)
+			awk -v path="$1" '
+				$2 != "/" && (path == $2 || index(path, $2 "/") == 1) { found = 1 }
+				END { exit(found ? 0 : 1) }
+			' /proc/mounts
+			return $?
+			;;
+	esac
+
+	return 0
+}
+
+normalize_cleanup_schedule() {
+	case "$1" in
+		disabled|daily|weekly|monthly) printf '%s\n' "$1" ;;
+		*) printf '%s\n' 'weekly' ;;
+	esac
+}
+
+cleanup_schedule_days() {
+	case "$1" in
+		disabled) printf '%s\n' '0' ;;
+		daily) printf '%s\n' '1' ;;
+		weekly) printf '%s\n' '7' ;;
+		monthly) printf '%s\n' '31' ;;
+		*) printf '%s\n' '7' ;;
+	esac
+}
+
+configure_log_cleanup() {
+	local enabled="$1"
+	local log_to_syslog="$2"
+	local cleanup_schedule="$3"
+	local cron_spec=''
+
+	mkdir -p /etc/crontabs
+	mkdir -p /var/lock
+	lock "$CRON_LOCK"
+	touch "$CRON_FILE"
+	sed -i '/[[:space:]]#axonhub[[:space:]]*$/d' "$CRON_FILE"
+
+	if [ "$enabled" -eq 1 ] && [ "$log_to_syslog" -eq 0 ]; then
+		case "$cleanup_schedule" in
+			daily) cron_spec='0 3 * * *' ;;
+			weekly) cron_spec='0 3 * * 0' ;;
+			monthly) cron_spec='0 3 1 * *' ;;
+		esac
+	fi
+
+	if [ -n "$cron_spec" ]; then
+		printf '%s /usr/libexec/axonhub-log-cleanup #axonhub\n' "$cron_spec" >> "$CRON_FILE"
+	fi
+	lock -u "$CRON_LOCK"
+
+	/etc/init.d/cron reload >/dev/null 2>&1 || /etc/init.d/cron restart >/dev/null 2>&1
+}
+
+sync_cron() {
+	local enabled log_to_syslog cleanup_schedule
+
+	config_load axonhub
+	config_get_bool enabled main enabled 0
+	config_get_bool log_to_syslog main log_to_syslog 0
+	config_get cleanup_schedule main log_cleanup_schedule 'weekly'
+	cleanup_schedule="$(normalize_cleanup_schedule "$cleanup_schedule")"
+
+	configure_log_cleanup "$enabled" "$log_to_syslog" "$cleanup_schedule"
+}
+
+start_service() {
+	local enabled listen_addr port data_dir memory_limit gomaxprocs
+	local max_open_conns max_idle_conns log_level log_to_syslog cleanup_schedule log_file_max_age db_dsn
+
+	config_load axonhub
+	config_get_bool enabled main enabled 0
+	config_get_bool log_to_syslog main log_to_syslog 0
+	config_get cleanup_schedule main log_cleanup_schedule 'weekly'
+	cleanup_schedule="$(normalize_cleanup_schedule "$cleanup_schedule")"
+	log_file_max_age="$(cleanup_schedule_days "$cleanup_schedule")"
+
+	configure_log_cleanup "$enabled" "$log_to_syslog" "$cleanup_schedule"
+	[ "$enabled" -eq 1 ] || return 0
+
+	config_get listen_addr main listen_addr '0.0.0.0'
+	config_get port main port 'auto'
+	config_get data_dir main data_dir 'auto'
+	config_get memory_limit main memory_limit '512MiB'
+	config_get gomaxprocs main gomaxprocs '2'
+	config_get max_open_conns main max_open_conns '10'
+	config_get max_idle_conns main max_idle_conns '5'
+	config_get log_level main log_level 'info'
+
+	if [ "$data_dir" = 'auto' ]; then
+		data_dir="$($STORAGE_HELPER)"
+	fi
+
+	data_dir="${data_dir%/}"
+	if ! validate_data_dir "$data_dir"; then
+		log_error "Refusing invalid or volatile data directory: $data_dir"
+		return 1
+	fi
+
+	if ! external_mount_ready "$data_dir"; then
+		log_error "Data directory mount is not ready: $data_dir"
+		return 1
+	fi
+
+	if [ -z "$port" ] || [ "$port" = 'auto' ]; then
+		port="$($PORT_HELPER)"
+		uci -q set axonhub.main.port="$port"
+		uci -q commit axonhub
+	fi
+
+	case "$port" in
+		''|*[!0-9]*) port=9069 ;;
+	esac
+	[ "$port" -ge 1 ] 2>/dev/null && [ "$port" -le 65535 ] 2>/dev/null || port=9069
+
+	case "$memory_limit" in
+		256MiB|384MiB|512MiB|768MiB|1GiB) ;;
+		*) memory_limit='512MiB' ;;
+	esac
+
+	case "$gomaxprocs" in
+		1|2|3|4) ;;
+		*) gomaxprocs=2 ;;
+	esac
+
+	case "$max_open_conns" in
+		''|*[!0-9]*) max_open_conns=10 ;;
+	esac
+	case "$max_idle_conns" in
+		''|*[!0-9]*) max_idle_conns=5 ;;
+	esac
+	[ "$max_open_conns" -ge 1 ] 2>/dev/null || max_open_conns=10
+	[ "$max_idle_conns" -ge 0 ] 2>/dev/null || max_idle_conns=5
+	[ "$max_idle_conns" -le "$max_open_conns" ] 2>/dev/null || max_idle_conns="$max_open_conns"
+
+	case "$log_level" in
+		debug|info|warn|error) ;;
+		*) log_level='info' ;;
+	esac
+
+	[ -x "$PROG" ] || {
+		log_error "AxonHub binary is missing or not executable: $PROG"
+		return 1
+	}
+
+	mkdir -p "$data_dir" || {
+		log_error "Unable to create data directory: $data_dir"
+		return 1
+	}
+	chmod 700 "$data_dir"
+	mkdir -p "$data_dir/logs"
+	chmod 700 "$data_dir/logs"
+
+	db_dsn="file:$data_dir/axonhub.db?cache=shared&_fk=1&_pragma=journal_mode(WAL)&_pragma=busy_timeout(5000)"
+
+	procd_open_instance axonhub
+	procd_set_param command "$PROG"
+	procd_set_param env \
+		"HOME=/root" \
+		"GOMEMLIMIT=$memory_limit" \
+		"GOMAXPROCS=$gomaxprocs" \
+		"AXONHUB_SERVER_HOST=$listen_addr" \
+		"AXONHUB_SERVER_PORT=$port" \
+		"AXONHUB_DB_DIALECT=sqlite3" \
+		"AXONHUB_DB_DSN=$db_dsn" \
+			"AXONHUB_DB_MAX_OPEN_CONNS=$max_open_conns" \
+			"AXONHUB_DB_MAX_IDLE_CONNS=$max_idle_conns" \
+			"AXONHUB_LOG_LEVEL=$log_level"
+	if [ "$log_to_syslog" -eq 1 ]; then
+		procd_append_param env "AXONHUB_LOG_OUTPUT=stdio"
+	else
+		procd_append_param env \
+			"AXONHUB_LOG_OUTPUT=file" \
+			"AXONHUB_LOG_FILE_PATH=$data_dir/logs/axonhub.log" \
+			"AXONHUB_LOG_FILE_MAX_SIZE=20" \
+			"AXONHUB_LOG_FILE_MAX_AGE=$log_file_max_age" \
+			"AXONHUB_LOG_FILE_MAX_BACKUPS=3" \
+			"AXONHUB_LOG_FILE_LOCAL_TIME=true"
+	fi
+	procd_set_param stdout "$log_to_syslog"
+	procd_set_param stderr "$log_to_syslog"
+	procd_set_param respawn 3600 5 5
+	procd_set_param term_timeout 30
+	procd_set_param file /etc/config/axonhub
+	procd_close_instance
+}
+
+stop_service() {
+	configure_log_cleanup 0 0 disabled
+}
+
+reload_service() {
+	stop
+	start
+}
+
+service_triggers() {
+	procd_add_reload_trigger axonhub
+}

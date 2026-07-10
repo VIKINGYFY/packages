@@ -1,0 +1,177 @@
+#!/usr/bin/ucode
+
+'use strict';
+
+import { access, glob, popen, readfile, readlink, statvfs } from 'fs';
+import { init_action, process_list } from 'luci.sys';
+
+const binpath = '/usr/bin/axonhub';
+const supportedFilesystems = {
+	'ext2': true,
+	'ext3': true,
+	'ext4': true,
+	'f2fs': true,
+	'btrfs': true,
+	'xfs': true,
+	'ubifs': true,
+	'jffs2': true,
+	'zfs': true
+};
+const ignoredMounts = {
+	'/': true,
+	'/rom': true,
+	'/overlay': true,
+	'/boot': true,
+	'/tmp': true,
+	'/var': true
+};
+
+function decode_mount_path(path) {
+	return replace(replace(replace(path, /\\040/g, ' '), /\\011/g, '\t'), /\\134/g, '\\');
+}
+
+function storage_mounts() {
+	let mounts = [];
+	let content = readfile('/proc/mounts') || '';
+
+	for (let line in split(content, '\n')) {
+		let fields = split(trim(line), /\s+/);
+		if (length(fields) < 4 || !supportedFilesystems[fields[2]])
+			continue;
+
+		let path = decode_mount_path(fields[1]);
+		if (ignoredMounts[path] || match(',' + fields[3] + ',', /,ro,/))
+			continue;
+
+		let stats = statvfs(path);
+		if (!stats || stats.freesize < 268435456 || !access(path, 'w'))
+			continue;
+
+		push(mounts, {
+			path: path,
+			filesystem: fields[0],
+			type: fields[2],
+			total: stats.totalsize,
+			free: stats.freesize
+		});
+	}
+
+	sort(mounts, function(a, b) {
+		if (a.total == b.total)
+			return b.free - a.free;
+
+		return b.total - a.total;
+	});
+
+	return mounts;
+}
+
+function process_status() {
+	let result = {
+		exists: !!access(binpath, 'x'),
+		running: false
+	};
+	let pid = 0;
+
+	for (let path in glob('/proc/[0-9]*/exe')) {
+		let target = readlink(path);
+		if (target != binpath && target != binpath + ' (deleted)')
+			continue;
+
+		let fields = match(path, /^\/proc\/([0-9]+)\/exe$/);
+		if (fields) {
+			pid = +fields[1];
+			break;
+		}
+	}
+
+	if (!pid)
+		return result;
+
+	result.running = true;
+	result.pid = pid;
+
+	for (let proc in process_list()) {
+		if (+proc.PID != pid)
+			continue;
+
+		result.vsz = proc.VSZ;
+		result.cpu = proc['%CPU'];
+		result.memory = proc['%MEM'];
+		break;
+	}
+
+	return result;
+}
+
+function binary_version() {
+	if (!access(binpath, 'x'))
+		return '';
+
+	let fd = popen(binpath + ' version 2>/dev/null');
+	if (!fd)
+		return '';
+
+	let version = trim(fd.read('all') || '');
+	fd.close();
+
+	return version;
+}
+
+const methods = {
+	status: {
+		call: function() {
+			return process_status();
+		}
+	},
+
+	info: {
+		call: function() {
+			let mounts = storage_mounts();
+			let base = length(mounts) ? mounts[0].path : '/etc';
+
+			return {
+				version: binary_version(),
+				mounts: mounts,
+				recommended: (base == '/etc' ? base : replace(base, /\/$/, '')) + '/axonhub'
+			};
+		}
+	},
+
+	cron: {
+		call: function() {
+			let rc = init_action('axonhub', 'sync_cron');
+			return { success: rc === 0, code: rc };
+		}
+	},
+
+	action: {
+		args: { action: 'string' },
+		call: function(request) {
+			switch (request.args.action) {
+			case 'start':
+			case 'stop':
+			case 'restart':
+				let rc = init_action('axonhub', request.args.action);
+				return { success: rc === 0, code: rc };
+			default:
+				return { success: false, code: 2, message: 'invalid action' };
+			}
+		}
+	},
+
+	log: {
+		call: function() {
+			let fd = popen('/usr/libexec/axonhub-read-log');
+			if (!fd)
+				return { log: '' };
+
+			let output = fd.read('all') || '';
+			fd.close();
+
+			return { log: output };
+		}
+	}
+};
+
+return { 'luci.axonhub': methods };

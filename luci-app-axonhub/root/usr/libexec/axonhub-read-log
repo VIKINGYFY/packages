@@ -1,0 +1,29 @@
+#!/bin/sh
+
+. /lib/functions.sh
+
+STORAGE_HELPER=/usr/libexec/axonhub-find-storage
+
+config_load axonhub
+config_get data_dir main data_dir 'auto'
+config_get_bool log_to_syslog main log_to_syslog 0
+
+if [ "$log_to_syslog" -eq 1 ]; then
+	logread -e 'axonhub' 2>/dev/null | tail -n 100
+	exit 0
+fi
+
+if [ "$data_dir" = 'auto' ]; then
+	data_dir="$($STORAGE_HELPER)"
+fi
+data_dir="${data_dir%/}"
+
+case "$data_dir" in
+	/*) ;;
+	*) exit 1 ;;
+esac
+case "$data_dir" in
+	*..*|*[!A-Za-z0-9_./-]*) exit 1 ;;
+esac
+
+tail -n 100 "$data_dir/logs/axonhub.log" 2>/dev/null
