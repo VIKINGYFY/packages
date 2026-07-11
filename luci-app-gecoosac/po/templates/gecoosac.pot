@@ -1,19 +1,34 @@
 msgid ""
 msgstr "Content-Type: text/plain; charset=UTF-8"
 
-#: luci-app-gecoosac/htdocs/luci-static/resources/view/gecoosac.js:141
-msgid "A certificate file must be specified, otherwise it will fail to start."
+#: luci-app-gecoosac/htdocs/luci-static/resources/view/gecoosac.js:258
+msgid ""
+"A free port is selected randomly on first installation. The saved value "
+"remains unchanged after restarts."
 msgstr ""
 
-#: luci-app-gecoosac/htdocs/luci-static/resources/view/gecoosac.js:104
-msgid "Batch management Gecoos AP, Default password: admin"
+#: luci-app-gecoosac/htdocs/luci-static/resources/view/gecoosac.js:252
+msgid "Advanced"
 msgstr ""
 
-#: luci-app-gecoosac/htdocs/luci-static/resources/view/gecoosac.js:169
-msgid "Clear Upload Directory"
+#: luci-app-gecoosac/htdocs/luci-static/resources/view/gecoosac.js:132
+msgid "CPU %s"
 msgstr ""
 
-#: luci-app-gecoosac/htdocs/luci-static/resources/view/gecoosac.js:83
+#: luci-app-gecoosac/htdocs/luci-static/resources/view/gecoosac.js:278
+msgid "Clear firmware directory"
+msgstr ""
+
+#: luci-app-gecoosac/htdocs/luci-static/resources/view/gecoosac.js:317
+msgid ""
+"Clear the dedicated Gecoos AC log at 03:00 on the selected calendar schedule."
+msgstr ""
+
+#: luci-app-gecoosac/htdocs/luci-static/resources/view/gecoosac.js:112
+msgid "Close"
+msgstr ""
+
+#: luci-app-gecoosac/htdocs/luci-static/resources/view/gecoosac.js:204
 msgid "Collecting data..."
 msgstr ""
 
@@ -21,103 +36,182 @@ msgstr ""
 msgid "Control"
 msgstr ""
 
-#: luci-app-gecoosac/htdocs/luci-static/resources/view/gecoosac.js:160
-msgid "Database dir path"
+#: luci-app-gecoosac/htdocs/luci-static/resources/view/gecoosac.js:271
+msgid "Database directory"
 msgstr ""
 
-#: luci-app-gecoosac/htdocs/luci-static/resources/view/gecoosac.js:130
-msgid ""
-"Do not enable the independent management port, only use one port for "
-"management."
+#: luci-app-gecoosac/htdocs/luci-static/resources/view/gecoosac.js:265
+msgid "Directory used to store AP firmware uploaded for upgrades."
 msgstr ""
 
-#: luci-app-gecoosac/htdocs/luci-static/resources/view/gecoosac.js:140
-msgid "Enable HTTPS service"
+#: luci-app-gecoosac/htdocs/luci-static/resources/view/gecoosac.js:318
+msgid "Disabled"
 msgstr ""
 
-#: luci-app-gecoosac/htdocs/luci-static/resources/view/gecoosac.js:165
-msgid "Enable Log"
+#: luci-app-gecoosac/htdocs/luci-static/resources/view/gecoosac.js:254
+msgid "Enable"
 msgstr ""
 
-#: luci-app-gecoosac/htdocs/luci-static/resources/view/gecoosac.js:120
-msgid "Enabled AC"
+#: luci-app-gecoosac/htdocs/luci-static/resources/view/gecoosac.js:303
+msgid "Enable logging"
 msgstr ""
 
-#: luci-app-gecoosac/htdocs/luci-static/resources/view/gecoosac.js:183
-#: luci-app-gecoosac/htdocs/luci-static/resources/view/gecoosac.js:186
-msgid "Failed to clear upload directory: %s"
+#: luci-app-gecoosac/htdocs/luci-static/resources/view/gecoosac.js:167
+msgid "Enable the service and save the configuration to start it."
 msgstr ""
 
-#: luci-app-gecoosac/htdocs/luci-static/resources/view/gecoosac.js:46
-#: luci-app-gecoosac/htdocs/luci-static/resources/view/gecoosac.js:110
+#: luci-app-gecoosac/htdocs/luci-static/resources/view/gecoosac.js:319
+msgid "Every day"
+msgstr ""
+
+#: luci-app-gecoosac/htdocs/luci-static/resources/view/gecoosac.js:321
+msgid "Every month"
+msgstr ""
+
+#: luci-app-gecoosac/htdocs/luci-static/resources/view/gecoosac.js:320
+msgid "Every week"
+msgstr ""
+
+#: luci-app-gecoosac/htdocs/luci-static/resources/view/gecoosac.js:296
+#: luci-app-gecoosac/htdocs/luci-static/resources/view/gecoosac.js:299
+msgid "Failed to clear firmware directory: %s"
+msgstr ""
+
+#: luci-app-gecoosac/htdocs/luci-static/resources/view/gecoosac.js:335
+msgid "Failed to update the log cleanup schedule."
+msgstr ""
+
+#: luci-app-gecoosac/htdocs/luci-static/resources/view/gecoosac.js:264
+msgid "Firmware directory"
+msgstr ""
+
+#: luci-app-gecoosac/htdocs/luci-static/resources/view/gecoosac.js:292
+msgid "Firmware directory cleaned. Removed %d entries."
+msgstr ""
+
+#: luci-app-gecoosac/htdocs/luci-static/resources/view/gecoosac.js:241
 #: luci-app-gecoosac/root/usr/share/luci/menu.d/luci-app-gecoosac.json:14
 msgid "Gecoos AC"
 msgstr ""
 
-#: luci-app-gecoosac/htdocs/luci-static/resources/view/gecoosac.js:116
-msgid "Global Settings"
+#: luci-app-gecoosac/htdocs/luci-static/resources/view/gecoosac.js:103
+msgid "Gecoos AC Log"
+msgstr ""
+
+#: luci-app-gecoosac/htdocs/luci-static/resources/view/gecoosac.js:251
+msgid "General"
 msgstr ""
 
 #: luci-app-gecoosac/root/usr/share/rpcd/acl.d/luci-app-gecoosac.json:3
 msgid "Grant access to luci-app-gecoosac"
 msgstr ""
 
-#: luci-app-gecoosac/htdocs/luci-static/resources/view/gecoosac.js:46
-msgid "Not running"
+#: luci-app-gecoosac/htdocs/luci-static/resources/view/gecoosac.js:257
+msgid "Listen port"
 msgstr ""
 
-#: luci-app-gecoosac/htdocs/luci-static/resources/view/gecoosac.js:59
-msgid "Open the mgmt page"
+#: luci-app-gecoosac/htdocs/luci-static/resources/view/gecoosac.js:316
+msgid "Log cleanup schedule"
 msgstr ""
 
-#: luci-app-gecoosac/htdocs/luci-static/resources/view/gecoosac.js:46
-msgid "Running"
-msgstr ""
-
-#: luci-app-gecoosac/htdocs/luci-static/resources/view/gecoosac.js:123
-msgid "Set interface port"
+#: luci-app-gecoosac/htdocs/luci-static/resources/view/gecoosac.js:308
+msgid "Log size limit"
 msgstr ""
 
 #: luci-app-gecoosac/htdocs/luci-static/resources/view/gecoosac.js:134
-msgid "Set management port"
+msgid "MEM %s"
 msgstr ""
 
-#: luci-app-gecoosac/htdocs/luci-static/resources/view/gecoosac.js:129
-msgid "Single Port Mode"
+#: luci-app-gecoosac/htdocs/luci-static/resources/view/gecoosac.js:242
+msgid ""
+"Native Gecoos AC service and management interface. Default web password: "
+"admin."
+msgstr ""
+
+#: luci-app-gecoosac/htdocs/luci-static/resources/view/gecoosac.js:101
+msgid "No Gecoos AC log entries were found."
+msgstr ""
+
+#: luci-app-gecoosac/htdocs/luci-static/resources/view/gecoosac.js:164
+msgid "Not running"
+msgstr ""
+
+#: luci-app-gecoosac/htdocs/luci-static/resources/view/gecoosac.js:143
+msgid "Open Gecoos AC"
+msgstr ""
+
+#: luci-app-gecoosac/htdocs/luci-static/resources/view/gecoosac.js:130
+msgid "PID %s"
+msgstr ""
+
+#: luci-app-gecoosac/htdocs/luci-static/resources/view/gecoosac.js:272
+msgid ""
+"Persistent directory used to store the controller configuration database."
 msgstr ""
 
 #: luci-app-gecoosac/htdocs/luci-static/resources/view/gecoosac.js:145
-msgid "Specify crt certificate file"
+msgid "Restart"
 msgstr ""
 
-#: luci-app-gecoosac/htdocs/luci-static/resources/view/gecoosac.js:150
-msgid "Specify key certificate file"
+#: luci-app-gecoosac/htdocs/luci-static/resources/view/gecoosac.js:164
+msgid "Running"
 msgstr ""
 
-#: luci-app-gecoosac/htdocs/luci-static/resources/view/gecoosac.js:107
-msgid "The AC program does not exist, please check."
+#: luci-app-gecoosac/htdocs/luci-static/resources/view/gecoosac.js:164
+msgid "Running (unmanaged)"
 msgstr ""
 
-#: luci-app-gecoosac/htdocs/luci-static/resources/view/gecoosac.js:106
-msgid "The current AC version %s, only supports AP %s and above."
+#: luci-app-gecoosac/htdocs/luci-static/resources/view/gecoosac.js:286
+msgid "Save and apply the firmware directory before clearing it."
 msgstr ""
 
-#: luci-app-gecoosac/htdocs/luci-static/resources/view/gecoosac.js:160
-msgid "The path to store the config database"
+#: luci-app-gecoosac/htdocs/luci-static/resources/view/gecoosac.js:228
+msgid ""
+"Select a persistent writable database directory outside volatile or system "
+"paths."
 msgstr ""
 
-#: luci-app-gecoosac/htdocs/luci-static/resources/view/gecoosac.js:155
-msgid "The path to upload AP upgrade firmware"
+#: luci-app-gecoosac/htdocs/luci-static/resources/view/gecoosac.js:248
+msgid "Service Settings"
 msgstr ""
 
-#: luci-app-gecoosac/htdocs/luci-static/resources/view/gecoosac.js:182
+#: luci-app-gecoosac/htdocs/luci-static/resources/view/gecoosac.js:73
+msgid "Service action failed with code %s."
+msgstr ""
+
+#: luci-app-gecoosac/htdocs/luci-static/resources/view/gecoosac.js:81
+msgid "Service action failed: %s"
+msgstr ""
+
+#: luci-app-gecoosac/htdocs/luci-static/resources/view/gecoosac.js:148
+msgid "Start"
+msgstr ""
+
+#: luci-app-gecoosac/htdocs/luci-static/resources/view/gecoosac.js:166
+msgid "The Gecoos AC binary is missing."
+msgstr ""
+
+#: luci-app-gecoosac/htdocs/luci-static/resources/view/gecoosac.js:216
+msgid ""
+"The directory must not be the root directory or contain parent-directory "
+"components."
+msgstr ""
+
+#: luci-app-gecoosac/htdocs/luci-static/resources/view/gecoosac.js:116
+msgid "Unable to read logs: %s"
+msgstr ""
+
+#: luci-app-gecoosac/htdocs/luci-static/resources/view/gecoosac.js:295
 msgid "Unknown error"
 msgstr ""
 
-#: luci-app-gecoosac/htdocs/luci-static/resources/view/gecoosac.js:155
-msgid "Upload dir path"
+#: luci-app-gecoosac/htdocs/luci-static/resources/view/gecoosac.js:158
+msgid "View Log"
 msgstr ""
 
-#: luci-app-gecoosac/htdocs/luci-static/resources/view/gecoosac.js:179
-msgid "Upload directory cleaned. Removed %d entries."
+#: luci-app-gecoosac/htdocs/luci-static/resources/view/gecoosac.js:304
+msgid ""
+"Write Gecoos AC output to a dedicated log file in the database directory. "
+"Log contents are automatically deleted when the file exceeds the selected "
+"size limit."
 msgstr ""

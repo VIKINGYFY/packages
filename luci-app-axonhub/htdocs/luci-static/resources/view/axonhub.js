@@ -7,16 +7,16 @@
 'require uci';
 'require view';
 
-var callStatus = rpc.declare({
-	object: 'luci.axonhub',
-	method: 'status',
-	expect: { '': {} }
-});
-
 var callServiceList = rpc.declare({
 	object: 'service',
 	method: 'list',
 	params: [ 'name' ],
+	expect: { '': {} }
+});
+
+var callStatus = rpc.declare({
+	object: 'luci.axonhub',
+	method: 'status',
 	expect: { '': {} }
 });
 
@@ -142,7 +142,7 @@ function renderStatus(status) {
 		if (status.cpu)
 			details.push(_('CPU %s').format(status.cpu));
 		if (status.memory)
-			details.push(_('Memory %s').format(status.memory));
+			details.push(_('MEM %s').format(status.memory));
 
 		buttons.push(E('button', {
 			'type': 'button',
@@ -192,8 +192,6 @@ function getStatus() {
 		var processRunning = !!status.running;
 		var managedRunning = !!(instance && instance.running);
 
-		status.process_running = processRunning;
-		status.managed = managedRunning;
 		status.unmanaged = processRunning && !managedRunning;
 		status.running = managedRunning || processRunning;
 
@@ -221,26 +219,10 @@ function renderStatusSection() {
 	return E('div', { 'class': 'cbi-section' }, [ statusNode ]);
 }
 
-function validateDataDirectory(sectionId, value) {
-	var invalidPathMessage = _('Enter an absolute path using letters, numbers, dot, underscore, slash or hyphen.');
-
-	if (!value || !/^\/[A-Za-z0-9_./-]+$/.test(value))
-		return invalidPathMessage;
-
-	if (/(^|\/)\.\.(\/|$)/.test(value))
-		return _('The data directory must not contain parent-directory components.');
-
-	if (/^\/$|^\/(tmp|var|rom|proc|sys|dev)(\/|$)/.test(value))
-		return _('Select a persistent writable directory outside volatile or system paths.');
-
-	return true;
-}
-
 return view.extend({
 	load: function() {
 		return Promise.all([
 			L.resolveDefault(callInfo(), {}),
-			getStatus(),
 			uci.load('axonhub')
 		]);
 	},
@@ -248,7 +230,9 @@ return view.extend({
 	render: function(data) {
 		var info = data[0] || {};
 		var mounts = L.toArray(info.mounts);
-		var recommended = info.recommended || '/etc/axonhub';
+		var defaultDataDir = mounts.length
+			? mounts[0].path.replace(/\/$/, '') + '/axonhub'
+			: '/etc/axonhub';
 		var m, s, o;
 
 		m = new form.Map('axonhub', _('AxonHub'),
@@ -269,12 +253,6 @@ return view.extend({
 		o = s.taboption('general', form.Flag, 'enabled', _('Enable'));
 		o.rmempty = false;
 
-		o = s.taboption('general', form.Value, 'listen_addr', _('Listen address'),
-			_('Use 0.0.0.0 for LAN access and do not expose this port on the WAN firewall zone.'));
-		o.default = '0.0.0.0';
-		o.datatype = 'ipaddr';
-		o.rmempty = false;
-
 		o = s.taboption('general', form.Value, 'port', _('Listen port'),
 			_('A free port is selected randomly on first installation. The saved value remains unchanged after restarts.'));
 		o.default = '9069';
@@ -282,22 +260,28 @@ return view.extend({
 		o.datatype = 'port';
 		o.rmempty = false;
 
-		o = s.taboption('general', form.Value, 'data_dir', _('Database and settings directory'),
+		o = s.taboption('general', form.ListValue, 'data_dir', _('Database and settings directory'),
 			_('Changing this path starts a separate instance unless the existing database is moved while AxonHub is stopped.'));
-		o.default = recommended;
-		o.placeholder = recommended;
+		o.default = defaultDataDir;
 		o.rmempty = false;
-		o.validate = validateDataDirectory;
-		o.value(recommended, _('Recommended: %s').format(recommended));
+
+		if (!mounts.length)
+			o.value('/etc/axonhub', '/etc/axonhub');
 
 		mounts.forEach(function(mount) {
 			var path = mount.path.replace(/\/$/, '') + '/axonhub';
 			var label = _('%s (%s total, %s free, %s)').format(
 				path, formatBytes(mount.total), formatBytes(mount.free), mount.type || 'unknown');
 
-			if (path !== recommended)
-				o.value(path, label);
+			o.value(path, label);
 		});
+
+		o = s.taboption('general', form.Button, '_refresh_storage', _('Refresh storage locations'));
+		o.inputtitle = _('Refresh');
+		o.inputstyle = 'reload';
+		o.onclick = function() {
+			window.location.reload();
+		};
 
 		o = s.taboption('resources', form.ListValue, 'memory_limit', _('Go memory limit'),
 			_('A soft runtime limit that leaves memory available for routing and other services.'));
@@ -346,7 +330,7 @@ return view.extend({
 		o.value('daily', _('Every day'));
 		o.value('weekly', _('Every week'));
 		o.value('monthly', _('Every month'));
-		o.default = 'weekly';
+		o.default = 'daily';
 		o.rmempty = false;
 		o.depends('log_to_syslog', '0');
 

@@ -1,0 +1,105 @@
+msgid ""
+msgstr ""
+"Content-Type: text/plain; charset=UTF-8\n"
+"Project-Id-Version: luci-app-wolultra\n"
+"PO-Revision-Date: 2026-07-11 00:00+0000\n"
+"Last-Translator: VIKINGYFY\n"
+"Language-Team: Chinese (Simplified)\n"
+"Language: zh_Hans\n"
+"MIME-Version: 1.0\n"
+"Content-Transfer-Encoding: 8bit\n"
+
+#: luci-app-wolultra/htdocs/luci-static/resources/view/wolultra.js:81
+msgid "Client Settings"
+msgstr "客户端设置"
+
+#: luci-app-wolultra/root/usr/share/luci/menu.d/luci-app-wolultra.json:3
+msgid "Control"
+msgstr "管控"
+
+#: luci-app-wolultra/htdocs/luci-static/resources/view/wolultra.js:114
+msgid "Day (1-31)"
+msgstr "日(1-31)"
+
+#: luci-app-wolultra/htdocs/luci-static/resources/view/wolultra.js:55
+msgid "Disabled"
+msgstr "已禁用"
+
+#: luci-app-wolultra/htdocs/luci-static/resources/view/wolultra.js:190
+msgid "Failed to update scheduled wake tasks."
+msgstr "更新定时唤醒任务失败。"
+
+#: luci-app-wolultra/htdocs/luci-static/resources/view/wolultra.js:85
+msgid "General Settings"
+msgstr "常规设置"
+
+#: luci-app-wolultra/root/usr/share/rpcd/acl.d/luci-app-wolultra.json:3
+msgid "Grant access to luci-app-wolultra"
+msgstr "授予 luci-app-wolultra 访问权限"
+
+#: luci-app-wolultra/htdocs/luci-static/resources/view/wolultra.js:113
+msgid "Hour (0-23)"
+msgstr "时(0-23)"
+
+#: luci-app-wolultra/htdocs/luci-static/resources/view/wolultra.js:50
+msgid "Invalid value for %s: %s. Must be between %d and %d or \"*\"."
+msgstr "%s 的值 %s 无效，必须为 %d 至 %d 之间的整数或“*”。"
+
+#: luci-app-wolultra/htdocs/luci-static/resources/view/wolultra.js:91
+msgid "MAC Address"
+msgstr "MAC 地址"
+
+#: luci-app-wolultra/htdocs/luci-static/resources/view/wolultra.js:112
+msgid "Minute (0-59)"
+msgstr "分(0-59)"
+
+#: luci-app-wolultra/htdocs/luci-static/resources/view/wolultra.js:115
+msgid "Month (1-12)"
+msgstr "月(1-12)"
+
+#: luci-app-wolultra/htdocs/luci-static/resources/view/wolultra.js:88
+msgid "Name"
+msgstr "名称"
+
+#: luci-app-wolultra/htdocs/luci-static/resources/view/wolultra.js:96
+msgid "Network Interface"
+msgstr "网络接口"
+
+#: luci-app-wolultra/htdocs/luci-static/resources/view/wolultra.js:163
+msgid "Please save the client before waking it up."
+msgstr "请先保存客户端，再执行唤醒。"
+
+#: luci-app-wolultra/htdocs/luci-static/resources/view/wolultra.js:86
+#: luci-app-wolultra/htdocs/luci-static/resources/view/wolultra.js:102
+#: luci-app-wolultra/htdocs/luci-static/resources/view/wolultra.js:107
+msgid "Scheduled Wake"
+msgstr "定时唤醒"
+
+#: luci-app-wolultra/htdocs/luci-static/resources/view/wolultra.js:78
+#: luci-app-wolultra/root/usr/share/luci/menu.d/luci-app-wolultra.json:14
+msgid "WOL Ultra"
+msgstr "超级网络唤醒"
+
+#: luci-app-wolultra/htdocs/luci-static/resources/view/wolultra.js:144
+msgid "Wake"
+msgstr "唤醒"
+
+#: luci-app-wolultra/htdocs/luci-static/resources/view/wolultra.js:176
+msgid "Wake Host"
+msgstr "唤醒设备"
+
+#: luci-app-wolultra/htdocs/luci-static/resources/view/wolultra.js:172
+msgid "Wake command completed with code %d."
+msgstr "唤醒命令执行完成，返回码为 %d。"
+
+#: luci-app-wolultra/htdocs/luci-static/resources/view/wolultra.js:180
+msgid "Wake command failed: %s"
+msgstr "唤醒命令执行失败：%s"
+
+#: luci-app-wolultra/htdocs/luci-static/resources/view/wolultra.js:79
+msgid "Wake local network devices immediately or on an individual schedule."
+msgstr "立即唤醒局域网设备，或为每台设备设置独立的定时唤醒任务。"
+
+#: luci-app-wolultra/htdocs/luci-static/resources/view/wolultra.js:116
+msgid "Week (0-6)"
+msgstr "周(0-6)"

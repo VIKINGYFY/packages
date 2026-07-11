@@ -6,7 +6,7 @@ STORAGE_HELPER=/usr/libexec/axonhub-find-storage
 
 config_load axonhub
 config_get data_dir main data_dir 'auto'
-config_get cleanup_schedule main log_cleanup_schedule 'weekly'
+config_get cleanup_schedule main log_cleanup_schedule 'daily'
 config_get_bool log_to_syslog main log_to_syslog 0
 
 [ "$log_to_syslog" -eq 0 ] || exit 0
@@ -14,7 +14,7 @@ config_get_bool log_to_syslog main log_to_syslog 0
 case "$cleanup_schedule" in
 	disabled) exit 0 ;;
 	daily|weekly|monthly) ;;
-	*) cleanup_schedule='weekly' ;;
+	*) cleanup_schedule='daily' ;;
 esac
 
 if [ "$data_dir" = 'auto' ]; then
@@ -37,4 +37,4 @@ log_dir="$data_dir/logs"
 log_file="$log_dir/axonhub.log"
 
 [ ! -f "$log_file" ] || : > "$log_file"
-rm -f "$log_file".* "$data_dir/.log-cleanup.timestamp"
+rm -f "$log_file".*

@@ -1,8 +1,9 @@
 config gecoosac 'config'
 	option enabled '0'
-	option port '60650'
-	option isonlyoneprot '1'
+	option port 'auto'
 	option upload_dir '/tmp/gecoosac/upload/'
 	option db_dir '/etc/gecoosac/'
 	option log '0'
-
+	option log_max_size '20'
+	option log_cleanup_schedule 'daily'
+	option config_version '2'

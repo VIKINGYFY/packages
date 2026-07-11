@@ -1,0 +1,147 @@
+#!/bin/sh /etc/rc.common
+
+. /lib/functions.sh
+
+START=99
+STOP=10
+
+CONFIG=wolultra
+CRON_FILE=/etc/crontabs/root
+CRON_LOCK=/var/lock/root-crontab
+ETHERWAKE_CMD=/usr/bin/etherwake
+CRON_TAG='# wolultra'
+
+is_true() {
+	case "$1" in
+		1|on|true|yes|enabled) return 0 ;;
+		*) return 1 ;;
+	esac
+}
+
+valid_mac() {
+	printf '%s\n' "$1" | grep -Eq '^([0-9A-Fa-f]{2}:){5}[0-9A-Fa-f]{2}$'
+}
+
+valid_iface() {
+	case "$1" in
+		''|*[!A-Za-z0-9_.:-]*) return 1 ;;
+		*) return 0 ;;
+	esac
+}
+
+valid_cron_field() {
+	local value="$1"
+	local min="$2"
+	local max="$3"
+
+	[ "$value" = '*' ] && return 0
+	case "$value" in
+		''|*[!0-9]*) return 1 ;;
+	esac
+
+	[ "$value" -ge "$min" ] 2>/dev/null && [ "$value" -le "$max" ] 2>/dev/null
+}
+
+append_rule() {
+	local section="$1"
+	local target="$2"
+	local scheduled name macaddr maceth minute hour day month weeks cron_tag
+
+	config_get scheduled "$section" scheduled '0'
+	is_true "$scheduled" || return 0
+
+	config_get name "$section" name "$section"
+	config_get macaddr "$section" macaddr
+	config_get maceth "$section" maceth 'br-lan'
+	config_get minute "$section" minute '0'
+	config_get hour "$section" hour '0'
+	config_get day "$section" day '*'
+	config_get month "$section" month '*'
+	config_get weeks "$section" weeks '*'
+
+	if ! valid_mac "$macaddr" || ! valid_iface "$maceth" || \
+		! valid_cron_field "$minute" 0 59 || \
+		! valid_cron_field "$hour" 0 23 || \
+		! valid_cron_field "$day" 1 31 || \
+		! valid_cron_field "$month" 1 12 || \
+		! valid_cron_field "$weeks" 0 6; then
+		logger -t wolultra -p daemon.err "Skipping invalid client section $section"
+		return 0
+	fi
+
+	name="$(printf '%s' "$name" | tr '\r\n\t' '   ')"
+	[ -n "$name" ] || name="$section"
+	cron_tag="$CRON_TAG $name"
+
+	printf '%s %s %s %s %s %s -b -D -i %s %s %s\n' \
+		"$minute" "$hour" "$day" "$month" "$weeks" \
+		"$ETHERWAKE_CMD" "$maceth" "$macaddr" "$cron_tag" >> "$target"
+}
+
+rebuild_crontab() {
+	local mode="${1:-config}"
+	local tmp changed=0
+
+	mkdir -p "$(dirname "$CRON_FILE")" /var/lock || return 1
+	lock "$CRON_LOCK" || return 1
+	tmp="$(mktemp "$(dirname "$CRON_FILE")/.wolultra-cron.XXXXXX")" || {
+		lock -u "$CRON_LOCK"
+		return 1
+	}
+
+	if [ -f "$CRON_FILE" ]; then
+		sed \
+			-e "/[[:space:]]${CRON_TAG}$/d" \
+			-e "/[[:space:]]${CRON_TAG}[[:space:]].*$/d" \
+			"$CRON_FILE" > "$tmp" || {
+			rm -f "$tmp"
+			lock -u "$CRON_LOCK"
+			return 1
+		}
+	fi
+
+	if [ "$mode" = config ]; then
+		config_load "$CONFIG"
+		config_foreach append_rule macclient "$tmp"
+	fi
+
+	chmod 600 "$tmp" || {
+		rm -f "$tmp"
+		lock -u "$CRON_LOCK"
+		return 1
+	}
+	if [ -f "$CRON_FILE" ] && cmp -s "$tmp" "$CRON_FILE"; then
+		chmod 600 "$CRON_FILE" || {
+			rm -f "$tmp"
+			lock -u "$CRON_LOCK"
+			return 1
+		}
+		rm -f "$tmp"
+	else
+		mv -f "$tmp" "$CRON_FILE" || {
+			rm -f "$tmp"
+			lock -u "$CRON_LOCK"
+			return 1
+		}
+		changed=1
+	fi
+	lock -u "$CRON_LOCK"
+
+	[ "$changed" -eq 0 ] || reload_cron
+}
+
+reload_cron() {
+	/etc/init.d/cron reload >/dev/null 2>&1 || /etc/init.d/cron restart >/dev/null 2>&1
+}
+
+start() {
+	rebuild_crontab config
+}
+
+reload() {
+	rebuild_crontab config
+}
+
+stop() {
+	rebuild_crontab disabled
+}

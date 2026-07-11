@@ -1,70 +1,208 @@
 #!/bin/sh /etc/rc.common
-# Copyright (C) 2024 ImmortalWrt
 
 . /lib/functions.sh
 . /lib/functions/procd.sh
 
 USE_PROCD=1
-
 START=90
 STOP=10
 
-init_conf() {
-	config_load "gecoosac"
-	config_get "db_dir" "config" "db_dir" "/etc/gecoosac/"
-	config_get "upload_dir" "config" "upload_dir" "/tmp/gecoosac/upload/"
-	config_get "enabled" "config" "enabled" "0"
-	config_get "port" "config" "port" "60650"
-	config_get "isonlyoneprot" "config" "isonlyoneprot" "1"
-	config_get "m_port" "config" "m_port" "8080"
-	config_get "https" "config" "https" "0"
-	config_get "crt_file" "config" "crt_file" "/etc/gecoosac/tls/1.crt"
-	config_get "key_file" "config" "key_file" "/etc/gecoosac/tls/1.key"
-	config_get "log" "config" "log" "0"
+PROG=/usr/bin/gecoosac
+LOG_RUNNER=/usr/libexec/gecoosac-log-runner
+PORT_HELPER=/usr/libexec/gecoosac-random-port
+CRON_FILE=/etc/crontabs/root
+CRON_LOCK=/var/lock/root-crontab
+
+extra_command "sync_cron" "Update the Gecoos AC log cleanup schedule"
+
+normalize_cleanup_schedule() {
+	case "$1" in
+		disabled|daily|weekly|monthly) printf '%s\n' "$1" ;;
+		*) printf '%s\n' 'daily' ;;
+	esac
+}
+
+normalize_log_max_size() {
+	case "$1" in
+		10|20|30|40|50) printf '%s\n' "$1" ;;
+		*) printf '%s\n' '20' ;;
+	esac
+}
+
+validate_directory() {
+	case "$1" in
+		/*) ;;
+		*) return 1 ;;
+	esac
+
+	case "$1" in
+		/|*..*|*[!A-Za-z0-9_./-]*) return 1 ;;
+	esac
+
+	return 0
+}
+
+validate_db_directory() {
+	validate_directory "$1" || return 1
+
+	case "$1" in
+		/tmp|/tmp/*|/var|/var/*|/rom|/rom/*|/proc|/proc/*|/sys|/sys/*|/dev|/dev/*)
+			return 1
+			;;
+	esac
+
+	return 0
+}
+
+configure_log_cleanup() {
+	local enabled="$1"
+	local log_enabled="$2"
+	local cleanup_schedule="$3"
+	local cron_spec=''
+	local tmp changed=0
+
+	mkdir -p "$(dirname "$CRON_FILE")" /var/lock || return 1
+	lock "$CRON_LOCK" || return 1
+	tmp="$(mktemp "$(dirname "$CRON_FILE")/.gecoosac-cron.XXXXXX")" || {
+		lock -u "$CRON_LOCK"
+		return 1
+	}
+
+	if [ -f "$CRON_FILE" ]; then
+		sed \
+			-e '/[[:space:]]#gecoosac[[:space:]]*$/d' \
+			-e '/[[:space:]]#gecoosac-size[[:space:]]*$/d' \
+			"$CRON_FILE" > "$tmp" || {
+			rm -f "$tmp"
+			lock -u "$CRON_LOCK"
+			return 1
+		}
+	fi
+
+	if [ "$enabled" -eq 1 ] && [ "$log_enabled" -eq 1 ]; then
+		case "$cleanup_schedule" in
+			daily) cron_spec='0 3 * * *' ;;
+			weekly) cron_spec='0 3 * * 0' ;;
+			monthly) cron_spec='0 3 1 * *' ;;
+		esac
+	fi
+
+	if [ -n "$cron_spec" ]; then
+		printf '%s /usr/libexec/gecoosac-log-cleanup #gecoosac\n' "$cron_spec" >> "$tmp"
+	fi
+	chmod 600 "$tmp" || {
+		rm -f "$tmp"
+		lock -u "$CRON_LOCK"
+		return 1
+	}
+	if [ -f "$CRON_FILE" ] && cmp -s "$tmp" "$CRON_FILE"; then
+		chmod 600 "$CRON_FILE" || {
+			rm -f "$tmp"
+			lock -u "$CRON_LOCK"
+			return 1
+		}
+		rm -f "$tmp"
+	else
+		mv -f "$tmp" "$CRON_FILE" || {
+			rm -f "$tmp"
+			lock -u "$CRON_LOCK"
+			return 1
+		}
+		changed=1
+	fi
+	lock -u "$CRON_LOCK"
+
+	[ "$changed" -eq 0 ] || reload_cron
+}
+
+reload_cron() {
+	/etc/init.d/cron reload >/dev/null 2>&1 || /etc/init.d/cron restart >/dev/null 2>&1
+}
+
+sync_cron() {
+	local enabled log_enabled cleanup_schedule
+
+	config_load gecoosac
+	config_get_bool enabled config enabled 0
+	config_get_bool log_enabled config log 0
+	config_get cleanup_schedule config log_cleanup_schedule 'daily'
+	cleanup_schedule="$(normalize_cleanup_schedule "$cleanup_schedule")"
+
+	configure_log_cleanup "$enabled" "$log_enabled" "$cleanup_schedule" || return 1
 }
 
 start_service() {
-	init_conf
-	[ "${enabled}" = "1" ] || return 0
-	procd_open_instance gecoosac
-	procd_set_param command "/usr/bin/gecoosac"
-	procd_append_param command -f "${upload_dir}"
-	procd_append_param command -p "${port}"
-	procd_append_param command -debug "0"
-	procd_append_param command -dbpath "${db_dir}"
-	procd_append_param command -token "1"
-	if [ "${isonlyoneprot}" = "0" ]; then
-		procd_append_param command -isonlyoneprot "0"
-		procd_append_param command -mp "${m_port}"
-		if [ "${https}" = "1" ]; then
-			procd_append_param command -https "1"
-			procd_append_param command -crt "${crt_file}"
-			procd_append_param command -key "${key_file}"
-		else
-			procd_append_param command -https "0"
-		fi
-	else
-		procd_append_param command -isonlyoneprot "1"
+	local enabled port upload_dir db_dir log_enabled log_max_size cleanup_schedule log_file
+
+	config_load gecoosac
+	config_get_bool enabled config enabled 0
+	config_get port config port 'auto'
+	config_get upload_dir config upload_dir '/tmp/gecoosac/upload/'
+	config_get db_dir config db_dir '/etc/gecoosac/'
+	config_get_bool log_enabled config log 0
+	config_get log_max_size config log_max_size '20'
+	config_get cleanup_schedule config log_cleanup_schedule 'daily'
+	log_max_size="$(normalize_log_max_size "$log_max_size")"
+	cleanup_schedule="$(normalize_cleanup_schedule "$cleanup_schedule")"
+
+	configure_log_cleanup "$enabled" "$log_enabled" "$cleanup_schedule" || return 1
+	[ "$enabled" -eq 1 ] || return 0
+
+	if [ -z "$port" ] || [ "$port" = 'auto' ]; then
+		port="$($PORT_HELPER)"
+		uci -q set gecoosac.config.port="$port"
+		uci -q commit gecoosac
 	fi
-	procd_append_param command -showtip "0"
-	procd_set_param env GIN_MODE=release
+	case "$port" in
+		''|*[!0-9]*) port=60650 ;;
+	esac
+	[ "$port" -ge 1 ] 2>/dev/null && [ "$port" -le 65535 ] 2>/dev/null || port=60650
+
+	upload_dir="${upload_dir%/}"
+	db_dir="${db_dir%/}"
+	validate_directory "$upload_dir" || return 1
+	validate_db_directory "$db_dir" || return 1
+	mkdir -p "$upload_dir" "$db_dir" || return 1
+
+	log_file="$db_dir/logs/gecoosac.log"
+	if [ "$log_enabled" -eq 1 ]; then
+		mkdir -p "$db_dir/logs" || return 1
+		chmod 700 "$db_dir/logs"
+	fi
+
+	procd_open_instance gecoosac
+	if [ "$log_enabled" -eq 1 ]; then
+		procd_set_param command "$LOG_RUNNER" "$log_file" "$PROG"
+	else
+		procd_set_param command "$PROG"
+	fi
+	procd_append_param command -f "$upload_dir"
+	procd_append_param command -p "$port"
+	procd_append_param command -debug '0'
+	procd_append_param command -dbpath "$db_dir"
+	procd_append_param command -token '1'
+	procd_append_param command -lang 'zh'
+	procd_append_param command -isonlyoneprot '1'
+	procd_append_param command -showtip '0'
+	procd_set_param env GIN_MODE=release "GECOOSAC_LOG_MAX_SIZE_MB=$log_max_size"
 	procd_set_param pidfile /var/run/gecoosac.pid
-	procd_set_param stdout $log
-	procd_set_param stderr $log
-	procd_set_param respawn ${respawn_threshold:-3600} ${respawn_timeout:-5} ${respawn_retry:-5}
+	procd_set_param stdout 0
+	procd_set_param stderr 0
+	procd_set_param respawn 3600 5 5
+	procd_set_param term_timeout 30
+	procd_set_param file /etc/config/gecoosac
 	procd_close_instance
 }
 
-stop_service(){
-	init_conf
-}
-
-reload_service()
-{
+reload_service() {
 	stop
 	start
 }
 
+stop_service() {
+	configure_log_cleanup 0 0 disabled
+}
+
 service_triggers() {
-	procd_add_reload_trigger "gecoosac"
+	procd_add_reload_trigger gecoosac
 }

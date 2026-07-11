@@ -30,7 +30,7 @@ fi
 if [ -z "$log_cleanup_schedule" ]; then
 	case "$log_cleanup_days" in
 		0) log_cleanup_schedule='disabled' ;;
-		''|*[!0-9]*) log_cleanup_schedule='weekly' ;;
+		''|*[!0-9]*) log_cleanup_schedule='daily' ;;
 		*)
 			if [ "$log_cleanup_days" -le 3 ]; then
 				log_cleanup_schedule='daily'
@@ -45,10 +45,16 @@ if [ -z "$log_cleanup_schedule" ]; then
 	changed=1
 fi
 
+if [ "$config_version" = '4' ] && [ "$log_cleanup_schedule" = 'weekly' ]; then
+	log_cleanup_schedule='daily'
+	uci -q set axonhub.main.log_cleanup_schedule="$log_cleanup_schedule"
+	changed=1
+fi
+
 case "$log_cleanup_schedule" in
 	disabled|daily|weekly|monthly) ;;
 	*)
-		uci -q set axonhub.main.log_cleanup_schedule='weekly'
+		uci -q set axonhub.main.log_cleanup_schedule='daily'
 		changed=1
 		;;
 esac
@@ -58,8 +64,13 @@ if [ -n "$log_cleanup_days" ]; then
 	changed=1
 fi
 
-if [ "$config_version" != '3' ]; then
-	uci -q set axonhub.main.config_version='3'
+if uci -q get axonhub.main.listen_addr >/dev/null; then
+	uci -q delete axonhub.main.listen_addr
+	changed=1
+fi
+
+if [ "$config_version" != '5' ]; then
+	uci -q set axonhub.main.config_version='5'
 	changed=1
 fi
 
@@ -72,5 +83,4 @@ uci -q batch <<-EOF >/dev/null
 	commit ucitrack
 EOF
 
-rm -rf /tmp/luci-*
 exit 0

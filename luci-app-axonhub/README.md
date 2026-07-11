@@ -8,13 +8,13 @@ OpenWrt LuCI entry and `procd` service for the AxonHub native binary.
 - `luci-app-axonhub`: installs the LuCI view, UCI configuration, RPC methods and `procd` init script.
 - `luci-i18n-axonhub-zh-cn`: installs the compiled Simplified Chinese translation catalog.
 
-The binary package supports `aarch64`, `x86_64` and `loongarch64`. The release hashes come from the official AxonHub `v1.0.0-beta4` checksums.
+The binary package supports `aarch64`, `x86_64` and `loongarch64`. The release hashes come from the official AxonHub `v1.0.0-beta5` checksums.
 
 ## Data directory
 
 On first installation, `/etc/uci-defaults/luci-axonhub` selects the writable persistent filesystem with the largest total size. Volatile, read-only and non-POSIX filesystems are excluded. The resulting UCI value is `<mountpoint>/axonhub`; if no suitable data mount exists, it falls back to `/etc/axonhub`.
 
-The directory remains editable in LuCI. AxonHub stores its SQLite database and application settings in this directory. Changing it without moving the existing database creates a fresh AxonHub instance.
+LuCI lists only the persistent paths found by the storage scan and selects the largest filesystem by default. AxonHub stores its SQLite database and application settings in this directory. Selecting another path without moving the existing database creates a fresh AxonHub instance.
 
 For the tested MT7986 router, the expected default is:
 

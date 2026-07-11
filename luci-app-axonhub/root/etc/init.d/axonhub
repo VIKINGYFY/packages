@@ -8,7 +8,7 @@ PROG=/usr/bin/axonhub
 STORAGE_HELPER=/usr/libexec/axonhub-find-storage
 PORT_HELPER=/usr/libexec/axonhub-random-port
 CRON_FILE=/etc/crontabs/root
-CRON_LOCK=/var/lock/axonhub-cron
+CRON_LOCK=/var/lock/root-crontab
 
 extra_command "sync_cron" "Update the AxonHub log cleanup schedule"
 
@@ -49,7 +49,7 @@ external_mount_ready() {
 normalize_cleanup_schedule() {
 	case "$1" in
 		disabled|daily|weekly|monthly) printf '%s\n' "$1" ;;
-		*) printf '%s\n' 'weekly' ;;
+		*) printf '%s\n' 'daily' ;;
 	esac
 }
 
@@ -59,7 +59,7 @@ cleanup_schedule_days() {
 		daily) printf '%s\n' '1' ;;
 		weekly) printf '%s\n' '7' ;;
 		monthly) printf '%s\n' '31' ;;
-		*) printf '%s\n' '7' ;;
+		*) printf '%s\n' '1' ;;
 	esac
 }
 
@@ -68,12 +68,22 @@ configure_log_cleanup() {
 	local log_to_syslog="$2"
 	local cleanup_schedule="$3"
 	local cron_spec=''
+	local tmp changed=0
 
-	mkdir -p /etc/crontabs
-	mkdir -p /var/lock
-	lock "$CRON_LOCK"
-	touch "$CRON_FILE"
-	sed -i '/[[:space:]]#axonhub[[:space:]]*$/d' "$CRON_FILE"
+	mkdir -p "$(dirname "$CRON_FILE")" /var/lock || return 1
+	lock "$CRON_LOCK" || return 1
+	tmp="$(mktemp "$(dirname "$CRON_FILE")/.axonhub-cron.XXXXXX")" || {
+		lock -u "$CRON_LOCK"
+		return 1
+	}
+
+	if [ -f "$CRON_FILE" ]; then
+		sed '/[[:space:]]#axonhub[[:space:]]*$/d' "$CRON_FILE" > "$tmp" || {
+			rm -f "$tmp"
+			lock -u "$CRON_LOCK"
+			return 1
+		}
+	fi
 
 	if [ "$enabled" -eq 1 ] && [ "$log_to_syslog" -eq 0 ]; then
 		case "$cleanup_schedule" in
@@ -84,10 +94,35 @@ configure_log_cleanup() {
 	fi
 
 	if [ -n "$cron_spec" ]; then
-		printf '%s /usr/libexec/axonhub-log-cleanup #axonhub\n' "$cron_spec" >> "$CRON_FILE"
+		printf '%s /usr/libexec/axonhub-log-cleanup #axonhub\n' "$cron_spec" >> "$tmp"
+	fi
+
+	chmod 600 "$tmp" || {
+		rm -f "$tmp"
+		lock -u "$CRON_LOCK"
+		return 1
+	}
+	if [ -f "$CRON_FILE" ] && cmp -s "$tmp" "$CRON_FILE"; then
+		chmod 600 "$CRON_FILE" || {
+			rm -f "$tmp"
+			lock -u "$CRON_LOCK"
+			return 1
+		}
+		rm -f "$tmp"
+	else
+		mv -f "$tmp" "$CRON_FILE" || {
+			rm -f "$tmp"
+			lock -u "$CRON_LOCK"
+			return 1
+		}
+		changed=1
 	fi
 	lock -u "$CRON_LOCK"
 
+	[ "$changed" -eq 0 ] || reload_cron
+}
+
+reload_cron() {
 	/etc/init.d/cron reload >/dev/null 2>&1 || /etc/init.d/cron restart >/dev/null 2>&1
 }
 
@@ -97,27 +132,26 @@ sync_cron() {
 	config_load axonhub
 	config_get_bool enabled main enabled 0
 	config_get_bool log_to_syslog main log_to_syslog 0
-	config_get cleanup_schedule main log_cleanup_schedule 'weekly'
+	config_get cleanup_schedule main log_cleanup_schedule 'daily'
 	cleanup_schedule="$(normalize_cleanup_schedule "$cleanup_schedule")"
 
-	configure_log_cleanup "$enabled" "$log_to_syslog" "$cleanup_schedule"
+	configure_log_cleanup "$enabled" "$log_to_syslog" "$cleanup_schedule" || return 1
 }
 
 start_service() {
-	local enabled listen_addr port data_dir memory_limit gomaxprocs
+	local enabled port data_dir memory_limit gomaxprocs
 	local max_open_conns max_idle_conns log_level log_to_syslog cleanup_schedule log_file_max_age db_dsn
 
 	config_load axonhub
 	config_get_bool enabled main enabled 0
 	config_get_bool log_to_syslog main log_to_syslog 0
-	config_get cleanup_schedule main log_cleanup_schedule 'weekly'
+	config_get cleanup_schedule main log_cleanup_schedule 'daily'
 	cleanup_schedule="$(normalize_cleanup_schedule "$cleanup_schedule")"
 	log_file_max_age="$(cleanup_schedule_days "$cleanup_schedule")"
 
-	configure_log_cleanup "$enabled" "$log_to_syslog" "$cleanup_schedule"
+	configure_log_cleanup "$enabled" "$log_to_syslog" "$cleanup_schedule" || return 1
 	[ "$enabled" -eq 1 ] || return 0
 
-	config_get listen_addr main listen_addr '0.0.0.0'
 	config_get port main port 'auto'
 	config_get data_dir main data_dir 'auto'
 	config_get memory_limit main memory_limit '512MiB'
@@ -198,7 +232,7 @@ start_service() {
 		"HOME=/root" \
 		"GOMEMLIMIT=$memory_limit" \
 		"GOMAXPROCS=$gomaxprocs" \
-		"AXONHUB_SERVER_HOST=$listen_addr" \
+		"AXONHUB_SERVER_HOST=0.0.0.0" \
 		"AXONHUB_SERVER_PORT=$port" \
 		"AXONHUB_DB_DIALECT=sqlite3" \
 		"AXONHUB_DB_DSN=$db_dsn" \

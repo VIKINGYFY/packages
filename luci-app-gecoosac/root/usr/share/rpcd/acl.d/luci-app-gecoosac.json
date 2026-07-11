@@ -3,13 +3,14 @@
 		"description": "Grant access to luci-app-gecoosac",
 		"read": {
 			"ubus": {
-				"luci.gecoosac": [ "status" ]
+				"luci.gecoosac": [ "status", "log" ],
+				"service": [ "list" ]
 			},
 			"uci": [ "gecoosac" ]
 		},
 		"write": {
 			"ubus": {
-				"luci.gecoosac": [ "clear_upload" ]
+				"luci.gecoosac": [ "action", "clear_upload", "cron" ]
 			},
 			"uci": [ "gecoosac" ]
 		}

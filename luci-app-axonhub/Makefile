@@ -6,7 +6,8 @@ include $(TOPDIR)/rules.mk
 
 PKG_NAME:=luci-app-axonhub
 PKG_VERSION:=1.0.0
-PKG_RELEASE:=6
+PKG_RELEASE:=11
+PKG_PO_VERSION:=$(PKG_VERSION)-r$(PKG_RELEASE)
 
 LUCI_TITLE:=LuCI support for AxonHub
 LUCI_DEPENDS:=+luci-base +rpcd-mod-ucode +axonhub

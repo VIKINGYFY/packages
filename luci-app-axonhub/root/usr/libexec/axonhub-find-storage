@@ -13,6 +13,9 @@ while read -r device mountpoint fstype options rest; do
 	case "$mountpoint" in
 		/|/rom|/overlay|/boot|/tmp|/tmp/*|/var|/var/*) continue ;;
 	esac
+	case "$mountpoint" in
+		*..*|*[!A-Za-z0-9_./-]*) continue ;;
+	esac
 
 	case ",$options," in
 		*,ro,*) continue ;;

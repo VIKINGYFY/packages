@@ -1,5 +1,16 @@
 {
-	"admin/services/axonhub": {
+	"admin/control": {
+		"title": "Control",
+		"order": 44,
+		"action": {
+			"type": "firstchild"
+		},
+		"depends": {
+			"acl": [ "luci-app-axonhub" ]
+		}
+	},
+
+	"admin/control/axonhub": {
 		"title": "AxonHub",
 		"order": 90,
 		"action": {

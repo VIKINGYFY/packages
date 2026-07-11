@@ -1,0 +1,21 @@
+#!/bin/sh
+
+. /lib/functions.sh
+
+config_load gecoosac
+config_get db_dir config db_dir '/etc/gecoosac/'
+db_dir="${db_dir%/}"
+
+case "$db_dir" in
+	/*) ;;
+	*) exit 1 ;;
+esac
+case "$db_dir" in
+	/|/tmp|/tmp/*|/var|/var/*|/rom|/rom/*|/proc|/proc/*|/sys|/sys/*|/dev|/dev/*|*..*|*[!A-Za-z0-9_./-]*)
+		exit 1
+		;;
+esac
+
+log_file="$db_dir/logs/gecoosac.log"
+[ -f "$log_file" ] || exit 0
+: > "$log_file"

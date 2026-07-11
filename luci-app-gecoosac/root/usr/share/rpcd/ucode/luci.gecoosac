@@ -2,8 +2,9 @@
 
 'use strict';
 
-import { access, lsdir, rmdir, stat, unlink } from 'fs';
-import { process_list } from 'luci.sys';
+import { access, glob, lsdir, popen, readlink, realpath, rmdir, stat, unlink } from 'fs';
+import { init_action, process_list } from 'luci.sys';
+import { cursor } from 'uci';
 
 const binpath = '/usr/bin/gecoosac';
 const defaultUploadDir = '/tmp/gecoosac/upload/';
@@ -25,12 +26,41 @@ const protectedDirs = {
 	'/var': true
 };
 
-function process_running() {
-	for (let proc in process_list())
-		if (index(proc.COMMAND, 'gecoosac') >= 0)
-			return true;
+function process_status() {
+	let result = {
+		exists: !!access(binpath, 'x'),
+		running: false
+	};
+	let pid = 0;
 
-	return false;
+	for (let path in glob('/proc/[0-9]*/exe')) {
+		let target = readlink(path);
+		if (target != binpath && target != binpath + ' (deleted)')
+			continue;
+
+		let fields = match(path, /^\/proc\/([0-9]+)\/exe$/);
+		if (fields) {
+			pid = +fields[1];
+			break;
+		}
+	}
+
+	if (!pid)
+		return result;
+
+	result.running = true;
+	result.pid = pid;
+
+	for (let proc in process_list()) {
+		if (+proc.PID != pid)
+			continue;
+
+		result.cpu = proc['%CPU'];
+		result.memory = proc['%MEM'];
+		break;
+	}
+
+	return result;
 }
 
 function sanitize_path(path) {
@@ -67,6 +97,17 @@ function remove_contents(path) {
 			continue;
 
 		let full = path + '/' + name;
+		let target = readlink(full);
+
+		if (target != null) {
+			if (unlink(full))
+				deleted++;
+			else
+				push(errors, 'failed to remove symbolic link ' + full);
+
+			continue;
+		}
+
 		let st = stat(full);
 
 		if (st?.type == 'directory') {
@@ -95,20 +136,55 @@ function remove_contents(path) {
 const methods = {
 	status: {
 		call: function() {
-			return {
-				exists: !!access(binpath, 'x'),
-				running: process_running()
-			};
+			return process_status();
+		}
+	},
+
+	action: {
+		args: { action: 'string' },
+		call: function(request) {
+			switch (request.args.action) {
+			case 'start':
+			case 'restart':
+				let rc = init_action('gecoosac', request.args.action);
+				return { success: rc === 0, code: rc };
+			default:
+				return { success: false, code: 2, message: 'invalid action' };
+			}
+		}
+	},
+
+	log: {
+		call: function() {
+			let fd = popen('/usr/libexec/gecoosac-read-log');
+			if (!fd)
+				return { log: '' };
+
+			let output = fd.read('all') || '';
+			fd.close();
+
+			return { log: output };
+		}
+	},
+
+	cron: {
+		call: function() {
+			let rc = init_action('gecoosac', 'sync_cron');
+			return { success: rc === 0, code: rc };
 		}
 	},
 
 	clear_upload: {
-		args: { path: 'string' },
-		call: function(request) {
-			let checked = sanitize_path(request.args.path);
+		call: function() {
+			let uci = cursor();
+			let checked = sanitize_path(uci.get('gecoosac', 'config', 'upload_dir') || defaultUploadDir);
 
 			if (!checked.ok)
 				return { success: false, deleted: 0, message: checked.message };
+
+			let resolved = realpath(checked.path);
+			if (!resolved || resolved != checked.path)
+				return { success: false, deleted: 0, message: 'upload directory must not contain symbolic links' };
 
 			let st = stat(checked.path);
 

@@ -40,7 +40,8 @@ function storage_mounts() {
 			continue;
 
 		let path = decode_mount_path(fields[1]);
-		if (ignoredMounts[path] || match(',' + fields[3] + ',', /,ro,/))
+		if (!match(path, /^\/[A-Za-z0-9_.\/-]+$/) || match(path, /(^|\/)\.\.(\/|$)/) ||
+		    ignoredMounts[path] || match(',' + fields[3] + ',', /,ro,/))
 			continue;
 
 		let stats = statvfs(path);
@@ -95,7 +96,6 @@ function process_status() {
 		if (+proc.PID != pid)
 			continue;
 
-		result.vsz = proc.VSZ;
 		result.cpu = proc['%CPU'];
 		result.memory = proc['%MEM'];
 		break;
@@ -128,12 +128,10 @@ const methods = {
 	info: {
 		call: function() {
 			let mounts = storage_mounts();
-			let base = length(mounts) ? mounts[0].path : '/etc';
 
 			return {
 				version: binary_version(),
-				mounts: mounts,
-				recommended: (base == '/etc' ? base : replace(base, /\/$/, '')) + '/axonhub'
+				mounts: mounts
 			};
 		}
 	},
@@ -150,7 +148,6 @@ const methods = {
 		call: function(request) {
 			switch (request.args.action) {
 			case 'start':
-			case 'stop':
 			case 'restart':
 				let rc = init_action('axonhub', request.args.action);
 				return { success: rc === 0, code: rc };

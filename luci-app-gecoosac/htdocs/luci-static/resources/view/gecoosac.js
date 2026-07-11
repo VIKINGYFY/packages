@@ -7,186 +7,333 @@
 'require uci';
 'require view';
 
+var callServiceList = rpc.declare({
+	object: 'service',
+	method: 'list',
+	params: [ 'name' ],
+	expect: { '': {} }
+});
+
 var callStatus = rpc.declare({
 	object: 'luci.gecoosac',
 	method: 'status',
 	expect: { '': {} }
 });
 
-var callClearUpload = rpc.declare({
+var callAction = rpc.declare({
 	object: 'luci.gecoosac',
-	method: 'clear_upload',
-	params: [ 'path' ],
+	method: 'action',
+	params: [ 'action' ],
 	expect: { '': {} }
 });
 
-function isTrue(value) {
-	return value === true || value === '1' || value === 'true' || value === 'yes' || value === 'on';
-}
+var callLog = rpc.declare({
+	object: 'luci.gecoosac',
+	method: 'log',
+	expect: { '': {} }
+});
 
-function mgmtUrl() {
-	var isonlyoneprot = uci.get('gecoosac', 'config', 'isonlyoneprot') || '1';
-	var https = uci.get('gecoosac', 'config', 'https') || '0';
+var callCronSync = rpc.declare({
+	object: 'luci.gecoosac',
+	method: 'cron',
+	expect: { '': {} }
+});
+
+var callClearUpload = rpc.declare({
+	object: 'luci.gecoosac',
+	method: 'clear_upload',
+	expect: { '': {} }
+});
+
+var statusNode;
+
+function managementUrl() {
+	var host = window.location.hostname;
 	var port = uci.get('gecoosac', 'config', 'port') || '60650';
-	var scheme = 'http://';
 
-	if (isonlyoneprot === '0') {
-		port = uci.get('gecoosac', 'config', 'm_port') || '8080';
+	if (port === 'auto')
+		port = '60650';
 
-		if (isTrue(https))
-			scheme = 'https://';
-	}
+	if (host.indexOf(':') >= 0 && host.charAt(0) !== '[')
+		host = '[' + host + ']';
 
-	return scheme + window.location.hostname + ':' + port;
+	return 'http://' + host + ':' + port + '/';
 }
 
-function renderStatus(running) {
-	var statusNode = E('span', {
-		'style': 'font-weight:bold;font-style:italic;color:%s'.format(running ? 'green' : 'red')
-	}, [ _('Gecoos AC'), ': ', running ? _('Running') : _('Not running') ]);
-
-	if (running) {
-		return [
-			statusNode,
-			' ',
-			E('button', {
-				'type': 'button',
-				'class': 'btn cbi-button cbi-button-action',
-				'click': function(ev) {
-					ev.preventDefault();
-					window.open(mgmtUrl(), '_blank', 'noopener');
-				}
-			}, [ _('Open the mgmt page') ])
-		];
-	}
-
-	return statusNode;
+function notifyError(message) {
+	ui.addNotification(null, E('p', message), 'error');
 }
 
-function getServiceStatus() {
-	return L.resolveDefault(callStatus(), {});
-}
+function runServiceAction(action, button) {
+	if (button)
+		button.disabled = true;
 
-function getRunningStatus() {
-	return getServiceStatus().then(function(status) {
-		return !!(status && status.running);
+	return callAction(action).then(function(result) {
+		if (!result || !result.success)
+			throw new Error(result && result.message || _('Service action failed with code %s.').format(result && result.code));
+
+		return new Promise(function(resolve) {
+			window.setTimeout(resolve, 800);
+		});
+	}).then(function() {
+		return updateStatus();
+	}).catch(function(err) {
+		notifyError(_('Service action failed: %s').format(err.message || err));
+	}).finally(function() {
+		if (button)
+			button.disabled = false;
 	});
 }
 
-function updateStatus(node) {
-	return getRunningStatus().then(function(running) {
-		dom.content(node, renderStatus(running));
+function actionButton(label, style, action) {
+	return E('button', {
+		'type': 'button',
+		'class': 'btn cbi-button cbi-button-' + style,
+		'click': function(ev) {
+			ev.preventDefault();
+			return runServiceAction(action, ev.currentTarget);
+		}
+	}, [ label ]);
+}
+
+function showLogs() {
+	return callLog().then(function(result) {
+		var content = result && result.log || _('No Gecoos AC log entries were found.');
+
+		ui.showModal(_('Gecoos AC Log'), [
+			E('pre', {
+				'style': 'max-height:60vh;overflow:auto;white-space:pre-wrap;word-break:break-word'
+			}, [ content ]),
+			E('div', { 'class': 'right' }, [
+				E('button', {
+					'type': 'button',
+					'class': 'btn',
+					'click': ui.hideModal
+				}, [ _('Close') ])
+			])
+		]);
+	}).catch(function(err) {
+		notifyError(_('Unable to read logs: %s').format(err.message || err));
+	});
+}
+
+function renderStatus(status) {
+	var enabled = uci.get('gecoosac', 'config', 'enabled') === '1';
+	var running = !!(status && status.running);
+	var unmanaged = !!(status && status.unmanaged);
+	var exists = !!(status && status.exists);
+	var details = [];
+	var buttons = [];
+
+	if (running) {
+		if (status.pid)
+			details.push(_('PID %s').format(status.pid));
+		if (status.cpu)
+			details.push(_('CPU %s').format(status.cpu));
+		if (status.memory)
+			details.push(_('MEM %s').format(status.memory));
+
+		buttons.push(E('button', {
+			'type': 'button',
+			'class': 'btn cbi-button cbi-button-action',
+			'click': function(ev) {
+				ev.preventDefault();
+				window.open(managementUrl(), '_blank', 'noopener,noreferrer');
+			}
+		}, [ _('Open Gecoos AC') ]));
+		if (!unmanaged)
+			buttons.push(actionButton(_('Restart'), 'reload', 'restart'));
+	}
+	else if (exists && enabled) {
+		buttons.push(actionButton(_('Start'), 'apply', 'start'));
+	}
+
+	buttons.push(E('button', {
+		'type': 'button',
+		'class': 'btn cbi-button',
+		'click': function(ev) {
+			ev.preventDefault();
+			return showLogs();
+		}
+	}, [ _('View Log') ]));
+
+	return E('div', {}, [
+		E('div', { 'style': 'display:flex;align-items:center;gap:8px;flex-wrap:wrap;min-height:32px' }, [
+			E('strong', {
+				'style': 'color:' + (unmanaged ? '#a65f00' : (running ? '#2d8a34' : '#c33'))
+			}, [ unmanaged ? _('Running (unmanaged)') : (running ? _('Running') : _('Not running')) ]),
+			details.length ? E('span', {}, [ '(' + details.join(', ') + ')' ]) : '',
+			!exists ? E('span', {}, [ _('The Gecoos AC binary is missing.') ]) : '',
+			!running && exists && !enabled ? E('span', {}, [ _('Enable the service and save the configuration to start it.') ]) : ''
+		]),
+		E('div', { 'style': 'display:flex;gap:8px;flex-wrap:wrap;margin-top:10px' }, buttons)
+	]);
+}
+
+function getStatus() {
+	return Promise.all([
+		L.resolveDefault(callStatus(), {}),
+		L.resolveDefault(callServiceList('gecoosac'), {})
+	]).then(function(data) {
+		var status = data[0] || {};
+		var services = data[1] || {};
+		var instance = services.gecoosac && services.gecoosac.instances && services.gecoosac.instances.gecoosac;
+		var processRunning = !!status.running;
+		var managedRunning = !!(instance && instance.running);
+
+		status.unmanaged = processRunning && !managedRunning;
+		status.running = managedRunning || processRunning;
+
+		if (instance && instance.pid)
+			status.pid = instance.pid;
+
+		return status;
+	});
+}
+
+function updateStatus() {
+	if (!statusNode)
+		return Promise.resolve();
+
+	return getStatus().then(function(status) {
+		dom.content(statusNode, renderStatus(status));
 	});
 }
 
 function renderStatusSection() {
-	var node = E('span', [ _('Collecting data...') ]);
-	var refresh = L.bind(updateStatus, null, node);
+	statusNode = E('div', {}, [ _('Collecting data...') ]);
+	poll.add(updateStatus, 5);
+	updateStatus();
 
-	refresh();
-	poll.add(refresh, 3);
+	return E('div', { 'class': 'cbi-section' }, [ statusNode ]);
+}
 
-	return E('div', { 'class': 'cbi-section' }, [
-		E('p', {}, [ node ])
-	]);
+function validateDirectory(sectionId, value) {
+	if (!value || !/^\/[A-Za-z0-9_./-]+$/.test(value))
+		return _('Enter an absolute path using letters, numbers, dot, underscore, slash or hyphen.');
+
+	if (/(^|\/)\.\.(\/|$)/.test(value) || value === '/')
+		return _('The directory must not be the root directory or contain parent-directory components.');
+
+	return true;
+}
+
+function validateDatabaseDirectory(sectionId, value) {
+	var valid = validateDirectory(sectionId, value);
+
+	if (valid !== true)
+		return valid;
+
+	if (/^\/(tmp|var|rom|proc|sys|dev)(\/|$)/.test(value))
+		return _('Select a persistent writable database directory outside volatile or system paths.');
+
+	return true;
 }
 
 return view.extend({
 	load: function() {
-		return Promise.all([
-			getServiceStatus(),
-			uci.load('gecoosac')
-		]);
+		return uci.load('gecoosac');
 	},
 
-	render: function(data) {
-		var status = data[0] || {};
-		var desc = _('Batch management Gecoos AP, Default password: admin') + '<br />' +
-			(status.exists
-				? _('The current AC version %s, only supports AP %s and above.').format('2.2', '7.6')
-				: _('The AC program does not exist, please check.'));
+	render: function() {
 		var m, s, o;
 
-		m = new form.Map('gecoosac', _('Gecoos AC'), desc);
+		m = new form.Map('gecoosac', _('Gecoos AC'),
+			_('Native Gecoos AC service and management interface. Default web password: admin.'));
 
 		s = m.section(form.TypedSection);
 		s.anonymous = true;
 		s.render = renderStatusSection;
 
-		s = m.section(form.NamedSection, 'config', 'gecoosac', _('Global Settings'));
+		s = m.section(form.NamedSection, 'config', 'gecoosac', _('Service Settings'));
 		s.addremove = false;
 		s.anonymous = true;
+		s.tab('general', _('General'));
+		s.tab('advanced', _('Advanced'));
 
-		o = s.option(form.Flag, 'enabled', _('Enabled AC'));
+		o = s.taboption('general', form.Flag, 'enabled', _('Enable'));
 		o.rmempty = false;
 
-		o = s.option(form.Value, 'port', _('Set interface port'));
-		o.placeholder = '60650';
+		o = s.taboption('general', form.Value, 'port', _('Listen port'),
+			_('A free port is selected randomly on first installation. The saved value remains unchanged after restarts.'));
 		o.default = '60650';
+		o.placeholder = '60650';
 		o.datatype = 'port';
 		o.rmempty = false;
 
-		o = s.option(form.Flag, 'isonlyoneprot', _('Single Port Mode'),
-			_('Do not enable the independent management port, only use one port for management.'));
-		o.default = '1';
-		o.rmempty = false;
-
-		o = s.option(form.Value, 'm_port', _('Set management port'));
-		o.placeholder = '8080';
-		o.default = '8080';
-		o.datatype = 'port';
-		o.depends('isonlyoneprot', '0');
-
-		o = s.option(form.Flag, 'https', _('Enable HTTPS service'),
-			_('A certificate file must be specified, otherwise it will fail to start.'));
-		o.default = '0';
-		o.depends('isonlyoneprot', '0');
-
-		o = s.option(form.Value, 'crt_file', _('Specify crt certificate file'));
-		o.placeholder = '/etc/gecoosac/tls/1.crt';
-		o.default = '/etc/gecoosac/tls/1.crt';
-		o.depends({ isonlyoneprot: '0', https: '1' });
-
-		o = s.option(form.Value, 'key_file', _('Specify key certificate file'));
-		o.placeholder = '/etc/gecoosac/tls/1.key';
-		o.default = '/etc/gecoosac/tls/1.key';
-		o.depends({ isonlyoneprot: '0', https: '1' });
-
-		o = s.option(form.Value, 'upload_dir', _('Upload dir path'), _('The path to upload AP upgrade firmware'));
-		o.placeholder = '/tmp/gecoosac/upload/';
+		o = s.taboption('general', form.Value, 'upload_dir', _('Firmware directory'),
+			_('Directory used to store AP firmware uploaded for upgrades.'));
 		o.default = '/tmp/gecoosac/upload/';
+		o.placeholder = '/tmp/gecoosac/upload/';
 		o.rmempty = false;
+		o.validate = validateDirectory;
 
-		o = s.option(form.Value, 'db_dir', _('Database dir path'), _('The path to store the config database'));
-		o.placeholder = '/etc/gecoosac/';
+		o = s.taboption('general', form.Value, 'db_dir', _('Database directory'),
+			_('Persistent directory used to store the controller configuration database.'));
 		o.default = '/etc/gecoosac/';
+		o.placeholder = '/etc/gecoosac/';
 		o.rmempty = false;
+		o.validate = validateDatabaseDirectory;
 
-		o = s.option(form.Flag, 'log', _('Enable Log'));
-		o.default = '1';
-		o.rmempty = false;
-
-		o = s.option(form.Button, '_clear_upload', _('Clear Upload Directory'));
+		o = s.taboption('general', form.Button, '_clear_upload', _('Clear firmware directory'));
 		o.inputstyle = 'remove';
-		o.onclick = function(section_id) {
-			var opt = L.toArray(m.lookupOption('upload_dir', section_id))[0];
-			var path = (opt ? opt.formvalue(section_id) : null) ||
-				uci.get('gecoosac', 'config', 'upload_dir') ||
-				'/tmp/gecoosac/upload/';
+		o.onclick = function(sectionId) {
+			var opt = L.toArray(m.lookupOption('upload_dir', sectionId))[0];
+			var savedPath = uci.get('gecoosac', 'config', 'upload_dir') || '/tmp/gecoosac/upload/';
+			var formPath = (opt ? opt.formvalue(sectionId) : null) || savedPath;
 
-			return callClearUpload(path).then(function(res) {
-				if (res && res.success) {
-					ui.addNotification(null, E('p', _('Upload directory cleaned. Removed %d entries.').format(res.deleted || 0)), 'info');
+			if (formPath !== savedPath) {
+				ui.addNotification(null, E('p', _('Save and apply the firmware directory before clearing it.')), 'error');
+				return Promise.resolve();
+			}
+
+			return callClearUpload().then(function(result) {
+				if (result && result.success) {
+					ui.addNotification(null, E('p', _('Firmware directory cleaned. Removed %d entries.').format(result.deleted || 0)), 'info');
 				}
 				else {
-					var details = res && (res.message || L.toArray(res.errors).join('; ')) || _('Unknown error');
-					ui.addNotification(null, E('p', _('Failed to clear upload directory: %s').format(details)), 'error');
+					var details = result && (result.message || L.toArray(result.errors).join('; ')) || _('Unknown error');
+					ui.addNotification(null, E('p', _('Failed to clear firmware directory: %s').format(details)), 'error');
 				}
 			}).catch(function(err) {
-				ui.addNotification(null, E('p', _('Failed to clear upload directory: %s').format(err.message || err)), 'error');
+				ui.addNotification(null, E('p', _('Failed to clear firmware directory: %s').format(err.message || err)), 'error');
 			});
 		};
 
+		o = s.taboption('advanced', form.Flag, 'log', _('Enable logging'),
+			_('Write Gecoos AC output to a dedicated log file in the database directory. Log contents are automatically deleted when the file exceeds the selected size limit.'));
+		o.default = '0';
+		o.rmempty = false;
+
+		o = s.taboption('advanced', form.ListValue, 'log_max_size', _('Log size limit'));
+		[ '10', '20', '30', '40', '50' ].forEach(function(size) {
+			o.value(size, size + ' MiB');
+		});
+		o.default = '20';
+		o.rmempty = false;
+		o.depends('log', '1');
+
+		o = s.taboption('advanced', form.ListValue, 'log_cleanup_schedule', _('Log cleanup schedule'),
+			_('Clear the dedicated Gecoos AC log at 03:00 on the selected calendar schedule.'));
+		o.value('disabled', _('Disabled'));
+		o.value('daily', _('Every day'));
+		o.value('weekly', _('Every week'));
+		o.value('monthly', _('Every month'));
+		o.default = 'daily';
+		o.rmempty = false;
+		o.depends('log', '1');
+
 		return m.render();
+	},
+
+	handleSaveApply: function(ev, mode) {
+		return this.handleSave(ev).then(function() {
+			return ui.changes.apply(mode == '0');
+		}).then(function() {
+			return L.resolveDefault(callCronSync(), null).then(function(result) {
+				if (!result || !result.success)
+					notifyError(_('Failed to update the log cleanup schedule.'));
+			});
+		});
 	}
 });

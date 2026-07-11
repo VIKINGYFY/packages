@@ -7,13 +7,15 @@ include $(TOPDIR)/rules.mk
 
 PKG_NAME:=luci-app-gecoosac
 PKG_VERSION:=2.2
-PKG_RELEASE:=20260609
+PKG_RELEASE:=11
+PKG_PO_VERSION:=$(PKG_VERSION)-r$(PKG_RELEASE)
 
 LUCI_TITLE:=LuCI Support for gecoosac
-LUCI_DEPENDS:=+luci-base +gecoosac
+LUCI_DEPENDS:=+luci-base +rpcd-mod-ucode +gecoosac
 LUCI_PKGARCH:=all
 
 define Package/$(PKG_NAME)/conffiles
+/etc/config/gecoosac
 /etc/gecoosac
 endef
 
