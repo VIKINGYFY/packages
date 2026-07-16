@@ -94,7 +94,8 @@ make -C "$SDK_ROOT" defconfig
 
 for package in "${SELECTED_PACKAGES[@]}"; do
 	make -C "$SDK_ROOT" "package/$package/clean"
-	make -C "$SDK_ROOT" -j"$(nproc)" "package/$package/compile" V=s
+	make -C "$SDK_ROOT" -j"$(nproc)" "package/$package/compile" ||
+		make -C "$SDK_ROOT" -j1 "package/$package/compile" V=s
 done
 
 rm -rf "$OUTPUT_DIR"

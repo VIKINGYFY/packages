@@ -30,7 +30,7 @@ jobs:
           upstream_branch='unstable'
           package_version="$(TZ=Asia/Singapore date +%Y%m%d)"
           version="${upstream_branch}-${package_version}"
-          release_tag="axonhub-v${version}"
+          release_tag="axonhub-${version}"
           upstream_commit="$(gh api "repos/looplj/axonhub/commits/$upstream_branch" --jq '.sha')"
           packaged_commit="$(sed -n 's/^AXONHUB_UPSTREAM_COMMIT:=//p' axonhub/Makefile)"
 
@@ -83,7 +83,7 @@ jobs:
         if: steps.version.outputs.changed == 'true'
         id: build
         env:
-          BUILD_VERSION: v${{ steps.version.outputs.version }}
+          BUILD_VERSION: ${{ steps.version.outputs.version }}
         run: |
           output_dir="$GITHUB_WORKSPACE/release"
           commit="$(git -C upstream rev-parse HEAD)"
@@ -207,6 +207,6 @@ jobs:
 
           git config user.name 'github-actions[bot]'
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
-          git commit -m "chore(axonhub): update daily build to v${BUILD_VERSION}-r${release}"
+          git commit -m "chore(axonhub): update daily build to ${BUILD_VERSION}-r${release}"
           git pull --rebase origin "$PACKAGE_BRANCH"
           git push origin "HEAD:$PACKAGE_BRANCH"
