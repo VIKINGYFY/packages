@@ -8,19 +8,35 @@ REPO_ROOT="${REPO_ROOT:-$(cd -- "$SCRIPT_DIR/../.." && pwd)}"
 
 cd "$REPO_ROOT"
 
-for package_dir in */; do
-	[[ "$package_dir" == .* ]] && continue
+if (( $# > 0 )); then
+	PACKAGE_DIRS=("$@")
+else
+	mapfile -t PACKAGE_DIRS < <(
+		find . -mindepth 2 -maxdepth 2 -type f -name Makefile \
+			-printf '%h\n' |
+			sed 's#^\./##' |
+			awk -F / '$1 !~ /^\./' |
+			sort -u
+	)
+fi
+
+for package_dir in "${PACKAGE_DIRS[@]}"; do
+	package_dir="${package_dir%/}"
+	[[ -f "$package_dir/Makefile" ]] || {
+		echo "Package Makefile not found: $package_dir/Makefile" >&2
+		exit 1
+	}
 
 	executable_dirs=(
-		"${package_dir}root/bin"
-		"${package_dir}root/sbin"
-		"${package_dir}root/usr/bin"
-		"${package_dir}root/usr/sbin"
-		"${package_dir}root/usr/libexec"
-		"${package_dir}root/etc/hotplug.d"
-		"${package_dir}root/etc/init.d"
-		"${package_dir}root/etc/uci-defaults"
-		"${package_dir}root/etc/"*/scripts
+		"$package_dir/root/bin"
+		"$package_dir/root/sbin"
+		"$package_dir/root/usr/bin"
+		"$package_dir/root/usr/sbin"
+		"$package_dir/root/usr/libexec"
+		"$package_dir/root/etc/hotplug.d"
+		"$package_dir/root/etc/init.d"
+		"$package_dir/root/etc/uci-defaults"
+		"$package_dir/root/etc/"*/scripts
 	)
 
 	for directory in "${executable_dirs[@]}"; do

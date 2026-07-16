@@ -40,13 +40,41 @@ fi
 
 cd "$REPO_ROOT"
 
-for package_dir in luci-app-* luci-theme-*; do
+if (( $# > 0 )); then
+	PACKAGE_DIRS=("$@")
+else
+	mapfile -t PACKAGE_DIRS < <(
+		find . -mindepth 2 -maxdepth 2 -type f -name Makefile \
+			-printf '%h\n' |
+			sed 's#^\./##' |
+			awk -F / '$1 !~ /^\./' |
+			sort -u
+	)
+fi
+
+for package_dir in "${PACKAGE_DIRS[@]}"; do
+	package_dir="${package_dir%/}"
+	[[ -f "$package_dir/Makefile" ]] || {
+		echo "Package Makefile not found: $package_dir/Makefile" >&2
+		exit 1
+	}
 	[[ -d "$package_dir/po" ]] || continue
 
-	mapfile -t templates < <(find "$package_dir/po/templates" -maxdepth 1 -type f -name '*.pot' -print | sort)
+	templates=()
+	if [[ -d "$package_dir/po/templates" ]]; then
+		mapfile -t templates < <(
+			find "$package_dir/po/templates" -maxdepth 1 -type f -name '*.pot' -print |
+				sort
+		)
+	fi
 	case "${#templates[@]}" in
 		0)
-			package_name="${package_dir#luci-app-}"
+			package_name="$(sed -n 's/^PKG_NAME:=//p' "$package_dir/Makefile" | head -n1)"
+			[[ -n "$package_name" ]] || {
+				echo "PKG_NAME not found in $package_dir/Makefile" >&2
+				exit 1
+			}
+			package_name="${package_name#luci-app-}"
 			package_name="${package_name#luci-theme-}"
 			template="$package_dir/po/templates/$package_name.pot"
 			;;

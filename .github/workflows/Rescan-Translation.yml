@@ -5,13 +5,6 @@ on:
   push:
     branches:
       - main
-    paths:
-      - 'luci-*/htdocs/**'
-      - 'luci-*/luasrc/**'
-      - 'luci-*/root/**'
-      - '.github/scripts/fix-package-permissions.sh'
-      - '.github/scripts/rescan-translations.sh'
-      - '.github/workflows/Rescan-Translation.yml'
 
 permissions:
   contents: write
@@ -47,7 +40,7 @@ jobs:
           git add -u -- .
           git diff --cached --quiet && exit 0
 
-          changed_packages="$(git diff --cached --name-only | cut -d/ -f1 | grep '^luci-' | sort -u | paste -sd, -)"
+          changed_packages="$(git diff --cached --name-only | cut -d/ -f1 | sort -u | paste -sd, -)"
           git config user.name 'github-actions[bot]'
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
           git commit -m "chore: maintain translations and permissions for ${changed_packages}"

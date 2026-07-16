@@ -137,13 +137,12 @@ jobs:
               --repo "$GITHUB_REPOSITORY" \
               --title "$RELEASE_TAG" \
               --notes "$notes" \
-              --prerelease
+              --prerelease=false
           else
             gh release create "$RELEASE_TAG" "${assets[@]}" \
               --repo "$GITHUB_REPOSITORY" \
               --title "$RELEASE_TAG" \
-              --notes "$notes" \
-              --prerelease
+              --notes "$notes"
           fi
 
       - name: Update AxonHub package metadata
