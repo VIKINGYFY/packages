@@ -1,0 +1,34 @@
+#!/bin/sh
+
+ucode "/etc/homeproxy/scripts/migrate_config.uc" || exit 1
+
+dashboard_root='/etc/homeproxy/dashboard'
+dashboard_legacy="$dashboard_root/files"
+dashboard_version="$dashboard_root/dashboard.ver"
+dashboard_legacy_version='/etc/homeproxy/resources/dashboard.ver'
+if [ -f "$dashboard_legacy/index.html" ]; then
+	if [ ! -f "$dashboard_root/index.html" ]; then
+		dashboard_move_failed=0
+		for dashboard_file in "$dashboard_legacy"/* "$dashboard_legacy"/.[!.]* "$dashboard_legacy"/..?*; do
+			[ -e "$dashboard_file" ] || continue
+			if ! mv -f "$dashboard_file" "$dashboard_root/"; then
+				printf '%s\n' "HomeProxy: failed to migrate $dashboard_file; preserving the legacy directory." >&2
+				dashboard_move_failed=1
+			fi
+		done
+		[ "$dashboard_move_failed" -ne 0 ] || rmdir "$dashboard_legacy" 2>"/dev/null"
+	else
+		rm -rf "$dashboard_legacy"
+	fi
+fi
+rm -f "$dashboard_root/.etag"
+if [ -f "$dashboard_legacy_version" ]; then
+	if [ ! -f "$dashboard_version" ]; then
+		mv -f "$dashboard_legacy_version" "$dashboard_version" || \
+			printf '%s\n' "HomeProxy: failed to migrate the dashboard version file; continuing." >&2
+	else
+		rm -f "$dashboard_legacy_version"
+	fi
+fi
+
+exit 0

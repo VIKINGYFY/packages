@@ -1,0 +1,207 @@
+name: Update Geodata
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: 0 0 * * 0
+
+permissions:
+  contents: write
+
+jobs:
+  update:
+    runs-on: ubuntu-22.04
+    steps:
+      - name: Checkout Projects
+        uses: actions/checkout@v4
+
+      - name: Update Geodata
+        shell: bash
+        run: |
+          set -u
+
+          RESOURCES_DIR="root/etc/homeproxy/resources"
+          DASHBOARD_DIR="root/etc/homeproxy/dashboard"
+          IP_REPO="Loyalsoldier/surge-rules"
+          IP_BRANCH="release"
+          GEOSITE_REPO="SagerNet/sing-geosite"
+          GEOSITE_BRANCH="rule-set-unstable"
+          IP_SOURCE="https://cdn.jsdelivr.net/gh/${IP_REPO}@${IP_BRANCH}/cncidr.txt"
+          GEOSITE_SOURCE="https://cdn.jsdelivr.net/gh/${GEOSITE_REPO}@${GEOSITE_BRANCH}/geosite-cn.srs"
+          IP_VERSION_URL="https://github.com/${IP_REPO}/releases/latest"
+          GEOSITE_VERSION_URL="https://github.com/${GEOSITE_REPO}/releases/latest"
+          DASHBOARD_SOURCE="https://codeload.github.com/SagerNet/sing-box-dashboard/zip/refs/heads/gh-pages"
+          DASHBOARD_VERSION_URL="https://github.com/SagerNet/sing-box-dashboard/commits/gh-pages.atom"
+          USER_AGENT="HomeProxy resource preset"
+
+          TMP_DIR="$(mktemp -d)" || {
+            echo "Failed to prepare temporary resource directory." >&2
+            exit 1
+          }
+          DASHBOARD_STAGE="${DASHBOARD_DIR}.new.$$"
+          trap 'rm -rf "$TMP_DIR" "$DASHBOARD_STAGE"' EXIT INT TERM
+
+          fetch_release_version() {
+            local effective_url version
+
+            effective_url="$(curl -fsSL --compressed --retry 3 --retry-all-errors \
+              --retry-delay 1 \
+              --connect-timeout 10 --max-time 30 -A "$USER_AGENT" \
+              -o /dev/null -w '%{url_effective}' "$1")"
+            version="${effective_url##*/}"
+            case "$version" in
+              ''|*[!0-9]*) return 1 ;;
+            esac
+            printf '%s\n' "$version"
+          }
+
+          fetch_dashboard_version() {
+            local feed version
+
+            feed="$(curl -fsSL --compressed --retry 3 --retry-all-errors \
+              --retry-delay 1 --connect-timeout 10 --max-time 30 \
+              -A "$USER_AGENT" "$DASHBOARD_VERSION_URL")"
+            version="$(printf '%s\n' "$feed" | awk -F '[<>]' '
+              /<updated>/ {
+                version = $3
+                gsub(/[-:TZ]/, "", version)
+                print version
+                exit
+              }
+            ')"
+            case "$version" in
+              ??????????????) case "$version" in *[!0-9]*) return 1 ;; esac ;;
+              *) return 1 ;;
+            esac
+            printf '%s\n' "$version"
+          }
+
+          download() {
+            curl -fsSL --compressed --retry 3 --retry-all-errors --retry-delay 1 \
+              --connect-timeout 10 \
+              --max-time 60 -A "$USER_AGENT" -o "$2" "$1"
+            test -s "$2"
+          }
+
+          mkdir -p "$RESOURCES_DIR" "$DASHBOARD_DIR"
+          UPDATE_FAILED=0
+
+          IP_READY=1
+          IP_VERSION="$(fetch_release_version "$IP_VERSION_URL")" || IP_READY=0
+          if [ "$IP_READY" -eq 1 ] && ! download "${IP_SOURCE}?v=${IP_VERSION}" "$TMP_DIR/cncidr.txt"; then
+            IP_READY=0
+          fi
+          if [ "$IP_READY" -eq 1 ] && ! awk -F, \
+            -v ipv4="$TMP_DIR/china_ip4.txt" -v ipv6="$TMP_DIR/china_ip6.txt" '
+            $1 == "IP-CIDR" { print $2 > ipv4 }
+            $1 == "IP-CIDR6" { print $2 > ipv6 }
+          ' "$TMP_DIR/cncidr.txt"; then
+            IP_READY=0
+          fi
+          [ "$IP_READY" -eq 0 ] || [ -s "$TMP_DIR/china_ip4.txt" ] || IP_READY=0
+          [ "$IP_READY" -eq 0 ] || [ -s "$TMP_DIR/china_ip6.txt" ] || IP_READY=0
+          if [ "$IP_READY" -eq 1 ] && ! awk '
+            BEGIN {
+              print "{\"version\":5,\"rules\":[{\"ip_cidr\":["
+              first = 1
+            }
+            NF {
+              printf "%s\"%s\"", first ? "" : ",", $0
+              first = 0
+            }
+            END { print "]}]}" }
+          ' "$TMP_DIR/china_ip4.txt" "$TMP_DIR/china_ip6.txt" > "$TMP_DIR/geoip_cn.json"; then
+            IP_READY=0
+          fi
+          [ "$IP_READY" -eq 0 ] || [ -s "$TMP_DIR/geoip_cn.json" ] || IP_READY=0
+          if [ "$IP_READY" -eq 1 ]; then
+            printf '%s\n' "$IP_VERSION" > "$TMP_DIR/china_ip4.ver"
+            printf '%s\n' "$IP_VERSION" > "$TMP_DIR/china_ip6.ver"
+            for file in china_ip4.txt china_ip4.ver china_ip6.txt china_ip6.ver geoip_cn.json; do
+              cp "$TMP_DIR/$file" "$RESOURCES_DIR/$file" || IP_READY=0
+            done
+            chmod 0644 "$RESOURCES_DIR"/china_ip*.txt "$RESOURCES_DIR"/china_ip*.ver \
+              "$RESOURCES_DIR/geoip_cn.json"
+          fi
+          if [ "$IP_READY" -eq 1 ]; then
+            echo "IP_VERSION=$IP_VERSION" >> "$GITHUB_ENV"
+            echo "HomeProxy resources: china_ip $IP_VERSION"
+          else
+            echo "::warning::Failed to update HomeProxy IP resources; continuing."
+            UPDATE_FAILED=1
+          fi
+
+          GEOSITE_READY=1
+          GEOSITE_VERSION="$(fetch_release_version "$GEOSITE_VERSION_URL")" || GEOSITE_READY=0
+          if [ "$GEOSITE_READY" -eq 1 ] && \
+             download "${GEOSITE_SOURCE}?v=${GEOSITE_VERSION}" "$TMP_DIR/geosite_cn.srs" && \
+             printf '%s\n' "$GEOSITE_VERSION" > "$TMP_DIR/geosite_cn.ver" && \
+             cp "$TMP_DIR/geosite_cn.srs" "$RESOURCES_DIR/geosite_cn.srs" && \
+             cp "$TMP_DIR/geosite_cn.ver" "$RESOURCES_DIR/geosite_cn.ver"; then
+            chmod 0644 "$RESOURCES_DIR/geosite_cn.srs" "$RESOURCES_DIR/geosite_cn.ver"
+            echo "GEOSITE_VERSION=$GEOSITE_VERSION" >> "$GITHUB_ENV"
+            echo "HomeProxy resources: geosite_cn $GEOSITE_VERSION"
+          else
+            echo "::warning::Failed to update HomeProxy geosite; continuing."
+            UPDATE_FAILED=1
+          fi
+
+          DASHBOARD_READY=1
+          DASHBOARD_VERSION="$(fetch_dashboard_version)" || DASHBOARD_READY=0
+          if [ "$DASHBOARD_READY" -eq 1 ] && \
+             ! download "${DASHBOARD_SOURCE}?v=${DASHBOARD_VERSION}" "$TMP_DIR/dashboard.zip"; then
+            DASHBOARD_READY=0
+          fi
+          if [ "$DASHBOARD_READY" -eq 1 ] && \
+             ! unzip -q "$TMP_DIR/dashboard.zip" -d "$TMP_DIR/dashboard"; then
+            DASHBOARD_READY=0
+          fi
+          DASHBOARD_SOURCE_DIR=""
+          if [ "$DASHBOARD_READY" -eq 1 ]; then
+            for dashboard_index in "$TMP_DIR/dashboard/index.html" "$TMP_DIR"/dashboard/*/index.html; do
+              if [ -f "$dashboard_index" ]; then
+                DASHBOARD_SOURCE_DIR="${dashboard_index%/index.html}"
+                break
+              fi
+            done
+            [ -f "$DASHBOARD_SOURCE_DIR/index.html" ] || DASHBOARD_READY=0
+          fi
+          if [ "$DASHBOARD_READY" -eq 1 ]; then
+            rm -rf "$DASHBOARD_STAGE"
+            if mkdir -p "$DASHBOARD_STAGE" && \
+               cp -a "$DASHBOARD_SOURCE_DIR/." "$DASHBOARD_STAGE/" && \
+               printf '%s\n' "$DASHBOARD_VERSION" > "$DASHBOARD_STAGE/dashboard.ver"; then
+              rm -f "$DASHBOARD_STAGE/.etag"
+              chmod -R a+rX "$DASHBOARD_STAGE"
+            else
+              DASHBOARD_READY=0
+            fi
+          fi
+          if [ "$DASHBOARD_READY" -eq 1 ]; then
+            rm -rf "$DASHBOARD_DIR"
+            if mv "$DASHBOARD_STAGE" "$DASHBOARD_DIR"; then
+              echo "DASHBOARD_VERSION=$DASHBOARD_VERSION" >> "$GITHUB_ENV"
+              echo "HomeProxy dashboard: $DASHBOARD_VERSION"
+            else
+              DASHBOARD_READY=0
+            fi
+          fi
+          if [ "$DASHBOARD_READY" -ne 1 ]; then
+            echo "::warning::Failed to update HomeProxy dashboard; continuing."
+            UPDATE_FAILED=1
+          fi
+
+          RESOURCE_VERSION="${GEOSITE_VERSION:-${IP_VERSION:-dashboard}}"
+          echo "RESOURCE_VERSION=$RESOURCE_VERSION" >> "$GITHUB_ENV"
+          if [ "$UPDATE_FAILED" -ne 0 ]; then
+            echo "::warning::HomeProxy resource update completed with partial failures."
+          fi
+
+      - name: Commit Changes
+        run: |
+          git config --local user.name "github-actions[bot]"
+          git config --local user.email "<github-actions[bot]@users.noreply.github.com>"
+          git add -- root/etc/homeproxy/resources root/etc/homeproxy/dashboard
+          git diff --cached --quiet && exit 0
+          git commit -m "chore(resources): update geodata to ${{env.RESOURCE_VERSION}}"
+          git push origin HEAD:main

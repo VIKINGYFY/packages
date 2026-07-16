@@ -1,0 +1,772 @@
+#!/usr/bin/ucode
+/*
+ * SPDX-License-Identifier: GPL-2.0-only
+ *
+ * Copyright (C) 2023-2024 ImmortalWrt.org
+ */
+
+'use strict';
+
+import { lstat, open, popen, readfile, writefile } from 'fs';
+import { cursor } from 'uci';
+
+import {
+	removeBlankAttrs, renderEndpoint, renderOutbound
+} from '/etc/homeproxy/scripts/homeproxy.uc';
+
+/* Kanged from ucode/luci */
+function shellquote(s) {
+	return `'${replace(s, "'", "'\\''")}'`;
+}
+
+function hasKernelModule(kmod) {
+	return (system(sprintf('[ -e "/lib/modules/$(uname -r)"/%s ]', shellquote(kmod))) === 0);
+}
+
+const HP_DIR = '/etc/homeproxy';
+const RUN_DIR = '/var/run/homeproxy';
+const RESOURCES = {
+	china_ip4: {
+		source: 'https://cdn.jsdelivr.net/gh/Loyalsoldier/surge-rules@release/cncidr.txt',
+		version: `${HP_DIR}/resources/china_ip4.ver`
+	},
+	china_ip6: {
+		source: 'https://cdn.jsdelivr.net/gh/Loyalsoldier/surge-rules@release/cncidr.txt',
+		version: `${HP_DIR}/resources/china_ip6.ver`
+	},
+	geosite_cn: {
+		source: 'https://cdn.jsdelivr.net/gh/SagerNet/sing-geosite@rule-set-unstable/geosite-cn.srs',
+		version: `${HP_DIR}/resources/geosite_cn.ver`
+	},
+	dashboard: {
+		source: 'https://codeload.github.com/SagerNet/sing-box-dashboard/zip/refs/heads/gh-pages',
+		version: `${HP_DIR}/dashboard/dashboard.ver`
+	}
+};
+const CONNECTION_SITES = {
+	baidu: 'https://www.baidu.com/',
+	bilibili: 'https://www.bilibili.com/',
+	jd: 'https://www.jd.com/',
+	google: 'https://www.google.com/',
+	github: 'https://github.com/',
+	youtube: 'https://www.youtube.com/'
+};
+
+const methods = {
+	acllist_read: {
+		args: { type: 'type' },
+		call: function(req) {
+			if (index(['direct_list', 'proxy_list'], req.args?.type) === -1)
+				return { content: null, error: 'illegal type' };
+
+			const filecontent = readfile(`${HP_DIR}/resources/${req.args?.type}.txt`);
+			return { content: filecontent };
+		}
+	},
+	acllist_write: {
+		args: { type: 'type', content: 'content' },
+		call: function(req) {
+			if (index(['direct_list', 'proxy_list'], req.args?.type) === -1)
+				return { result: false, error: 'illegal type' };
+
+			const file = `${HP_DIR}/resources/${req.args?.type}.txt`;
+			let content = (type(req.args?.content) === 'string') ? req.args.content : '';
+
+			/* Sanitize content */
+			if (content) {
+				content = trim(content);
+				content = replace(content, /\r\n?/g, '\n');
+				if (!match(content, /\n$/))
+					content += '\n';
+			}
+
+			system(`mkdir -p ${HP_DIR}/resources`);
+			if (writefile(file, content) === null)
+				return { result: false, error: 'failed to write domain list' };
+
+			return { result: true };
+		}
+	},
+
+	certificate_write: {
+		args: { filename: 'filename' },
+		call: function(req) {
+			const writeCertificate = (filename, kind) => {
+				const tmpcert = '/tmp/homeproxy_certificate.tmp';
+				const filestat = lstat(tmpcert);
+
+				if (!filestat || filestat.type !== 'file' || filestat.size <= 0) {
+					system(`/bin/rm -f ${shellquote(tmpcert)}`);
+					return { result: false, error: 'empty certificate file' };
+				}
+
+				let filecontent = readfile(tmpcert);
+				if (is_binary(filecontent)) {
+					system(`/bin/rm -f ${shellquote(tmpcert)}`);
+					return { result: false, error: 'illegal file type: binary' };
+				}
+
+				const allowed = (kind === 'private') ?
+				      [ 'RSA PRIVATE KEY', 'EC PRIVATE KEY', 'PRIVATE KEY' ] :
+				      ((kind === 'ech') ? [ 'ECH CONFIGS' ] : [ 'CERTIFICATE' ]),
+				      multiple = kind === 'certificate',
+				      normalized = replace(trim(filecontent), /\r\n?/g, '\n'),
+				      lines = split(normalized, '\n');
+				let current, payload = '', blocks = 0, valid = true;
+
+				for (let line in lines) {
+					if (!current) {
+						if (!line)
+							continue;
+
+						const begin = match(line, /^-----BEGIN (.+)-----$/);
+						if (!begin || !(begin[1] in allowed)) {
+							valid = false;
+							break;
+						}
+
+						current = begin[1];
+						payload = '';
+						continue;
+					}
+
+					if (line === `-----END ${current}-----`) {
+						let decoded;
+						try {
+							decoded = payload ? b64dec(payload) : null;
+						} catch (e) {
+							decoded = null;
+						}
+
+						if (!decoded) {
+							valid = false;
+							break;
+						}
+
+						current = null;
+						payload = '';
+						blocks++;
+						continue;
+					}
+
+					if (!line || match(line, /^-----/) || !match(line, /^[A-Za-z0-9+\/]+={0,2}$/)) {
+						valid = false;
+						break;
+					}
+					payload += line;
+				}
+
+				if (!valid || current || blocks === 0 || (!multiple && blocks !== 1)) {
+					system(`/bin/rm -f ${shellquote(tmpcert)}`);
+					return { result: false, error: 'this does not look like a correct PEM file' };
+				}
+
+				/* Sanitize certificate */
+				filecontent = trim(filecontent);
+				filecontent = replace(filecontent, /\r\n?/g, '\n');
+				if (!match(filecontent, /\n$/))
+					filecontent += '\n';
+
+				const certfile = `${HP_DIR}/certs/${filename}.pem`;
+				system(`/bin/mkdir -p ${shellquote(HP_DIR + '/certs')}`);
+				if (writefile(certfile, filecontent) === null) {
+					system(`/bin/rm -f ${shellquote(tmpcert)}`);
+					return { result: false, error: 'failed to write certificate file' };
+				}
+				if (kind === 'private' && system(`/bin/chmod 600 ${shellquote(certfile)}`) !== 0) {
+					system(`/bin/rm -f ${shellquote(tmpcert)} ${shellquote(certfile)}`);
+					return { result: false, error: 'failed to protect private key file' };
+				}
+				system(`/bin/rm -f ${shellquote(tmpcert)}`);
+
+				return { result: true };
+			};
+
+			const filename = req.args?.filename;
+			switch (filename) {
+			case 'client_ca':
+			case 'server_publickey':
+				return writeCertificate(filename, 'certificate');
+			case 'client_ech_conf':
+				return writeCertificate(filename, 'ech');
+			case 'server_privatekey':
+				return writeCertificate(filename, 'private');
+			default:
+				return { result: false, error: 'illegal certificate filename' };
+			}
+		}
+	},
+
+	connection_check: {
+		args: { site: 'site' },
+		call: function(req) {
+			const requested_site = req.args?.site;
+			if (requested_site !== 'all' && !CONNECTION_SITES[requested_site])
+				return { result: false, error: 'illegal site' };
+
+			const sites = (requested_site === 'all') ? keys(CONNECTION_SITES) : [ requested_site ];
+			let commands = [];
+			for (let site in sites) {
+				push(commands, sprintf(
+					'/usr/bin/curl --location --silent --output /dev/null --user-agent %s --connect-timeout 5 --max-time 9 --write-out %s %s',
+					shellquote('Mozilla/5.0'),
+					shellquote(sprintf('%s\\t%%{http_code}\\t%%{time_appconnect}\\t%%{time_total}\\n', site)),
+					shellquote(CONNECTION_SITES[site])
+				));
+			}
+
+			const fd = popen(sprintf('(%s & wait) 2>"/dev/null"', join(' & ', commands)));
+			if (!fd)
+				return { result: false, error: 'failed to execute connection test' };
+
+			let payload = '', line;
+			while (true) {
+				line = fd.read('line');
+				if (line === null || line === '')
+					break;
+				payload += line;
+			}
+			fd.close();
+
+			const responses = {};
+			const curlTimeMs = (value) => {
+				const parts = split(value || '0', '.');
+				const fraction = ((parts[1] || '') + '000');
+				return int(parts[0] || '0') * 1000 + int(substr(fraction, 0, 3));
+			};
+
+			for (let response in split(trim(payload), /[\r\n]+/)) {
+				const fields = split(response, '\t');
+				if (length(fields) !== 4 || !CONNECTION_SITES[fields[0]])
+					continue;
+
+				const latency_ms = curlTimeMs(fields[2]);
+				const total_ms = curlTimeMs(fields[3]);
+				const http_code = int(fields[1] || '0');
+				responses[fields[0]] = {
+					site: fields[0],
+					result: http_code >= 100 && http_code <= 599,
+					latency_ms,
+					timed_out: http_code === 0 && total_ms >= 8900
+				};
+			}
+
+			let results = [];
+			for (let site in sites)
+				push(results, responses[site] || { site, result: false, latency_ms: 0, timed_out: false });
+
+			return { results };
+		}
+	},
+
+	current_node_get: {
+		call: function() {
+			const uci = cursor();
+			uci.load('homeproxy');
+			const routing_mode = uci.get('homeproxy', 'config', 'routing_mode') || 'bypass_mainland_china';
+			if (routing_mode === 'custom')
+				return { mode: 'custom', active: null, error: null };
+
+			const formatNode = (section_id, fallback_name) => {
+				if (!section_id || section_id in ['nil', 'same'])
+					return { id: section_id, label: fallback_name || section_id, type: null };
+
+				const section = uci.get_all('homeproxy', section_id);
+				if (!section || section['.type'] !== 'node')
+					return { id: section_id, label: fallback_name || section_id, type: null };
+
+				const address = trim(section.address || '');
+				const port = trim(section.port || '');
+				const label = trim(section.label || '') || ((address && port) ? `${address}:${port}` : section_id);
+				return {
+					id: section_id,
+					label,
+					type: section.type || null
+				};
+			};
+
+			const main_node = trim(uci.get('homeproxy', 'config', 'main_node') || 'nil');
+			if (main_node !== 'urltest')
+				return {
+					mode: main_node,
+					active: formatNode(main_node, (main_node === 'nil') ? 'Disable' : null),
+					error: null
+				};
+
+			const clash_api_port = int(uci.get('homeproxy', 'infra', 'clash_api_port'));
+			if (!clash_api_port)
+				return {
+					mode: 'urltest',
+					active: { id: 'urltest', label: 'URLTest', type: 'urltest' },
+					error: 'clash_api_unavailable'
+				};
+			const fd = popen(`/usr/bin/curl -fsS --connect-timeout 1 --max-time 2 http://127.0.0.1:${clash_api_port}/proxies/main-out 2>"/dev/null"`);
+			if (!fd)
+				return {
+					mode: 'urltest',
+					active: { id: 'urltest', label: 'URLTest', type: 'urltest' },
+					error: 'clash_api_unavailable'
+				};
+
+			let payload = '', line;
+			for (line = fd.read('line'); length(line); line = fd.read('line'))
+				payload += line;
+			fd.close();
+
+			let data = null;
+			try {
+				data = json(payload);
+			} catch (e) {}
+
+			const tag = trim(data?.now || '');
+			if (!tag)
+				return {
+					mode: 'urltest',
+					active: { id: 'urltest', label: 'URLTest', type: 'urltest' },
+					error: 'missing_current_proxy'
+				};
+
+			const matched = match(tag, /^cfg-(.*)-out$/);
+			const section_id = matched ? matched[1] : tag;
+
+			return {
+				mode: 'urltest',
+				active: formatNode(section_id, tag),
+				error: null
+			};
+		}
+	},
+
+	node_latency_test: {
+		args: { nodes: [] },
+		call: function(req) {
+			const error_codes = {
+				invalid_node: 'invalid_node',
+				invalid_outbound: 'invalid_outbound',
+				runtime_prepare_failed: 'runtime_prepare_failed',
+				runtime_launch_failed: 'runtime_launch_failed',
+				runtime_timeout: 'runtime_timeout',
+				delay_timeout: 'delay_timeout',
+				delay_failed: 'delay_failed',
+				backend_execution_failed: 'backend_execution_failed'
+			};
+			const probe_url_encoded = 'https%3A%2F%2Fcp.cloudflare.com%2Fgenerate_204';
+			const delay_timeout_ms = 5000;
+			const probe_parallelism = 16;
+			const hpuci = cursor();
+			hpuci.load('homeproxy');
+			const reserved_controller_port = int(hpuci.get('homeproxy', 'infra', 'clash_api_port')) || 0;
+
+			const formatResult = (node, state, latency_ms, err) => ({
+				node,
+				state,
+				latency_ms,
+				measured_at: time(),
+				error: err
+			});
+
+			const readCommand = (command) => {
+				const fd = popen(command);
+				if (!fd)
+					return null;
+
+				let payload = '', line;
+				while (true) {
+					line = fd.read('line');
+					if (line === null || line === '')
+						break;
+					payload += line;
+				}
+				fd.close();
+				return payload;
+			};
+
+			const getRuntimePid = (runtime_meta) => {
+				const pid = trim(readfile(runtime_meta?.pid_path) || '');
+				if (!match(pid, /^[0-9]+$/))
+					return null;
+
+				const cmdline = readfile(`/proc/${pid}/cmdline`) || '';
+				if (index(cmdline, 'sing-box') === -1 || index(cmdline, runtime_meta.config_path) === -1)
+					return null;
+
+				return pid;
+			};
+
+			const buildProbeRuntime = (entries) => {
+				const runtime_root = RUN_DIR + '/latency-test';
+				const session_id = sprintf('%d-%d', time(), int(readfile('/proc/uptime') || '0'));
+				const session_dir = `${runtime_root}/${session_id}`;
+				const config_path = `${session_dir}/sing-box.json`;
+				const pid_path = `${session_dir}/sing-box.pid`;
+				const port_output = readCommand(sprintf(
+					'/usr/libexec/homeproxy-random-port %s 2>"/dev/null"',
+					shellquote(reserved_controller_port)
+				));
+				const controller_port = int(trim(port_output || ''));
+				if (controller_port <= 0 || controller_port > 65535)
+					return { error: 'failed to allocate temporary controller port' };
+
+				const config = {
+					log: { disabled: true },
+					dns: {
+						servers: [{ type: 'local', tag: 'local-dns' }]
+					},
+					outbounds: [{ type: 'direct', tag: 'direct-out' }],
+					endpoints: [],
+					route: {
+						final: 'direct-out',
+						auto_detect_interface: true,
+						default_domain_resolver: 'local-dns'
+					},
+					experimental: {
+						clash_api: {
+							external_controller: `127.0.0.1:${controller_port}`
+						}
+					}
+				};
+
+				for (let entry in entries)
+					push(entry.endpoint ? config.endpoints : config.outbounds, entry.outbound);
+
+				if (system(`/bin/mkdir -p ${shellquote(session_dir)}`) !== 0)
+					return { error: 'failed to prepare temporary runtime directory' };
+
+				if (!writefile(config_path, sprintf('%.J\n', removeBlankAttrs(config)))) {
+					system(`/bin/rm -rf ${shellquote(session_dir)}`);
+					return { error: 'failed to write temporary sing-box config' };
+				}
+
+				return {
+					session_dir,
+					config_path,
+					pid_path,
+					controller_port,
+					controller_url: `http://127.0.0.1:${controller_port}`
+				};
+			};
+
+			const launchProbeRuntime = (runtime_meta) => {
+				const launch_cmd = sprintf(
+					'/usr/bin/sing-box run --config %s >/dev/null 2>&1 & pid=$!; printf "%%s\\n" "$pid" > %s; /bin/kill -0 "$pid" >/dev/null 2>&1',
+					shellquote(runtime_meta.config_path),
+					shellquote(runtime_meta.pid_path)
+				);
+
+				return system(`/bin/sh -c ${shellquote(launch_cmd)}`) === 0;
+			};
+
+			const waitControllerReady = (runtime_meta) => {
+				for (let i = 0; i < 10; i++) {
+					if (getRuntimePid(runtime_meta)) {
+						const payload = readCommand(`/usr/bin/curl -fsS --connect-timeout 1 --max-time 1 ${shellquote(runtime_meta.controller_url + '/version')} 2>"/dev/null"`);
+						if (trim(payload || ''))
+							return true;
+					}
+
+					if (i + 1 < 10)
+						sleep(200);
+				}
+
+				return false;
+			};
+
+			const cleanupProbeRuntime = (runtime_meta) => {
+				const pid = getRuntimePid(runtime_meta);
+				if (pid)
+					system(`/bin/kill ${shellquote(pid)} >/dev/null 2>&1`);
+
+				system(`/bin/rm -rf ${shellquote(runtime_meta.session_dir)}`);
+			};
+
+			const parseDelayResponse = (entry) => {
+				const payload = readfile(entry.response_path);
+				if (!trim(payload || '')) {
+					return formatResult(entry.node, 'timeout', null, {
+						code: error_codes.delay_timeout,
+						message: sprintf('sing-box delay request timed out after %dms', delay_timeout_ms)
+					});
+				}
+
+				let data;
+				try {
+					data = json(payload);
+				} catch (e) {
+					return formatResult(entry.node, 'error', null, {
+						code: error_codes.delay_failed,
+						message: 'sing-box delay response is not valid JSON'
+					});
+				}
+
+				const delay_ms = int(data?.delay || '0');
+				if (delay_ms > 0)
+					return formatResult(entry.node, 'success', delay_ms, null);
+
+				const message = trim(sprintf('%s', data?.message || data?.error || '')) || 'sing-box delay request failed';
+				return formatResult(entry.node, match(message, /timeout/i) ? 'timeout' : 'error', null, {
+					code: match(message, /timeout/i) ? error_codes.delay_timeout : error_codes.delay_failed,
+					message
+				});
+			};
+
+			const probeDelays = (runtime_meta, entries) => {
+				let commands = [];
+				for (let i = 0; i < length(entries); i++) {
+					const entry = entries[i];
+					const delay_endpoint = sprintf(
+						'%s/proxies/%s/delay?url=%s&timeout=%d',
+						runtime_meta.controller_url,
+						entry.tag,
+						probe_url_encoded,
+						delay_timeout_ms
+					);
+					entry.response_path = `${runtime_meta.session_dir}/${entry.tag}.json`;
+					push(commands, sprintf(
+						'/usr/bin/curl -fsS --connect-timeout 1 --max-time %d -o %s %s 2>"/dev/null" &',
+						int((delay_timeout_ms + 999) / 1000),
+						shellquote(entry.response_path),
+						shellquote(delay_endpoint)
+					));
+
+					if (length(commands) === probe_parallelism || i + 1 === length(entries)) {
+						system(`/bin/sh -c ${shellquote(join(' ', commands) + ' wait')}`);
+						commands = [];
+					}
+				}
+
+				for (let entry in entries)
+					entry.result = parseDelayResponse(entry);
+			};
+
+			let requested_nodes = req.args?.nodes;
+			if (type(requested_nodes) !== 'array')
+				requested_nodes = requested_nodes ? [requested_nodes] : [];
+
+			let slots = [], entries = [], seen = {};
+			for (let value in requested_nodes) {
+				const node = trim(sprintf('%s', value || ''));
+				if (!node || seen[node])
+					continue;
+				seen[node] = true;
+
+				const section = hpuci.get_all('homeproxy', node);
+				if (!section || section['.type'] !== 'node') {
+					push(slots, {
+						result: formatResult(node, 'error', null, {
+							code: error_codes.invalid_node,
+							message: 'node section does not exist or is not a node section'
+						})
+					});
+					continue;
+				}
+
+				const endpoint = section.type === 'wireguard';
+				const outbound = endpoint ? renderEndpoint(section) : renderOutbound(section);
+				const tag = `probe-${length(entries)}`;
+				if (!outbound || type(outbound) !== 'object' || !outbound.type) {
+					push(slots, {
+						result: formatResult(node, 'error', null, {
+							code: error_codes.invalid_outbound,
+							message: 'failed to render sing-box outbound for node'
+						})
+					});
+					continue;
+				}
+
+				outbound.tag = tag;
+				const entry = { node, tag, endpoint, outbound };
+				push(slots, entry);
+				push(entries, entry);
+			}
+
+			if (!length(entries))
+				return { results: map(slots, (slot) => slot.result) };
+
+			system(`/bin/mkdir -p ${shellquote(RUN_DIR)}`);
+			let lockfd = open(`${RUN_DIR}/latency-test.lock`, 'w', 0600);
+			if (!lockfd || lockfd.lock('x') !== true) {
+				lockfd?.close();
+				for (let entry in entries)
+					entry.result = formatResult(entry.node, 'error', null, {
+						code: error_codes.runtime_prepare_failed,
+						message: 'failed to lock temporary latency test runtime'
+					});
+				return { results: map(slots, (slot) => slot.result) };
+			}
+
+			const releaseLock = () => {
+				lockfd.lock('u');
+				lockfd.close();
+				lockfd = null;
+			};
+			const setPendingError = (state, code, message) => {
+				for (let entry in entries)
+					if (!entry.result)
+						entry.result = formatResult(entry.node, state, null, { code, message });
+			};
+
+			let runtime_meta = buildProbeRuntime(entries);
+			if (runtime_meta?.error) {
+				setPendingError('error', error_codes.runtime_prepare_failed, runtime_meta.error);
+				releaseLock();
+				return { results: map(slots, (slot) => slot.result) };
+			}
+
+			try {
+				if (!launchProbeRuntime(runtime_meta))
+					setPendingError('error', error_codes.runtime_launch_failed, 'failed to launch temporary sing-box runtime');
+				else if (!waitControllerReady(runtime_meta))
+					setPendingError('timeout', error_codes.runtime_timeout, 'temporary sing-box runtime did not become ready in time');
+				else
+					probeDelays(runtime_meta, entries);
+			} catch (e) {
+				setPendingError('error', error_codes.backend_execution_failed, 'unexpected backend error during latency test');
+			}
+
+			cleanupProbeRuntime(runtime_meta);
+			releaseLock();
+
+			return { results: map(slots, (slot) => slot.result || formatResult(slot.node, 'error', null, {
+				code: error_codes.backend_execution_failed,
+				message: 'latency test did not return a result'
+			})) };
+		}
+	},
+
+	log_clean: {
+		args: { type: 'type' },
+		call: function(req) {
+			if (!(req.args?.type in ['homeproxy', 'sing-box-c', 'sing-box-s']))
+				return { result: false, error: 'illegal type' };
+
+			const filestat = lstat(`${RUN_DIR}/${req.args?.type}.log`);
+			if (filestat && writefile(`${RUN_DIR}/${req.args?.type}.log`, '') === null)
+				return { result: false, error: 'failed to clean log file' };
+			return { result: true };
+		}
+	},
+
+	singbox_generator: {
+		args: { type: 'type', params: 'params' },
+		call: function(req) {
+			if (!(req.args?.type in ['ech-keypair', 'uuid', 'reality-keypair', 'vapid-keypair', 'wg-keypair']))
+				return { result: false, error: 'illegal type' };
+
+			const type = req.args?.type;
+			const params = trim(req.args?.params || '');
+			let result = {};
+
+			const fd = popen(`/usr/bin/sing-box generate ${type}${params ? ' ' + shellquote(params) : ''}`);
+			if (fd) {
+				let ech_cfg_set = false;
+				let ech_key_set = false;
+
+				for (let line = fd.read('line'); length(line); line = fd.read('line')) {
+					if (type === 'uuid')
+						result.uuid = trim(line);
+					else if (type in ['reality-keypair', 'vapid-keypair', 'wg-keypair']) {
+						let priv = match(trim(line), /PrivateKey: (.*)/);
+						if (priv)
+							result.private_key = priv[1];
+						let pub = match(trim(line), /PublicKey: (.*)/);
+						if (pub)
+							result.public_key = pub[1];
+					} else if (type in ['ech-keypair']) {
+						if (trim(line) === '-----BEGIN ECH CONFIGS-----')
+							ech_cfg_set = true;
+						else if (trim(line) === '-----BEGIN ECH KEYS-----')
+							ech_key_set = true;
+
+						if (ech_cfg_set)
+							result.ech_cfg = result.ech_cfg ? result.ech_cfg + '\n' + trim(line) : trim(line) ;
+						if (ech_key_set)
+							result.ech_key = result.ech_key ? result.ech_key + '\n' + trim(line) : trim(line) ;
+
+						if (trim(line) === '-----END ECH CONFIGS-----')
+							ech_cfg_set = false;
+						else if (trim(line) === '-----END ECH KEYS-----')
+							ech_key_set = false;
+					}
+				}
+
+				fd.close();
+			}
+
+			return { result };
+		}
+	},
+
+	singbox_get_features: {
+		call: function() {
+			let features = {};
+
+			const fd = popen('/usr/bin/sing-box version');
+			if (fd) {
+				for (let line = fd.read('line'); length(line); line = fd.read('line')) {
+					if (match(trim(line), /^sing-box version (.*)/))
+						features.version = match(trim(line), /^sing-box version (.*)/)[1];
+
+					let tags = match(trim(line), /^Tags: (.*)/);
+					if (tags)
+						for (let i in split(tags[1], ','))
+							features[i] = true;
+				}
+
+				fd.close();
+			}
+
+			features.hp_has_tcp_brutal = hasKernelModule('brutal.ko');
+
+			return features;
+		}
+	},
+
+	resources_get: {
+		call: function() {
+			let resources = [];
+			for (let resource_type in keys(RESOURCES)) {
+				const resource = RESOURCES[resource_type];
+				const version = trim(readfile(resource.version) || '');
+				push(resources, {
+					type: resource_type,
+					version: version || null,
+					source: resource.source
+				});
+			}
+			return { resources };
+		}
+	},
+	resources_update: {
+		call: function() {
+			const hpuci = cursor();
+			hpuci.load('homeproxy');
+			const mixed_port = int(hpuci.get('homeproxy', 'infra', 'mixed_port')) || 5330;
+			const update_proxy = (hpuci.get('homeproxy', 'subscription', 'update_via_proxy') === '1') ?
+				`HOMEPROXY_UPDATE_PROXY=${shellquote(`http://127.0.0.1:${mixed_port}`)} ` : '';
+			const status = system(`${update_proxy}${HP_DIR}/scripts/update_resources.sh`);
+			let update_result = {};
+			if (status !== 2) {
+				for (let line in split(trim(readfile(`${RUN_DIR}/update_resources.result`) || ''), '\n')) {
+					const pair = match(line, /^([^=]+)=(.*)$/);
+					if (pair)
+						update_result[pair[1]] = pair[2];
+				}
+			}
+			const core_updated = update_result.core_updated === '1';
+			const dashboard_updated = update_result.dashboard_updated === '1';
+			let apply_failed = false;
+			if ((core_updated || dashboard_updated) && system('/etc/init.d/homeproxy running >/dev/null 2>&1') === 0)
+				apply_failed = system('/etc/init.d/homeproxy reload >/dev/null 2>&1') !== 0;
+			return {
+				status,
+				core_updated,
+				dashboard_updated,
+				apply_failed,
+				updated: update_result.updated || null,
+				failed: update_result.failed || null
+			};
+		}
+	}
+};
+
+return { 'luci.homeproxy': methods };

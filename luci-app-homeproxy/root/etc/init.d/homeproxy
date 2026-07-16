@@ -1,0 +1,475 @@
+#!/bin/sh /etc/rc.common
+# SPDX-License-Identifier: GPL-2.0-only
+#
+# Copyright (C) 2022-2023 ImmortalWrt.org
+
+USE_PROCD=1
+
+START=99
+STOP=10
+
+CONF="homeproxy"
+PROG="/usr/bin/sing-box"
+
+HP_DIR="/etc/homeproxy"
+RUN_DIR="/var/run/homeproxy"
+LOG_PATH="$RUN_DIR/homeproxy.log"
+CACHE_DIR="$HP_DIR/cache"
+CACHE_PATH="$CACHE_DIR/cache.db"
+DASHBOARD_DIR="$HP_DIR/dashboard"
+
+# we don't know which is the default server, just take the first one
+DNSMASQ_UCI_CONFIG="$(uci -q show "dhcp.@dnsmasq[0]" | awk 'NR==1 {split($0, conf, /[.=]/); print conf[2]}')"
+if [ -f "/tmp/etc/dnsmasq.conf.$DNSMASQ_UCI_CONFIG" ]; then
+	DNSMASQ_DIR="$(awk -F '=' '/^conf-dir=/ {print $2}' "/tmp/etc/dnsmasq.conf.$DNSMASQ_UCI_CONFIG")/dnsmasq-homeproxy.d"
+else
+	DNSMASQ_DIR="/tmp/dnsmasq.d/dnsmasq-homeproxy.d"
+fi
+
+log() {
+	printf '%s [DAEMON] %s\n' "$(date "+%Y-%m-%d %H:%M:%S")" "$*" >> "$LOG_PATH"
+}
+
+clear_firewall() {
+	: > "$RUN_DIR/fw4_forward.nft"
+	: > "$RUN_DIR/fw4_input.nft"
+	: > "$RUN_DIR/fw4_post.nft"
+	fw4 reload >"/dev/null" 2>&1
+}
+
+remove_policy_routing() {
+	local table_mark tproxy_mark
+	config_get table_mark "infra" "table_mark" "100"
+	config_get tproxy_mark "infra" "tproxy_mark" "101"
+	while ip rule del fwmark "$tproxy_mark" table "$table_mark" 2>"/dev/null"; do :; done
+	ip route del local 0.0.0.0/0 dev lo table "$table_mark" 2>"/dev/null"
+	while ip -6 rule del fwmark "$tproxy_mark" table "$table_mark" 2>"/dev/null"; do :; done
+	ip -6 route del local ::/0 dev lo table "$table_mark" 2>"/dev/null"
+}
+
+clear_dnsmasq() {
+	if [ -e "$DNSMASQ_DIR/../dnsmasq-homeproxy.conf" ] || [ -d "$DNSMASQ_DIR" ]; then
+		rm -rf "$DNSMASQ_DIR/../dnsmasq-homeproxy.conf" "$DNSMASQ_DIR"
+		/etc/init.d/dnsmasq restart >"/dev/null" 2>&1
+	fi
+}
+
+validate_cron() {
+	local expression="$1" field
+
+	case "$expression" in
+	""|*[!0-9*/?,\ -]*) return 1 ;;
+	esac
+
+	set -f
+	# Split the expression into exactly five cron fields.
+	# shellcheck disable=SC2086
+	set -- $expression
+	set +f
+	[ "$#" -eq 5 ] || return 1
+
+	for field in "$@"; do
+		[ -n "$field" ] || return 1
+	done
+}
+
+start_service() {
+	mkdir -p "$RUN_DIR" || return 1
+	if ! /usr/libexec/homeproxy-runtime-init; then
+		log "Error: failed to initialize runtime ports."
+		return 1
+	fi
+	config_load "$CONF"
+
+	local routing_mode proxy_mode
+	config_get routing_mode "config" "routing_mode" "bypass_mainland_china"
+	config_get proxy_mode "config" "proxy_mode" "tun"
+	local dnsmasq_nftset=0
+	dnsmasq --version 2>"/dev/null" | grep -qw "nftset" && dnsmasq_nftset=1
+
+	local outbound_node
+	if [ "$routing_mode" != "custom" ]; then
+		config_get outbound_node "config" "main_node" "nil"
+	else
+		config_get outbound_node "routing" "default_outbound" "nil"
+	fi
+
+	local server_enabled
+	config_get_bool server_enabled "server" "enabled" "0"
+	local client_ready=0 server_ready=0
+	local dashboard_enabled dashboard_ready=0
+	config_get_bool dashboard_enabled "config" "dashboard_enabled" "0"
+	if [ "$dashboard_enabled" = "1" ]; then
+		rm -f "$DASHBOARD_DIR/.etag"
+		if [ -s "$DASHBOARD_DIR/index.html" ]; then
+			dashboard_ready=1
+		elif [ "$outbound_node" != "nil" ]; then
+			log "Client dashboard files are unavailable; update resources before opening the dashboard."
+		fi
+	fi
+
+	if [ "$outbound_node" = "nil" ] && [ "$server_enabled" = "0" ]; then
+		return 1
+	fi
+
+	rm -f "$RUN_DIR/sing-box-c.json.new" "$RUN_DIR/sing-box-s.json.new"
+
+	# Generate and validate every enabled instance before changing system state.
+	if [ "$outbound_node" != "nil" ]; then
+		if ! ucode -S "$HP_DIR/scripts/generate_client.uc" 2>>"$LOG_PATH" || \
+		   [ ! -s "$RUN_DIR/sing-box-c.json.new" ]; then
+			log "Error: failed to generate client configuration."
+			rm -f "$RUN_DIR/sing-box-c.json.new"
+		elif ! "$PROG" check --config "$RUN_DIR/sing-box-c.json.new" 2>>"$LOG_PATH"; then
+			log "Error: wrong client configuration detected."
+			rm -f "$RUN_DIR/sing-box-c.json.new"
+		else
+			client_ready=1
+		fi
+	fi
+
+	if [ "$server_enabled" = "1" ]; then
+		if ! ucode -S "$HP_DIR/scripts/generate_server.uc" 2>>"$LOG_PATH" || \
+		   [ ! -s "$RUN_DIR/sing-box-s.json.new" ]; then
+			log "Error: failed to generate server configuration."
+			rm -f "$RUN_DIR/sing-box-s.json.new"
+		elif ! "$PROG" check --config "$RUN_DIR/sing-box-s.json.new" 2>>"$LOG_PATH"; then
+			log "Error: wrong server configuration detected."
+			rm -f "$RUN_DIR/sing-box-s.json.new"
+		else
+			server_ready=1
+		fi
+	fi
+
+	if [ "$client_ready" -eq 1 ]; then
+		mv -f "$RUN_DIR/sing-box-c.json.new" "$RUN_DIR/sing-box-c.json"
+	else
+		rm -f "$RUN_DIR/sing-box-c.json.new" "$RUN_DIR/sing-box-c.json"
+	fi
+	if [ "$server_ready" -eq 1 ]; then
+		mv -f "$RUN_DIR/sing-box-s.json.new" "$RUN_DIR/sing-box-s.json"
+	else
+		rm -f "$RUN_DIR/sing-box-s.json.new" "$RUN_DIR/sing-box-s.json"
+	fi
+	[ "$client_ready" -eq 1 ] || [ "$server_ready" -eq 1 ] || return 1
+
+	case "$client_ready:$routing_mode" in
+	"1:bypass_mainland_china"|"1:custom")
+		mkdir -p "$CACHE_DIR"
+		touch "$CACHE_PATH"
+		chown -R sing-box:sing-box "$CACHE_DIR"
+		;;
+	esac
+
+	# Prepare firewall before sing-box inserts native TUN auto-redirect rules.
+	local firewall_ready=1
+	if ! HOMEPROXY_SERVER_READY="$server_ready" \
+		ucode "$HP_DIR/scripts/firewall_pre.uc" 2>>"$LOG_PATH"; then
+		log "Error: failed to prepare firewall includes."
+		clear_firewall
+		firewall_ready=0
+		client_ready=0
+		rm -f "$RUN_DIR/sing-box-c.json"
+	fi
+	local firewall_post_new="$RUN_DIR/fw4_post.nft.new"
+	if [ "$firewall_ready" -eq 1 ] && [ "$client_ready" -eq 1 ] && [ "$proxy_mode" = "tproxy" ]; then
+		if ! HOMEPROXY_DNSMASQ_NFTSET="$dnsmasq_nftset" \
+			utpl -S "$HP_DIR/scripts/firewall_post.ut" > "$firewall_post_new" || \
+		   [ ! -s "$firewall_post_new" ]; then
+			log "Error: failed to generate client TProxy firewall rules."
+			rm -f "$firewall_post_new"
+			client_ready=0
+			rm -f "$RUN_DIR/sing-box-c.json"
+			: > "$firewall_post_new"
+		fi
+	elif [ "$firewall_ready" -eq 1 ]; then
+		: > "$firewall_post_new"
+	fi
+	if [ "$firewall_ready" -eq 1 ] && { \
+	   ! mv -f "$firewall_post_new" "$RUN_DIR/fw4_post.nft" || \
+	   ! fw4 reload >"/dev/null" 2>&1; }; then
+		log "Error: failed to apply client firewall rules."
+		rm -f "$firewall_post_new"
+		clear_firewall
+		firewall_ready=0
+		client_ready=0
+		rm -f "$RUN_DIR/sing-box-c.json"
+	fi
+	if [ "$client_ready" -eq 1 ] && [ "$routing_mode" = "bypass_mainland_china" ]; then
+		if grep -q 'route_exclude_address_set' "$RUN_DIR/sing-box-c.json" 2>"/dev/null" || \
+		   grep -q 'daddr @homeproxy_mainland_addr_v4 counter return' "$RUN_DIR/fw4_post.nft" 2>"/dev/null"; then
+			log "Client mainland direct fast path: firewall."
+		elif grep -q '"action": "bypass"' "$RUN_DIR/sing-box-c.json" 2>"/dev/null"; then
+			log "Client mainland direct fast path: native pre-match."
+		else
+			log "Client mainland direct fast path unavailable."
+		fi
+	fi
+
+	local ipv6_support table_mark
+	if [ "$client_ready" -eq 1 ]; then
+		# Configure policy routing before redirecting DNS to the client core.
+		config_get_bool ipv6_support "config" "ipv6_support" "0"
+		config_get table_mark "infra" "table_mark" "100"
+		if [ "$proxy_mode" = "tproxy" ]; then
+			local tproxy_mark policy_error
+			config_get tproxy_mark "infra" "tproxy_mark" "101"
+
+			remove_policy_routing
+			if ! ip rule add fwmark "$tproxy_mark" table "$table_mark"; then
+				policy_error="IPv4 rule"
+			elif ! ip route add local 0.0.0.0/0 dev lo table "$table_mark"; then
+				policy_error="IPv4 route"
+			elif [ "$ipv6_support" -eq "1" ] && \
+			     ! ip -6 rule add fwmark "$tproxy_mark" table "$table_mark"; then
+				policy_error="IPv6 rule"
+			elif [ "$ipv6_support" -eq "1" ] && \
+			     ! ip -6 route add local ::/0 dev lo table "$table_mark"; then
+				policy_error="IPv6 route"
+			fi
+			if [ -n "$policy_error" ]; then
+				log "Error: failed to configure client TProxy policy routing ($policy_error)."
+				remove_policy_routing
+				clear_firewall
+				firewall_ready=0
+				client_ready=0
+				rm -f "$RUN_DIR/sing-box-c.json"
+			fi
+		fi
+	fi
+
+	if [ "$client_ready" -eq 1 ]; then
+		# Auto update
+		local auto_update auto_update_time
+		config_get_bool auto_update "subscription" "auto_update" "0"
+		if [ "$auto_update" = "1" ]; then
+			config_get auto_update_time "subscription" "auto_update_time" "0 */6 * * *"
+			sed -i "/#${CONF}_autosetup/d" "/etc/crontabs/root" 2>"/dev/null"
+			if validate_cron "$auto_update_time"; then
+				printf '%s %s #%s_autosetup\n' "$auto_update_time" "$HP_DIR/scripts/update_crond.sh" "$CONF" >> "/etc/crontabs/root"
+			else
+				log "Error: invalid client subscription update schedule."
+			fi
+			/etc/init.d/cron restart
+		fi
+	fi
+
+	if [ "$client_ready" -eq 1 ]; then
+		# DNSMasq rules
+		local dns_port dns_ready=1
+		config_get dns_port "infra" "dns_port" "5333"
+		if ! mkdir -p "$DNSMASQ_DIR" || \
+		   ! printf 'conf-dir=%s\n' "$DNSMASQ_DIR" > "$DNSMASQ_DIR/../dnsmasq-homeproxy.conf" || \
+		   ! printf 'no-poll\nno-resolv\nserver=127.0.0.1#%s\n' "$dns_port" > "$DNSMASQ_DIR/redirect-dns.conf"; then
+			log "Error: failed to prepare client DNSMasq rules."
+			dns_ready=0
+		fi
+		[ "$dns_ready" -eq 0 ] || rm -f "$DNSMASQ_DIR/proxy_list.conf"
+		if [ "$dns_ready" -eq 1 ] && [ "$routing_mode" = "bypass_mainland_china" ] && [ "$proxy_mode" = "tproxy" ] && \
+		   [ "$dnsmasq_nftset" -eq "1" ] && \
+		   [ -s "$HP_DIR/resources/proxy_list.txt" ]; then
+			local proxy_nftset_v6
+			[ "$ipv6_support" -eq "0" ] || proxy_nftset_v6=",6#inet#fw4#homeproxy_proxy_domain_addr_v6"
+			if ! sed -r -e '/^[[:space:]]*$/d' \
+				-e '/\./!d' \
+				-e "s|(.*)|nftset=/\\1/4#inet#fw4#homeproxy_proxy_domain_addr_v4$proxy_nftset_v6|g" \
+				"$HP_DIR/resources/proxy_list.txt" > "$DNSMASQ_DIR/proxy_list.conf"; then
+				log "Error: failed to prepare client DNSMasq domain rules."
+				dns_ready=0
+			fi
+		elif [ "$dns_ready" -eq 1 ] && [ "$routing_mode" = "bypass_mainland_china" ] && [ "$proxy_mode" = "tproxy" ] && \
+		     [ -s "$HP_DIR/resources/proxy_list.txt" ]; then
+			log "Client dnsmasq nftset is unavailable; proxy domain traffic will use the core fallback."
+		fi
+		if [ "$dns_ready" -eq 1 ] && ! /etc/init.d/dnsmasq restart >"/dev/null" 2>&1; then
+			log "Error: failed to reload client DNSMasq rules."
+			dns_ready=0
+		fi
+		if [ "$dns_ready" -eq 0 ]; then
+			clear_dnsmasq
+			remove_policy_routing
+			clear_firewall
+			firewall_ready=0
+			client_ready=0
+			rm -f "$RUN_DIR/sing-box-c.json"
+		fi
+	fi
+
+	if [ "$client_ready" -eq 1 ]; then
+		# sing-box (client)
+		procd_open_instance "sing-box-c"
+
+		procd_set_param command "$PROG"
+		procd_append_param command run --config "$RUN_DIR/sing-box-c.json"
+
+		# QUIC-GO GSO is broken on kernel 6.6 currently
+		uname -r | grep -Eq "^6\.6" && procd_set_param env "QUIC_GO_DISABLE_GSO"="true"
+		if [ -x "/sbin/ujail" ] && [ "$dashboard_ready" -ne 1 ] && \
+		   [ "$routing_mode" != "custom" ] && \
+		   ! grep -Eq '"type": "(wireguard|tun)"' "$RUN_DIR/sing-box-c.json"; then
+			procd_add_jail "sing-box-c" log procfs
+			procd_add_jail_mount "$RUN_DIR/sing-box-c.json"
+			procd_add_jail_mount_rw "$RUN_DIR/sing-box-c.log"
+			[ "$routing_mode" != "bypass_mainland_china" ] || procd_add_jail_mount_rw "$CACHE_PATH"
+			[ "$routing_mode" != "bypass_mainland_china" ] || procd_add_jail_mount "$HP_DIR/resources/"
+			procd_add_jail_mount "$HP_DIR/certs/"
+			procd_add_jail_mount "/etc/ssl/"
+			procd_add_jail_mount "/etc/localtime"
+			procd_add_jail_mount "/etc/TZ"
+			procd_set_param capabilities "/etc/capabilities/homeproxy.json"
+			procd_set_param no_new_privs 1
+			procd_set_param user sing-box
+			procd_set_param group sing-box
+		fi
+
+		procd_set_param limits core="unlimited"
+		procd_set_param limits nofile="1000000 1000000"
+		procd_set_param stderr 1
+		procd_set_param respawn
+
+		procd_close_instance
+	fi
+
+	if [ "$client_ready" -eq 0 ] && [ "$server_ready" -eq 1 ] && [ "$firewall_ready" -eq 0 ]; then
+		# A client-only setup failure may have cleared shared firewall includes.
+		if HOMEPROXY_SERVER_READY=1 ucode "$HP_DIR/scripts/firewall_pre.uc" 2>>"$LOG_PATH" && \
+		   : > "$firewall_post_new" && \
+		   mv -f "$firewall_post_new" "$RUN_DIR/fw4_post.nft" && \
+		   fw4 reload >"/dev/null" 2>&1; then
+			firewall_ready=1
+		else
+			log "Error: failed to restore server firewall rules; continuing with the server instance."
+			clear_firewall
+		fi
+	fi
+
+	[ "$client_ready" -eq 1 ] || [ "$server_ready" -eq 1 ] || return 1
+
+	if [ "$server_ready" -eq 1 ]; then
+		# sing-box (server)
+		procd_open_instance "sing-box-s"
+
+		procd_set_param command "$PROG"
+		procd_append_param command run --config "$RUN_DIR/sing-box-s.json"
+
+		# QUIC-GO GSO is broken on kernel 6.6 currently
+		uname -r | grep -Eq "^6\.6" && procd_set_param env "QUIC_GO_DISABLE_GSO"="true"
+
+		if [ -x "/sbin/ujail" ]; then
+			procd_add_jail "sing-box-s" log procfs
+			procd_add_jail_mount "$RUN_DIR/sing-box-s.json"
+			procd_add_jail_mount_rw "$RUN_DIR/sing-box-s.log"
+			procd_add_jail_mount_rw "$HP_DIR/certs/"
+			procd_add_jail_mount "/etc/acme/"
+			procd_add_jail_mount "/etc/ssl/"
+			procd_add_jail_mount "/etc/localtime"
+			procd_add_jail_mount "/etc/TZ"
+			procd_set_param capabilities "/etc/capabilities/homeproxy.json"
+			procd_set_param no_new_privs 1
+			procd_set_param user sing-box
+			procd_set_param group sing-box
+		fi
+
+		procd_set_param limits core="unlimited"
+		procd_set_param limits nofile="1000000 1000000"
+		procd_set_param stderr 1
+		procd_set_param respawn
+
+		procd_close_instance
+	fi
+
+	# log-cleaner
+	procd_open_instance "log-cleaner"
+	procd_set_param command "$HP_DIR/scripts/clean_log.sh"
+	procd_set_param respawn
+	procd_close_instance
+
+	case "$client_ready:$routing_mode" in
+	"1:custom")
+		# Prepare ruleset directory
+		[ -d "$HP_DIR/ruleset" ] || mkdir -p "$HP_DIR/ruleset"
+		;;
+	esac
+
+	[ "$client_ready" -ne 1 ] || : > "$RUN_DIR/sing-box-c.log"
+	if [ "$server_ready" -eq 1 ]; then
+		: > "$RUN_DIR/sing-box-s.log"
+		mkdir -p "$HP_DIR/certs"
+	fi
+
+	# Update permissions for ujail
+	chown -R sing-box:sing-box "$RUN_DIR"
+
+	local sing_box_version
+	sing_box_version="$(sing-box version -n)"
+	if [ "$client_ready" -eq 1 ]; then
+		log "sing-box $sing_box_version client started"
+	elif [ "$outbound_node" != "nil" ]; then
+		log "sing-box $sing_box_version client failed to start"
+	fi
+	if [ "$server_ready" -eq 1 ]; then
+		log "sing-box $sing_box_version server started"
+	elif [ "$server_enabled" = "1" ]; then
+		log "sing-box $sing_box_version server failed to start"
+	fi
+}
+
+stop_service() {
+	local client_was_running=0 server_was_running=0
+	[ ! -s "$RUN_DIR/sing-box-c.json" ] || client_was_running=1
+	[ ! -s "$RUN_DIR/sing-box-s.json" ] || server_was_running=1
+
+	if grep -q "#${CONF}_autosetup" "/etc/crontabs/root" 2>"/dev/null"; then
+		sed -i "/#${CONF}_autosetup/d" "/etc/crontabs/root"
+		/etc/init.d/cron restart >"/dev/null" 2>&1
+	fi
+
+	# Setup firewall
+	# Load config
+	config_load "$CONF"
+	# Tproxy
+	remove_policy_routing
+
+	# Nftables rules
+	for i in "homeproxy_mangle_tproxy" "homeproxy_mangle_tproxy_port" "homeproxy_mangle_mark" \
+		 "homeproxy_mangle_lanac" \
+		 "homeproxy_mangle_prerouting" "homeproxy_mangle_output"; do
+		nft flush chain inet fw4 "$i"
+		nft delete chain inet fw4 "$i"
+	done 2>"/dev/null"
+	for i in "homeproxy_local_addr_v4" "homeproxy_local_addr_v6" \
+		 "homeproxy_mainland_addr_v4" "homeproxy_mainland_addr_v6" \
+		 "homeproxy_proxy_domain_addr_v4" "homeproxy_proxy_domain_addr_v6" \
+		 "homeproxy_routing_port"; do
+		nft flush set inet fw4 "$i"
+		nft delete set inet fw4 "$i"
+	done 2>"/dev/null"
+	clear_firewall
+
+	# Remove DNS hijack
+	clear_dnsmasq
+
+	rm -f "$RUN_DIR/sing-box-c.json" "$RUN_DIR/sing-box-c.json.new" \
+		"$RUN_DIR/sing-box-s.json" "$RUN_DIR/sing-box-s.json.new"
+
+	if [ "$client_was_running" -eq 1 ]; then
+		rm -f "$RUN_DIR/sing-box-c.log"
+		log "sing-box client stopped"
+	fi
+	if [ "$server_was_running" -eq 1 ]; then
+		rm -f "$RUN_DIR/sing-box-s.log"
+		log "sing-box server stopped"
+	fi
+}
+
+reload_service() {
+	log "Reloading service..."
+
+	stop
+	start
+}
+
+service_triggers() {
+	procd_add_reload_trigger "$CONF"
+	procd_add_interface_trigger "interface.*.up" wan /etc/init.d/$CONF reload
+}

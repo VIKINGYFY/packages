@@ -1,0 +1,313 @@
+#!/usr/bin/utpl -S
+
+{%-
+import { readfile } from 'fs';
+import { cursor } from 'uci';
+import { isEmpty } from '/etc/homeproxy/scripts/homeproxy.uc';
+
+const fw4 = require('fw4');
+
+function normalize_list(value) {
+	if (isEmpty(value))
+		return [];
+	return (type(value) === 'array') ? value : [value];
+}
+
+function array_to_nftarr(array) {
+	return `{ ${join(', ', uniq(array))} }`;
+}
+
+function interface_to_nftarr(array) {
+	return `{ ${join(', ', map(uniq(array), (value) => sprintf('%J', value)))} }`;
+}
+
+function resolve_mark(str) {
+	if (isEmpty(str))
+		return null;
+
+	let mark = fw4.parse_mark(str);
+	if (isEmpty(mark))
+		return null;
+
+	if (mark.mask === 0xffffffff)
+		return fw4.hex(mark.mark);
+	else if (mark.mark === 0)
+		return `mark and ${fw4.hex(~mark.mask & 0xffffffff)}`;
+	else if (mark.mark === mark.mask)
+		return `mark or ${fw4.hex(mark.mark)}`;
+	else if (mark.mask === 0)
+		return `mark xor ${fw4.hex(mark.mark)}`;
+	return `mark and ${fw4.hex(~mark.mask & 0xffffffff)} xor ${fw4.hex(mark.mark)}`;
+}
+
+const cfgname = 'homeproxy';
+const resources_dir = '/etc/homeproxy/resources';
+const uci = cursor();
+uci.load(cfgname);
+
+const routing_mode = uci.get(cfgname, 'config', 'routing_mode') || 'bypass_mainland_china',
+      mainland_mode = routing_mode === 'bypass_mainland_china',
+      ipv6_support = uci.get(cfgname, 'config', 'ipv6_support') || '0',
+      listen_interfaces = normalize_list(uci.get(cfgname, 'control', 'listen_interfaces')),
+      self_mark = uci.get(cfgname, 'infra', 'self_mark') || '100',
+      tproxy_port = uci.get(cfgname, 'infra', 'tproxy_port') || '5332',
+      tproxy_mark = resolve_mark(uci.get(cfgname, 'infra', 'tproxy_mark') || '101');
+const proxy_domain_list = mainland_mode ?
+      trim(readfile(resources_dir + '/proxy_list.txt') || '') : '',
+      proxy_domain_keywords = filter(split(proxy_domain_list, /[\r\n]/),
+            (domain) => domain && !match(domain, /\./)),
+      dnsmasq_nftset = getenv('HOMEPROXY_DNSMASQ_NFTSET') !== '0',
+      fast_bypass_mainland = mainland_mode &&
+            (isEmpty(proxy_domain_list) ||
+             (isEmpty(proxy_domain_keywords) && dnsmasq_nftset));
+
+let routing_port = uci.get(cfgname, 'config', 'routing_port');
+if (routing_port === 'common')
+	routing_port = uci.get(cfgname, 'infra', 'common_port');
+const routing_ports = isEmpty(routing_port) ? [] : split(routing_port, ',');
+
+const lan_direct_ipv4 = normalize_list(uci.get(cfgname, 'control', 'lan_direct_ipv4_ips')),
+      lan_direct_mac = normalize_list(uci.get(cfgname, 'control', 'lan_direct_mac_addrs')),
+      lan_proxy_ipv4 = mainland_mode ? normalize_list(uci.get(cfgname, 'control', 'lan_proxy_ipv4_ips')) : [],
+      lan_proxy_mac = mainland_mode ? normalize_list(uci.get(cfgname, 'control', 'lan_proxy_mac_addrs')) : [],
+      wan_proxy_ipv4 = mainland_mode ? normalize_list(uci.get(cfgname, 'control', 'wan_proxy_ipv4_ips')) : [],
+      wan_proxy_ipv6 = mainland_mode ? normalize_list(uci.get(cfgname, 'control', 'wan_proxy_ipv6_ips')) : [],
+      wan_direct_ipv4 = normalize_list(uci.get(cfgname, 'control', 'wan_direct_ipv4_ips')),
+      wan_direct_ipv6 = normalize_list(uci.get(cfgname, 'control', 'wan_direct_ipv6_ips'));
+
+const dns_redirect = uci.get(cfgname, 'infra', 'dns_redirect') || '1',
+      dns_hijacked = uci.get('dhcp', '@dnsmasq[0]', 'dns_redirect') || '0',
+      dns_port = uci.get('dhcp', '@dnsmasq[0]', 'port') || '53';
+-%}
+
+set homeproxy_local_addr_v4 {
+	type ipv4_addr
+	flags interval
+	auto-merge
+	elements = {
+		0.0.0.0/8,
+		10.0.0.0/8,
+		100.64.0.0/10,
+		127.0.0.0/8,
+		169.254.0.0/16,
+		172.16.0.0/12,
+		192.0.0.0/24,
+		192.0.2.0/24,
+		192.31.196.0/24,
+		192.52.193.0/24,
+		192.88.99.0/24,
+		192.168.0.0/16,
+		192.175.48.0/24,
+		198.18.0.0/15,
+		198.51.100.0/24,
+		203.0.113.0/24,
+		224.0.0.0/4,
+		240.0.0.0/4
+	}
+}
+
+{% if (ipv6_support === '1'): %}
+set homeproxy_local_addr_v6 {
+	type ipv6_addr
+	flags interval
+	auto-merge
+	elements = {
+		::/128,
+		::1/128,
+		::ffff:0:0/96,
+		100::/64,
+		64:ff9b::/96,
+		2001::/32,
+		2001:10::/28,
+		2001:20::/28,
+		2001:db8::/28,
+		2002::/16,
+		fc00::/7,
+		fe80::/10,
+		ff00::/8
+	}
+}
+{% endif %}
+
+{% if (fast_bypass_mainland): %}
+set homeproxy_mainland_addr_v4 {
+	type ipv4_addr
+	flags interval
+	auto-merge
+	elements = {
+		{% for (let cidr in split(trim(readfile(resources_dir + '/china_ip4.txt')), /[\r\n]/)): %}
+		{{ cidr }},
+		{% endfor %}
+	}
+}
+
+{% if (ipv6_support === '1'): %}
+set homeproxy_mainland_addr_v6 {
+	type ipv6_addr
+	flags interval
+	auto-merge
+	elements = {
+		{% for (let cidr in split(trim(readfile(resources_dir + '/china_ip6.txt')), /[\r\n]/)): %}
+		{{ cidr }},
+		{% endfor %}
+	}
+}
+{% endif %}
+{% endif %}
+
+{% if (routing_mode === 'bypass_mainland_china'): %}
+set homeproxy_proxy_domain_addr_v4 {
+	type ipv4_addr
+	flags interval
+	auto-merge
+}
+
+{% if (ipv6_support === '1'): %}
+set homeproxy_proxy_domain_addr_v6 {
+	type ipv6_addr
+	flags interval
+	auto-merge
+}
+{% endif %}
+{% endif %}
+
+{% if (length(routing_ports)): %}
+set homeproxy_routing_port {
+	type inet_service
+	flags interval
+	auto-merge
+	elements = { {{ join(', ', routing_ports) }} }
+}
+{% endif %}
+
+chain dstnat {
+{% if ((dns_redirect === '1') && (dns_hijacked !== '1')): %}
+	{% if (length(listen_interfaces)): %}
+	meta iifname {{ interface_to_nftarr(listen_interfaces) }}
+	{%- endif %}
+	meta nfproto { ipv4, ipv6 } udp dport 53 counter redirect to :{{ dns_port }} comment "!{{ cfgname }}: DNS hijack"
+{% endif %}
+}
+
+chain homeproxy_mangle_tproxy {
+	meta l4proto { tcp, udp } meta mark set {{ tproxy_mark }} tproxy ip to 127.0.0.1:{{ tproxy_port }} counter accept
+	{% if (ipv6_support === '1'): %}
+	meta l4proto { tcp, udp } meta mark set {{ tproxy_mark }} tproxy ip6 to [::1]:{{ tproxy_port }} counter accept
+	{% endif %}
+}
+
+chain homeproxy_mangle_tproxy_port {
+	{% if (length(routing_ports)): %}
+	meta l4proto { tcp, udp } th dport != @homeproxy_routing_port counter return
+	{% endif %}
+	goto homeproxy_mangle_tproxy
+}
+
+chain homeproxy_mangle_mark {
+	meta l4proto { tcp, udp } meta mark set {{ tproxy_mark }} counter accept
+}
+
+chain homeproxy_mangle_lanac {
+	{% if (length(listen_interfaces)): %}
+	meta iifname != {{ interface_to_nftarr([...listen_interfaces, ...['lo']]) }} counter return
+	{% endif %}
+	meta iifname != lo udp dport 53 counter return
+	meta mark {{ self_mark }} counter return
+
+	jump homeproxy_mangle_prerouting
+}
+
+chain homeproxy_mangle_prerouting {
+	ip daddr @homeproxy_local_addr_v4 counter return
+	{% if (ipv6_support === '1'): %}
+	ip6 daddr @homeproxy_local_addr_v6 counter return
+	{% endif %}
+	{% if (length(lan_direct_ipv4)): %}
+	ip saddr {{ array_to_nftarr(lan_direct_ipv4) }} counter return
+	{% endif %}
+	{% if (length(lan_direct_mac)): %}
+	ether saddr {{ array_to_nftarr(lan_direct_mac) }} counter return
+	{% endif %}
+	{% if (routing_mode === 'bypass_mainland_china'): %}
+	{% if (length(lan_proxy_ipv4)): %}
+	ip saddr {{ array_to_nftarr(lan_proxy_ipv4) }} counter goto homeproxy_mangle_tproxy
+	{% endif %}
+	{% if (length(lan_proxy_mac)): %}
+	ether saddr {{ array_to_nftarr(lan_proxy_mac) }} counter goto homeproxy_mangle_tproxy
+	{% endif %}
+	{% endif %}
+
+	{% if (routing_mode === 'bypass_mainland_china'): %}
+	ip daddr @homeproxy_proxy_domain_addr_v4 counter goto homeproxy_mangle_tproxy
+	{% if (ipv6_support === '1'): %}
+	ip6 daddr @homeproxy_proxy_domain_addr_v6 counter goto homeproxy_mangle_tproxy
+	{% endif %}
+	{% if (length(wan_proxy_ipv4)): %}
+	ip daddr {{ array_to_nftarr(wan_proxy_ipv4) }} counter goto homeproxy_mangle_tproxy
+	{% endif %}
+	{% if (ipv6_support === '1' && length(wan_proxy_ipv6)): %}
+	ip6 daddr {{ array_to_nftarr(wan_proxy_ipv6) }} counter goto homeproxy_mangle_tproxy
+	{% endif %}
+	{% endif %}
+
+	{% if (length(wan_direct_ipv4)): %}
+	ip daddr {{ array_to_nftarr(wan_direct_ipv4) }} counter return
+	{% endif %}
+	{% if (ipv6_support === '1' && length(wan_direct_ipv6)): %}
+	ip6 daddr {{ array_to_nftarr(wan_direct_ipv6) }} counter return
+	{% endif %}
+	{% if (fast_bypass_mainland): %}
+	ip daddr @homeproxy_mainland_addr_v4 counter return
+	{% if (ipv6_support === '1'): %}
+	ip6 daddr @homeproxy_mainland_addr_v6 counter return
+	{% endif %}
+	{% endif %}
+
+	goto homeproxy_mangle_tproxy_port
+}
+
+chain homeproxy_mangle_output {
+	meta mark {{ self_mark }} counter return
+	ip daddr @homeproxy_local_addr_v4 counter return
+	{% if (ipv6_support === '1'): %}
+	ip6 daddr @homeproxy_local_addr_v6 counter return
+	{% endif %}
+
+	{% if (routing_mode === 'bypass_mainland_china'): %}
+	ip daddr @homeproxy_proxy_domain_addr_v4 counter goto homeproxy_mangle_mark
+	{% if (ipv6_support === '1'): %}
+	ip6 daddr @homeproxy_proxy_domain_addr_v6 counter goto homeproxy_mangle_mark
+	{% endif %}
+	{% if (length(wan_proxy_ipv4)): %}
+	ip daddr {{ array_to_nftarr(wan_proxy_ipv4) }} counter goto homeproxy_mangle_mark
+	{% endif %}
+	{% if (ipv6_support === '1' && length(wan_proxy_ipv6)): %}
+	ip6 daddr {{ array_to_nftarr(wan_proxy_ipv6) }} counter goto homeproxy_mangle_mark
+	{% endif %}
+	{% endif %}
+	{% if (length(wan_direct_ipv4)): %}
+	ip daddr {{ array_to_nftarr(wan_direct_ipv4) }} counter return
+	{% endif %}
+	{% if (ipv6_support === '1' && length(wan_direct_ipv6)): %}
+	ip6 daddr {{ array_to_nftarr(wan_direct_ipv6) }} counter return
+	{% endif %}
+	{% if (fast_bypass_mainland): %}
+	ip daddr @homeproxy_mainland_addr_v4 counter return
+	{% if (ipv6_support === '1'): %}
+	ip6 daddr @homeproxy_mainland_addr_v6 counter return
+	{% endif %}
+	{% endif %}
+
+	{% if (length(routing_ports)): %}
+	meta l4proto { tcp, udp } th dport != @homeproxy_routing_port counter return
+	{% endif %}
+	goto homeproxy_mangle_mark
+}
+
+chain mangle_prerouting {
+	meta nfproto { {{ (ipv6_support === '1') ? 'ipv4, ipv6' : 'ipv4' }} } meta l4proto { tcp, udp } jump homeproxy_mangle_lanac
+}
+
+chain mangle_output {
+	meta nfproto { {{ (ipv6_support === '1') ? 'ipv4, ipv6' : 'ipv4' }} } meta l4proto { tcp, udp } jump homeproxy_mangle_output
+}
