@@ -46,6 +46,23 @@ external_mount_ready() {
 	return 0
 }
 
+migrate_log_files() {
+	local data_dir="$1"
+	local old_log_dir="$data_dir/logs"
+	local old_log_file suffix new_log_file
+
+	[ -d "$old_log_dir" ] || return 0
+
+	for old_log_file in "$old_log_dir"/axonhub.log*; do
+		[ -f "$old_log_file" ] || continue
+		suffix="${old_log_file#"$old_log_dir/axonhub.log"}"
+		new_log_file="$data_dir/axonhub.log$suffix"
+		[ -e "$new_log_file" ] || mv "$old_log_file" "$new_log_file" || return 1
+	done
+
+	rmdir "$old_log_dir" 2>/dev/null || true
+}
+
 normalize_cleanup_schedule() {
 	case "$1" in
 		disabled|daily|weekly|monthly) printf '%s\n' "$1" ;;
@@ -221,8 +238,10 @@ start_service() {
 		return 1
 	}
 	chmod 700 "$data_dir"
-	mkdir -p "$data_dir/logs"
-	chmod 700 "$data_dir/logs"
+	migrate_log_files "$data_dir" || {
+		log_error "Unable to migrate AxonHub logs into the data directory: $data_dir"
+		return 1
+	}
 
 	db_dsn="file:$data_dir/axonhub.db?cache=shared&_fk=1&_pragma=journal_mode(WAL)&_pragma=busy_timeout(5000)"
 
@@ -244,7 +263,7 @@ start_service() {
 	else
 		procd_append_param env \
 			"AXONHUB_LOG_OUTPUT=file" \
-			"AXONHUB_LOG_FILE_PATH=$data_dir/logs/axonhub.log" \
+			"AXONHUB_LOG_FILE_PATH=$data_dir/axonhub.log" \
 			"AXONHUB_LOG_FILE_MAX_SIZE=20" \
 			"AXONHUB_LOG_FILE_MAX_AGE=$log_file_max_age" \
 			"AXONHUB_LOG_FILE_MAX_BACKUPS=3" \

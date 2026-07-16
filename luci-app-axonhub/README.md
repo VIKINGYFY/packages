@@ -28,7 +28,7 @@ On first installation, an unused TCP port is selected randomly from
 `20000-59999` and saved to UCI. The port remains stable across service and
 router restarts and can be changed in LuCI.
 
-AxonHub writes to `<data directory>/logs/axonhub.log` by default instead of the
+AxonHub writes to `<data directory>/axonhub.log`, next to `axonhub.db`, instead of the
 OpenWrt system log. File logs rotate at 20 MiB with at most three backups. LuCI
 offers disabled, daily, weekly and monthly cleanup schedules implemented as
 standard cron expressions at 03:00. The cleanup task only truncates AxonHub's dedicated

@@ -33,8 +33,7 @@ case "$data_dir" in
 	*..*|*[!A-Za-z0-9_./-]*) exit 1 ;;
 esac
 
-log_dir="$data_dir/logs"
-log_file="$log_dir/axonhub.log"
-
-[ ! -f "$log_file" ] || : > "$log_file"
-rm -f "$log_file".*
+for log_file in "$data_dir/axonhub.log" "$data_dir/logs/axonhub.log"; do
+	[ ! -f "$log_file" ] || : > "$log_file"
+	rm -f "$log_file".*
+done

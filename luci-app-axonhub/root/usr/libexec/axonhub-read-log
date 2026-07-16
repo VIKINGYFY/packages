@@ -26,4 +26,9 @@ case "$data_dir" in
 	*..*|*[!A-Za-z0-9_./-]*) exit 1 ;;
 esac
 
-tail -n 100 "$data_dir/logs/axonhub.log" 2>/dev/null
+log_file="$data_dir/axonhub.log"
+if [ ! -f "$log_file" ] && [ -f "$data_dir/logs/axonhub.log" ]; then
+	log_file="$data_dir/logs/axonhub.log"
+fi
+
+tail -n 100 "$log_file" 2>/dev/null

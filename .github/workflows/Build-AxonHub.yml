@@ -20,21 +20,37 @@ jobs:
     steps:
       - name: Checkout package repository
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          ref: ${{ github.event.repository.default_branch }}
 
       - name: Resolve latest upstream source
         id: version
         run: |
-          version="$(TZ=Asia/Singapore date +%Y%m%d)"
+          upstream_branch='unstable'
+          package_version="$(TZ=Asia/Singapore date +%Y%m%d)"
+          version="${upstream_branch}-${package_version}"
           release_tag="axonhub-v${version}"
-          upstream_commit="$(gh api repos/looplj/axonhub/commits/unstable --jq '.sha')"
+          upstream_commit="$(gh api "repos/looplj/axonhub/commits/$upstream_branch" --jq '.sha')"
+          packaged_commit="$(sed -n 's/^AXONHUB_UPSTREAM_COMMIT:=//p' axonhub/Makefile)"
+
+          changed=true
+          if [[ -n "$packaged_commit" ]] && [[ "$packaged_commit" == "$upstream_commit" ]]; then
+            changed=false
+            echo "No new AxonHub commit on $upstream_branch; nothing to build."
+          fi
 
           {
+            echo "changed=$changed"
+            echo "upstream_branch=$upstream_branch"
+            echo "package_version=$package_version"
             echo "version=$version"
             echo "release_tag=$release_tag"
             echo "upstream_commit=$upstream_commit"
           } >> "$GITHUB_OUTPUT"
 
       - name: Checkout AxonHub source
+        if: steps.version.outputs.changed == 'true'
         uses: actions/checkout@v4
         with:
           repository: looplj/axonhub
@@ -43,11 +59,13 @@ jobs:
           path: upstream
 
       - name: Set up pnpm
+        if: steps.version.outputs.changed == 'true'
         uses: pnpm/action-setup@v4
         with:
           version: 10
 
       - name: Set up Node.js
+        if: steps.version.outputs.changed == 'true'
         uses: actions/setup-node@v4
         with:
           node-version: '22'
@@ -55,12 +73,15 @@ jobs:
           cache-dependency-path: upstream/frontend/pnpm-lock.yaml
 
       - name: Set up Go
+        if: steps.version.outputs.changed == 'true'
         uses: actions/setup-go@v5
         with:
           go-version-file: upstream/go.mod
           cache-dependency-path: upstream/go.sum
 
       - name: Build Linux binaries
+        if: steps.version.outputs.changed == 'true'
+        id: build
         env:
           BUILD_VERSION: v${{ steps.version.outputs.version }}
         run: |
@@ -87,12 +108,17 @@ jobs:
                 -o "$output_dir/axonhub_linux_$arch" ./cmd/axonhub
             )
             chmod 0755 "$output_dir/axonhub_linux_$arch"
+            printf '%s_hash=%s\n' \
+              "$arch" \
+              "$(sha256sum "$output_dir/axonhub_linux_$arch" | cut -d' ' -f1)" \
+              >> "$GITHUB_OUTPUT"
           done
 
           "$output_dir/axonhub_linux_amd64" version | grep -F "$BUILD_VERSION"
           test "$(find "$output_dir" -maxdepth 1 -type f -name 'axonhub_linux_*' | wc -l)" -eq 3
 
       - name: Publish release
+        if: steps.version.outputs.changed == 'true'
         env:
           RELEASE_TAG: ${{ steps.version.outputs.release_tag }}
           UPSTREAM_COMMIT: ${{ steps.version.outputs.upstream_commit }}
@@ -119,3 +145,69 @@ jobs:
               --notes "$notes" \
               --prerelease
           fi
+
+      - name: Update AxonHub package metadata
+        if: steps.version.outputs.changed == 'true'
+        env:
+          VERSION: ${{ steps.version.outputs.package_version }}
+          BUILD_VERSION: ${{ steps.version.outputs.version }}
+          UPSTREAM_COMMIT: ${{ steps.version.outputs.upstream_commit }}
+          AMD64_HASH: ${{ steps.build.outputs.amd64_hash }}
+          ARM64_HASH: ${{ steps.build.outputs.arm64_hash }}
+          LOONG64_HASH: ${{ steps.build.outputs.loong64_hash }}
+          PACKAGE_BRANCH: ${{ github.event.repository.default_branch }}
+        run: |
+          makefile='axonhub/Makefile'
+          current_version="$(sed -n 's/^PKG_VERSION:=//p' "$makefile")"
+          current_release="$(sed -n 's/^PKG_RELEASE:=//p' "$makefile")"
+          current_build_version="$(sed -n 's/^AXONHUB_BUILD_VERSION:=//p' "$makefile")"
+
+          read_hash() {
+            awk -v arch="$1" '
+              $0 ~ "AXONHUB_ARCH:=" arch {
+                getline
+                sub(/^[[:space:]]*PKG_HASH:=/, "")
+                print
+                exit
+              }
+            ' "$makefile"
+          }
+
+          release=1
+          if [[ "$current_version" == "$VERSION" ]] &&
+             [[ "$current_build_version" == "$BUILD_VERSION" ]]; then
+            release="$current_release"
+            if [[ "$(read_hash amd64)" != "$AMD64_HASH" ]] ||
+               [[ "$(read_hash arm64)" != "$ARM64_HASH" ]] ||
+               [[ "$(read_hash loong64)" != "$LOONG64_HASH" ]]; then
+              [[ "$current_release" =~ ^[0-9]+$ ]]
+              release=$((current_release + 1))
+            fi
+          fi
+
+          sed -i \
+            -e "s/^PKG_VERSION:=.*/PKG_VERSION:=$VERSION/" \
+            -e "s/^PKG_RELEASE:=.*/PKG_RELEASE:=$release/" \
+            -e "s/^AXONHUB_BUILD_VERSION:=.*/AXONHUB_BUILD_VERSION:=$BUILD_VERSION/" \
+            -e "s/^AXONHUB_UPSTREAM_COMMIT:=.*/AXONHUB_UPSTREAM_COMMIT:=$UPSTREAM_COMMIT/" \
+            -e "/AXONHUB_ARCH:=amd64/{n;s/PKG_HASH:=.*/PKG_HASH:=$AMD64_HASH/;}" \
+            -e "/AXONHUB_ARCH:=arm64/{n;s/PKG_HASH:=.*/PKG_HASH:=$ARM64_HASH/;}" \
+            -e "/AXONHUB_ARCH:=loong64/{n;s/PKG_HASH:=.*/PKG_HASH:=$LOONG64_HASH/;}" \
+            "$makefile"
+
+          grep -Fx "PKG_VERSION:=$VERSION" "$makefile"
+          grep -Fx "PKG_RELEASE:=$release" "$makefile"
+          grep -Fx "AXONHUB_BUILD_VERSION:=$BUILD_VERSION" "$makefile"
+          grep -Fx "AXONHUB_UPSTREAM_COMMIT:=$UPSTREAM_COMMIT" "$makefile"
+          grep -Fqx "  PKG_HASH:=$AMD64_HASH" "$makefile"
+          grep -Fqx "  PKG_HASH:=$ARM64_HASH" "$makefile"
+          grep -Fqx "  PKG_HASH:=$LOONG64_HASH" "$makefile"
+
+          git add -- "$makefile"
+          git diff --cached --quiet && exit 0
+
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git commit -m "chore(axonhub): update daily build to v${BUILD_VERSION}-r${release}"
+          git pull --rebase origin "$PACKAGE_BRANCH"
+          git push origin "HEAD:$PACKAGE_BRANCH"
