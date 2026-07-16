@@ -29,23 +29,28 @@ valid_iface() {
 	esac
 }
 
-valid_cron_field() {
-	local value="$1"
-	local min="$2"
-	local max="$3"
+validate_cron() {
+	local expression="$1" field
 
-	[ "$value" = '*' ] && return 0
-	case "$value" in
-		''|*[!0-9]*) return 1 ;;
+	case "$expression" in
+		''|*[!0-9*/?,\ -]*) return 1 ;;
 	esac
 
-	[ "$value" -ge "$min" ] 2>/dev/null && [ "$value" -le "$max" ] 2>/dev/null
+	set -f
+	# shellcheck disable=SC2086
+	set -- $expression
+	set +f
+	[ "$#" -eq 5 ] || return 1
+
+	for field in "$@"; do
+		[ -n "$field" ] || return 1
+	done
 }
 
 append_rule() {
 	local section="$1"
 	local target="$2"
-	local scheduled name macaddr maceth minute hour day month weeks cron_tag
+	local scheduled name macaddr maceth cron cron_tag
 
 	config_get scheduled "$section" scheduled '0'
 	is_true "$scheduled" || return 0
@@ -53,18 +58,18 @@ append_rule() {
 	config_get name "$section" name "$section"
 	config_get macaddr "$section" macaddr
 	config_get maceth "$section" maceth 'br-lan'
-	config_get minute "$section" minute '0'
-	config_get hour "$section" hour '0'
-	config_get day "$section" day '*'
-	config_get month "$section" month '*'
-	config_get weeks "$section" weeks '*'
+	config_get cron "$section" cron
+	if [ -z "$cron" ]; then
+		local minute hour day month weeks
+		config_get minute "$section" minute '0'
+		config_get hour "$section" hour '0'
+		config_get day "$section" day '*'
+		config_get month "$section" month '*'
+		config_get weeks "$section" weeks '*'
+		cron="$minute $hour $day $month $weeks"
+	fi
 
-	if ! valid_mac "$macaddr" || ! valid_iface "$maceth" || \
-		! valid_cron_field "$minute" 0 59 || \
-		! valid_cron_field "$hour" 0 23 || \
-		! valid_cron_field "$day" 1 31 || \
-		! valid_cron_field "$month" 1 12 || \
-		! valid_cron_field "$weeks" 0 6; then
+	if ! valid_mac "$macaddr" || ! valid_iface "$maceth" || ! validate_cron "$cron"; then
 		logger -t wolultra -p daemon.err "Skipping invalid client section $section"
 		return 0
 	fi
@@ -73,9 +78,8 @@ append_rule() {
 	[ -n "$name" ] || name="$section"
 	cron_tag="$CRON_TAG $name"
 
-	printf '%s %s %s %s %s %s -b -D -i %s %s %s\n' \
-		"$minute" "$hour" "$day" "$month" "$weeks" \
-		"$ETHERWAKE_CMD" "$maceth" "$macaddr" "$cron_tag" >> "$target"
+	printf '%s %s -b -D -i %s %s %s\n' \
+		"$cron" "$ETHERWAKE_CMD" "$maceth" "$macaddr" "$cron_tag" >> "$target"
 }
 
 rebuild_crontab() {

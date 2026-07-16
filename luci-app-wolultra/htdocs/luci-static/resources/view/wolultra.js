@@ -36,23 +36,15 @@ function addHostHints(option, hosts) {
 
 }
 
-function validateCronField(name, value, min, max) {
-	if (value === '*')
-		return true;
-
-	if (/^[0-9]+$/.test(value)) {
-		var n = +value;
-
-		if (n >= min && n <= max)
-			return true;
-	}
-
-	return _('Invalid value for %s: %s. Must be between %d and %d or "*".').format(name, value, min, max);
+function normalizeCronExpression(value) {
+	return String(value || '').trim().replace(/\s+/g, ' ');
 }
 
-function scheduleText(section_id) {
-	if (uci.get('wolultra', section_id, 'scheduled') !== '1')
-		return _('Disabled');
+function cronExpression(section_id) {
+	var expression = uci.get('wolultra', section_id, 'cron');
+
+	if (expression)
+		return normalizeCronExpression(expression);
 
 	return '%s %s %s %s %s'.format(
 		uci.get('wolultra', section_id, 'minute') || '0',
@@ -60,6 +52,34 @@ function scheduleText(section_id) {
 		uci.get('wolultra', section_id, 'day') || '*',
 		uci.get('wolultra', section_id, 'month') || '*',
 		uci.get('wolultra', section_id, 'weeks') || '*');
+}
+
+function validateCronExpression(section_id, value) {
+	var expression = normalizeCronExpression(value);
+
+	if (/^[0-9*\/?, -]+$/.test(expression) && expression.split(' ').length === 5)
+		return true;
+
+	return _('Expecting: %s').format(_('valid cron expression'));
+}
+
+function cronDescription() {
+	return E('span', [
+		_('Minutes(0-59) Hours(0-23) Dates(1-31) Months(1-12) Weeks(0-6)'),
+		E('br'),
+		E('a', {
+			'href': 'https://cron.ciding.cc/',
+			'target': '_blank',
+			'rel': 'noreferrer noopener'
+		}, 'https://cron.ciding.cc/')
+	]);
+}
+
+function scheduleText(section_id) {
+	if (uci.get('wolultra', section_id, 'scheduled') !== '1')
+		return _('Disabled');
+
+	return cronExpression(section_id);
 }
 
 return view.extend({
@@ -108,29 +128,22 @@ return view.extend({
 		o.modalonly = false;
 		o.textvalue = scheduleText;
 
-		[
-			[ 'minute', _('Minute (0-59)'), 0, 59, '0' ],
-			[ 'hour', _('Hour (0-23)'), 0, 23, '0' ],
-			[ 'day', _('Day (1-31)'), 1, 31, '*' ],
-			[ 'month', _('Month (1-12)'), 1, 12, '*' ],
-			[ 'weeks', _('Week (0-6)'), 0, 6, '*' ]
-		].forEach(function(spec) {
-			var name = spec[0];
-			var title = spec[1];
-			var min = spec[2];
-			var max = spec[3];
-			var def = spec[4];
-
-			o = s.taboption('schedule', form.Value, name, title);
-			o.default = def;
-			o.placeholder = def;
-			o.rmempty = false;
-			o.modalonly = true;
-			o.depends('scheduled', '1');
-			o.validate = function(section_id, value) {
-				return validateCronField(title, value, min, max);
-			};
-		});
+		o = s.taboption('schedule', form.Value, 'cron', _('Cron expression'), cronDescription());
+		o.default = '0 0 * * *';
+		o.placeholder = '0 0 * * *';
+		o.rmempty = false;
+		o.modalonly = true;
+		o.depends('scheduled', '1');
+		o.cfgvalue = function(section_id) {
+			return cronExpression(section_id);
+		};
+		o.validate = validateCronExpression;
+		o.write = function(section_id, value) {
+			uci.set('wolultra', section_id, 'cron', normalizeCronExpression(value));
+			[ 'minute', 'hour', 'day', 'month', 'weeks' ].forEach(function(name) {
+				uci.unset('wolultra', section_id, name);
+			});
+		};
 
 		s.renderRowActions = function(section_id) {
 			var defaultButtons = form.GridSection.prototype.renderRowActions.call(this, section_id);

@@ -1750,8 +1750,15 @@ return view.extend({
 			_('Auto update subscriptions and resources.'));
 		o.rmempty = false;
 
-		o = s.taboption('subscription', form.Value, 'auto_update_time', _('Cron expression'),
-			_('Minutes(0-59) Hours(0-23) Dates(1-31) Months(1-12) Weeks(0-6)'));
+		o = s.taboption('subscription', form.Value, 'auto_update_time', _('Cron expression'), E('span', [
+			_('Minutes(0-59) Hours(0-23) Dates(1-31) Months(1-12) Weeks(0-6)'),
+			E('br'),
+			E('a', {
+				'href': 'https://cron.ciding.cc/',
+				'target': '_blank',
+				'rel': 'noreferrer noopener'
+			}, 'https://cron.ciding.cc/')
+		]));
 		o.default = '0 */6 * * *';
 		o.placeholder = '0 */6 * * *';
 		o.rmempty = false;
