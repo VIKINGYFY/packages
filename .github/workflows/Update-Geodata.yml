@@ -1,0 +1,46 @@
+name: Update HomeProxy geodata
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: '0 0 * * 0'
+
+permissions:
+  contents: write
+
+concurrency:
+  group: update-homeproxy-geodata
+  cancel-in-progress: false
+
+jobs:
+  update:
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Install resource tools
+        env:
+          DEBIAN_FRONTEND: noninteractive
+        run: |
+          sudo apt-get -qq update
+          sudo apt-get -qq install --no-install-recommends curl jq unzip
+
+      - name: Update HomeProxy resources
+        id: resources
+        run: .github/scripts/update-homeproxy-geodata.sh
+
+      - name: Commit resource updates
+        run: |
+          git add -- \
+            luci-app-homeproxy/root/etc/homeproxy/resources \
+            luci-app-homeproxy/root/etc/homeproxy/dashboard
+          git diff --cached --quiet && exit 0
+
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git commit -m "chore(resources): update HomeProxy data to ${{ steps.resources.outputs.version }}"
+          git pull --rebase origin "${GITHUB_REF_NAME}"
+          git push origin "HEAD:${GITHUB_REF_NAME}"

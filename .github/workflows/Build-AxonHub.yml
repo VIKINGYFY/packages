@@ -1,0 +1,121 @@
+name: Build and release AxonHub
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: '30 0 * * *'
+
+permissions:
+  contents: write
+
+concurrency:
+  group: build-axonhub
+  cancel-in-progress: false
+
+jobs:
+  release:
+    runs-on: ubuntu-24.04
+    env:
+      GH_TOKEN: ${{ github.token }}
+    steps:
+      - name: Checkout package repository
+        uses: actions/checkout@v4
+
+      - name: Resolve latest upstream source
+        id: version
+        run: |
+          version="$(TZ=Asia/Singapore date +%Y%m%d)"
+          release_tag="axonhub-v${version}"
+          upstream_commit="$(gh api repos/looplj/axonhub/commits/unstable --jq '.sha')"
+
+          {
+            echo "version=$version"
+            echo "release_tag=$release_tag"
+            echo "upstream_commit=$upstream_commit"
+          } >> "$GITHUB_OUTPUT"
+
+      - name: Checkout AxonHub source
+        uses: actions/checkout@v4
+        with:
+          repository: looplj/axonhub
+          ref: ${{ steps.version.outputs.upstream_commit }}
+          fetch-depth: 0
+          path: upstream
+
+      - name: Set up pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 10
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: pnpm
+          cache-dependency-path: upstream/frontend/pnpm-lock.yaml
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version-file: upstream/go.mod
+          cache-dependency-path: upstream/go.sum
+
+      - name: Build Linux binaries
+        env:
+          BUILD_VERSION: v${{ steps.version.outputs.version }}
+        run: |
+          output_dir="$GITHUB_WORKSPACE/release"
+          commit="$(git -C upstream rev-parse HEAD)"
+          build_time="$(git -C upstream show -s --format=%cI HEAD)"
+
+          mkdir -p "$output_dir"
+
+          pnpm --dir upstream/frontend install --frozen-lockfile
+          make -C upstream build-frontend
+          make -C upstream generate-schema
+
+          ldflags="-s -w"
+          ldflags+=" -X github.com/looplj/axonhub/internal/build.Version=$BUILD_VERSION"
+          ldflags+=" -X github.com/looplj/axonhub/internal/build.Commit=$commit"
+          ldflags+=" -X github.com/looplj/axonhub/internal/build.BuildTime=$build_time"
+
+          for arch in amd64 arm64 loong64; do
+            (
+              cd upstream
+              CGO_ENABLED=0 GOOS=linux GOARCH="$arch" \
+                go build -trimpath -tags=nomsgpack -ldflags "$ldflags" \
+                -o "$output_dir/axonhub_linux_$arch" ./cmd/axonhub
+            )
+            chmod 0755 "$output_dir/axonhub_linux_$arch"
+          done
+
+          "$output_dir/axonhub_linux_amd64" version | grep -F "$BUILD_VERSION"
+          test "$(find "$output_dir" -maxdepth 1 -type f -name 'axonhub_linux_*' | wc -l)" -eq 3
+
+      - name: Publish release
+        env:
+          RELEASE_TAG: ${{ steps.version.outputs.release_tag }}
+          UPSTREAM_COMMIT: ${{ steps.version.outputs.upstream_commit }}
+        run: |
+          notes="Daily Linux build from looplj/axonhub unstable commit ${UPSTREAM_COMMIT}."
+          assets=(
+            release/axonhub_linux_amd64
+            release/axonhub_linux_arm64
+            release/axonhub_linux_loong64
+          )
+
+          if gh release view "$RELEASE_TAG" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
+            gh release upload "$RELEASE_TAG" "${assets[@]}" \
+              --repo "$GITHUB_REPOSITORY" --clobber
+            gh release edit "$RELEASE_TAG" \
+              --repo "$GITHUB_REPOSITORY" \
+              --title "$RELEASE_TAG" \
+              --notes "$notes" \
+              --prerelease
+          else
+            gh release create "$RELEASE_TAG" "${assets[@]}" \
+              --repo "$GITHUB_REPOSITORY" \
+              --title "$RELEASE_TAG" \
+              --notes "$notes" \
+              --prerelease
+          fi

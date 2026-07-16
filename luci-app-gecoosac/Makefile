@@ -6,8 +6,8 @@
 include $(TOPDIR)/rules.mk
 
 PKG_NAME:=luci-app-gecoosac
-PKG_VERSION:=2.2
-PKG_RELEASE:=11
+PKG_VERSION:=20260716
+PKG_RELEASE:=1
 PKG_PO_VERSION:=$(PKG_VERSION)-r$(PKG_RELEASE)
 
 LUCI_TITLE:=LuCI Support for gecoosac

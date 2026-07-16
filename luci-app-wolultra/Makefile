@@ -5,8 +5,8 @@
 include $(TOPDIR)/rules.mk
 
 PKG_NAME:=luci-app-wolultra
-PKG_VERSION:=1.0
-PKG_RELEASE:=4
+PKG_VERSION:=20260716
+PKG_RELEASE:=1
 PKG_PO_VERSION:=$(PKG_VERSION)-r$(PKG_RELEASE)
 
 LUCI_TITLE:=LuCI support for WOL Ultra

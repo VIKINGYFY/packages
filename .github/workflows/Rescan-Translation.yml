@@ -1,85 +1,55 @@
-name: Rescan Translation
+name: Maintain translations and permissions
 
 on:
   workflow_dispatch:
   push:
+    branches:
+      - main
     paths:
-      - '**/htdocs/**'
-      - '**/luasrc/**'
-      - '**/root/**'
+      - 'luci-*/htdocs/**'
+      - 'luci-*/luasrc/**'
+      - 'luci-*/root/**'
+      - '.github/scripts/fix-package-permissions.sh'
+      - '.github/scripts/rescan-translations.sh'
+      - '.github/workflows/Rescan-Translation.yml'
 
-env:
-  GITHUB_TOKEN: ${{secrets.GITHUB_TOKEN}}
+permissions:
+  contents: write
 
-permissions: write-all
+concurrency:
+  group: rescan-translations-${{ github.ref }}
+  cancel-in-progress: false
 
 jobs:
-  cleanup:
-    runs-on: ubuntu-latest
-    steps:
-      - name: Delete old Releases and Workflows
-        uses: ophub/delete-releases-workflows@main
-        with:
-          gh_token: ${{secrets.GITHUB_TOKEN}}
-          delete_workflows: true
-          workflows_keep_day: 0
-
   scan:
-    runs-on: ubuntu-latest
-    needs: cleanup
+    runs-on: ubuntu-24.04
     steps:
-      - name: Checkout Projects
-        uses: actions/checkout@main
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
 
-      - name: Initialization Environment
+      - name: Install translation tools
         env:
           DEBIAN_FRONTEND: noninteractive
         run: |
-          sudo -E apt -yqq update
-          sudo -E apt -yqq install gettext
+          sudo apt-get -qq update
+          sudo apt-get -qq install --no-install-recommends gettext
 
-          curl -LO "https://github.com/openwrt/luci/raw/master/build/i18n-scan.pl"
-          curl -LO "https://github.com/openwrt/luci/raw/master/build/i18n-update.pl"
+      - name: Fix executable permissions
+        run: .github/scripts/fix-package-permissions.sh
 
-      - name: Update Translations
+      - name: Rescan translations
+        run: .github/scripts/rescan-translations.sh
+
+      - name: Commit maintenance updates
         run: |
-          CHANGED_PKGS=""
+          git add -u -- .
+          git diff --cached --quiet && exit 0
 
-          for dir in $(find . -maxdepth 1 -mindepth 1 -type d -not -path '*/\.*'); do
-            PKG_PATH="$dir"
-
-            for folder in "$PKG_PATH/root/bin" "$PKG_PATH/root/sbin" "$PKG_PATH/root/usr/bin" "$PKG_PATH/root/usr/sbin" "$PKG_PATH/root/etc/hotplug.d" "$PKG_PATH/root/etc/init.d" "$PKG_PATH/root/etc/uci-defaults"; do
-              if [ -d "$folder" ]; then
-                chmod 755 -R "$folder"
-              fi
-            done
-
-            if [ -d "$PKG_PATH/po" ]; then
-              mkdir -p "$PKG_PATH/po/templates"
-              PKG_NAME=$(basename $PKG_PATH | sed 's/^luci-\(app-\|theme-\)//g')
-
-              perl "i18n-scan.pl" "$PKG_PATH" > "$PKG_PATH/po/templates/$PKG_NAME.pot"
-              perl "i18n-update.pl" "$PKG_PATH/po"
-
-              find "$PKG_PATH/po/" -name '*.po~' -exec rm -f {} \;
-
-              if [ -n "$(git status -s "$PKG_PATH")" ]; then
-                git add "$PKG_PATH"
-                CHANGED_PKGS="$CHANGED_PKGS $PKG_NAME"
-              fi
-            fi
-          done
-
-          rm -f "i18n-scan.pl" "i18n-update.pl"
-
-          if [ -n "$CHANGED_PKGS" ]; then
-            echo "CHANGED_PKGS=$CHANGED_PKGS" >> "$GITHUB_ENV"
-          fi
-
-      - name: Commit Changes
-        if: ${{ env.CHANGED_PKGS }}
-        run: |
-          git config --local user.name "github-actions[bot]"
-          git config --local user.email "<github-actions[bot]@users.noreply.github.com>"
-          git commit -m "chore(po): Rescan translation in packages: ${{ env.CHANGED_PKGS }}"
-          git push -f origin HEAD:main
+          changed_packages="$(git diff --cached --name-only | cut -d/ -f1 | grep '^luci-' | sort -u | paste -sd, -)"
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git commit -m "chore: maintain translations and permissions for ${changed_packages}"
+          git pull --rebase origin "${GITHUB_REF_NAME}"
+          git push origin "HEAD:${GITHUB_REF_NAME}"
