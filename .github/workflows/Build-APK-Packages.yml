@@ -1,7 +1,12 @@
-name: Build and publish APK packages
+name: 编译并发布 APK 插件包
 
 on:
   workflow_dispatch:
+    inputs:
+      packages:
+        description: 留空编译全部插件；CI 可填写逗号分隔的插件目录
+        required: false
+        type: string
   push:
     branches:
       - main
@@ -14,23 +19,22 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
-  build-and-publish:
+  resolve:
     runs-on: ubuntu-24.04
-    timeout-minutes: 360
-    env:
-      GH_TOKEN: ${{ github.token }}
-      RELEASE_TAG: apk-packages
-      SDK_BASE_URL: https://downloads.immortalwrt.org/snapshots/targets/qualcommax/ipq60xx
+    outputs:
+      changed: ${{ steps.packages.outputs.changed }}
+      packages: ${{ steps.packages.outputs.packages }}
     steps:
-      - name: Checkout package repository
+      - name: 检出插件仓库
         uses: actions/checkout@v4
         with:
           fetch-depth: 0
 
-      - name: Resolve packages to build
+      - name: 确定需要编译的插件
         id: packages
         env:
           BEFORE_SHA: ${{ github.event.before }}
+          REQUESTED_PACKAGES: ${{ inputs.packages }}
         run: |
           mapfile -t all_packages < <(
             find . -mindepth 2 -maxdepth 2 -type f -name Makefile \
@@ -42,7 +46,20 @@ jobs:
           selected_packages=()
 
           if [[ "$GITHUB_EVENT_NAME" == 'workflow_dispatch' ]]; then
-            selected_packages=("${all_packages[@]}")
+            if [[ -n "$REQUESTED_PACKAGES" ]]; then
+              IFS=',' read -ra requested <<< "$REQUESTED_PACKAGES"
+              for package in "${requested[@]}"; do
+                package="${package//[[:space:]]/}"
+                [[ -n "$package" ]] || continue
+                if ! printf '%s\n' "${all_packages[@]}" | grep -Fqx "$package"; then
+                  printf '未知插件目录：%s\n' "$package" >&2
+                  exit 1
+                fi
+                selected_packages+=("$package")
+              done
+            else
+              selected_packages=("${all_packages[@]}")
+            fi
           else
             if [[ -z "$BEFORE_SHA" ]] || [[ "$BEFORE_SHA" =~ ^0+$ ]]; then
               mapfile -t changed_files < <(
@@ -66,17 +83,41 @@ jobs:
 
           if (( ${#selected_packages[@]} == 0 )); then
             echo 'changed=false' >> "$GITHUB_OUTPUT"
-            echo 'No package changes were detected.' >> "$GITHUB_STEP_SUMMARY"
+            echo '未检测到需要编译的插件。' >> "$GITHUB_STEP_SUMMARY"
           else
-            printf '%s\n' "${selected_packages[@]}" > "$RUNNER_TEMP/selected-packages.txt"
             packages_csv="$(IFS=,; echo "${selected_packages[*]}")"
             echo 'changed=true' >> "$GITHUB_OUTPUT"
             echo "packages=$packages_csv" >> "$GITHUB_OUTPUT"
-            echo "### APK packages: $packages_csv" >> "$GITHUB_STEP_SUMMARY"
+            echo "### APK 插件：$packages_csv" >> "$GITHUB_STEP_SUMMARY"
           fi
 
-      - name: Install SDK dependencies
-        if: steps.packages.outputs.changed == 'true'
+  build:
+    needs: resolve
+    if: needs.resolve.outputs.changed == 'true'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 360
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - platform: arm64
+            sdk_path: qualcommax/ipq60xx
+            sdk_prefix: immortalwrt-sdk-qualcommax-ipq60xx_
+            target: qualcommax
+            subtarget: ipq60xx
+          - platform: amd64
+            sdk_path: x86/64
+            sdk_prefix: immortalwrt-sdk-x86-64_
+            target: x86
+            subtarget: '64'
+    env:
+      SDK_BASE_URL: https://downloads.immortalwrt.org/snapshots/targets/${{ matrix.sdk_path }}
+      SDK_ARCHIVE_PREFIX: ${{ matrix.sdk_prefix }}
+    steps:
+      - name: 检出插件仓库
+        uses: actions/checkout@v4
+
+      - name: 安装 SDK 依赖
         env:
           DEBIAN_FRONTEND: noninteractive
         run: |
@@ -86,47 +127,46 @@ jobs:
             libelf-dev libncurses-dev libssl-dev python3 python3-setuptools \
             rsync swig time unzip wget xsltproc zip zlib1g-dev zstd
 
-      - name: Maintain selected package sources
-        if: steps.packages.outputs.changed == 'true'
+      - name: 维护插件源码
+        env:
+          PACKAGES: ${{ needs.resolve.outputs.packages }}
         run: |
-          mapfile -t selected_packages < "$RUNNER_TEMP/selected-packages.txt"
+          IFS=',' read -ra selected_packages <<< "$PACKAGES"
           .github/scripts/fix-package-permissions.sh "${selected_packages[@]}"
           .github/scripts/rescan-translations.sh "${selected_packages[@]}"
           git diff --check
 
-      - name: Resolve ImmortalWrt SDK
-        if: steps.packages.outputs.changed == 'true'
+      - name: 确定 ImmortalWrt SDK
         id: sdk
         run: |
           sums_file="$RUNNER_TEMP/immortalwrt-sha256sums"
           curl -fsSL --retry 3 "$SDK_BASE_URL/sha256sums" -o "$sums_file"
-          archive="$(awk '
-            $2 ~ /^\*?immortalwrt-sdk-qualcommax-ipq60xx_.*\.Linux-x86_64\.tar\.zst$/ {
-              sub(/^\*/, "", $2)
-              print $2
-              exit
-            }
-          ' "$sums_file")"
-          [[ -n "$archive" ]]
-          sha256="$(awk -v name="*$archive" '$2 == name { print $1; exit }' "$sums_file")"
-          [[ -n "$sha256" ]]
+          archive=''
+          sha256=''
+          while read -r sum name; do
+            name="${name#\*}"
+            if [[ "$name" == "$SDK_ARCHIVE_PREFIX"*'.Linux-x86_64.tar.zst' ]]; then
+              archive="$name"
+              sha256="$sum"
+              break
+            fi
+          done < "$sums_file"
+          [[ -n "$archive" && -n "$sha256" ]]
           echo "archive=$archive" >> "$GITHUB_OUTPUT"
           echo "sha256=$sha256" >> "$GITHUB_OUTPUT"
 
-      - name: Cache ImmortalWrt SDK
-        if: steps.packages.outputs.changed == 'true'
+      - name: 缓存 ImmortalWrt SDK
         uses: actions/cache@v4
         with:
-          path: ~/.cache/immortalwrt-sdk
-          key: immortalwrt-sdk-qualcommax-ipq60xx-${{ steps.sdk.outputs.sha256 }}
+          path: ~/.cache/immortalwrt-sdk/${{ matrix.platform }}
+          key: immortalwrt-sdk-${{ matrix.platform }}-${{ steps.sdk.outputs.sha256 }}
 
-      - name: Download and extract ImmortalWrt SDK
-        if: steps.packages.outputs.changed == 'true'
+      - name: 下载并解压 ImmortalWrt SDK
         env:
           SDK_ARCHIVE: ${{ steps.sdk.outputs.archive }}
           SDK_SHA256: ${{ steps.sdk.outputs.sha256 }}
         run: |
-          cache_dir="$HOME/.cache/immortalwrt-sdk"
+          cache_dir="$HOME/.cache/immortalwrt-sdk/${{ matrix.platform }}"
           archive_path="$cache_dir/$SDK_ARCHIVE"
           extract_dir="$RUNNER_TEMP/immortalwrt-sdk"
           mkdir -p "$cache_dir"
@@ -146,37 +186,109 @@ jobs:
           [[ -n "$sdk_root" ]]
           echo "SDK_ROOT=$sdk_root" >> "$GITHUB_ENV"
 
-      - name: Cache package sources
-        if: steps.packages.outputs.changed == 'true'
+      - name: 缓存插件下载
         uses: actions/cache@v4
         with:
-          path: ~/.cache/immortalwrt-dl
-          key: immortalwrt-dl-qualcommax-ipq60xx-${{ hashFiles('**/Makefile') }}
+          path: ~/.cache/immortalwrt-dl/${{ matrix.platform }}
+          key: immortalwrt-dl-${{ matrix.platform }}-${{ hashFiles('**/Makefile') }}
           restore-keys: |
-            immortalwrt-dl-qualcommax-ipq60xx-
+            immortalwrt-dl-${{ matrix.platform }}-
 
-      - name: Prepare package feeds
-        if: steps.packages.outputs.changed == 'true'
+      - name: 准备插件源
         run: |
-          mkdir -p "$HOME/.cache/immortalwrt-dl"
+          cache_dir="$HOME/.cache/immortalwrt-dl/${{ matrix.platform }}"
+          mkdir -p "$cache_dir"
           rm -rf "$SDK_ROOT/dl"
-          ln -s "$HOME/.cache/immortalwrt-dl" "$SDK_ROOT/dl"
+          ln -s "$cache_dir" "$SDK_ROOT/dl"
           "$SDK_ROOT/scripts/feeds" update -a
           "$SDK_ROOT/scripts/feeds" install -a
 
-      - name: Build selected APK packages
-        if: steps.packages.outputs.changed == 'true'
+      - name: 编译 ${{ matrix.platform }} APK
+        env:
+          PACKAGES: ${{ needs.resolve.outputs.packages }}
         run: |
-          mapfile -t selected_packages < "$RUNNER_TEMP/selected-packages.txt"
+          IFS=',' read -ra selected_packages <<< "$PACKAGES"
           .github/scripts/build-apk-packages.sh \
             "$SDK_ROOT" \
             "$RUNNER_TEMP/apk-output" \
+            '${{ matrix.target }}' \
+            '${{ matrix.subtarget }}' \
             "${selected_packages[@]}"
 
-      - name: Publish fixed-tag release
-        if: steps.packages.outputs.changed == 'true'
+      - name: 上传 ${{ matrix.platform }} 编译结果
+        uses: actions/upload-artifact@v4
+        with:
+          name: apk-output-${{ matrix.platform }}
+          path: ${{ runner.temp }}/apk-output
+          if-no-files-found: error
+          retention-days: 1
+
+  publish:
+    needs:
+      - resolve
+      - build
+    runs-on: ubuntu-24.04
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - platform: arm64
+            platform_name: ARM64
+            architecture: aarch64
+            sdk_target: qualcommax/ipq60xx
+            release_tag: apk-packages-arm64
+          - platform: amd64
+            platform_name: AMD64
+            architecture: x86_64
+            sdk_target: x86/64
+            release_tag: apk-packages-amd64
+    env:
+      GH_TOKEN: ${{ github.token }}
+      RELEASE_TAG: ${{ matrix.release_tag }}
+      ARCHIVE_PREFIX: immortalwrt-apk-packages-${{ matrix.platform }}
+    steps:
+      - name: 检出插件仓库
+        uses: actions/checkout@v4
+
+      - name: 下载 ${{ matrix.platform_name }} 编译结果
+        uses: actions/download-artifact@v4
+        with:
+          name: apk-output-${{ matrix.platform }}
+          path: ${{ runner.temp }}/apk-output
+
+      - name: 确定 ZIP 发布号
+        id: archive
+        run: |
+          build_date="$(TZ=Asia/Shanghai date +%Y%m%d)"
+          release=1
+
+          if gh release view "$RELEASE_TAG" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
+            release_id="$(gh api \
+              "repos/$GITHUB_REPOSITORY/releases/tags/$RELEASE_TAG" \
+              --jq '.id')"
+            while IFS= read -r name; do
+              if [[ "$name" =~ ^${ARCHIVE_PREFIX}-${build_date}-r([0-9]+)\.zip$ ]] &&
+                 (( BASH_REMATCH[1] >= release )); then
+                release=$((BASH_REMATCH[1] + 1))
+              fi
+            done < <(
+              gh api --paginate \
+                "repos/$GITHUB_REPOSITORY/releases/$release_id/assets?per_page=100" \
+                --jq '.[].name'
+            )
+          fi
+
+          archive_name="${ARCHIVE_PREFIX}-${build_date}-r${release}.zip"
+          {
+            echo "build_date=$build_date"
+            echo "release=$release"
+            echo "archive_name=$archive_name"
+          } >> "$GITHUB_OUTPUT"
+
+      - name: 发布 ${{ matrix.platform_name }} APK
         env:
-          PACKAGES: ${{ steps.packages.outputs.packages }}
+          PACKAGES: ${{ needs.resolve.outputs.packages }}
+          ARCHIVE_NAME: ${{ steps.archive.outputs.archive_name }}
         run: |
           output_dir="$RUNNER_TEMP/apk-output"
           notes_file="$RUNNER_TEMP/apk-release-notes.md"
@@ -189,11 +301,16 @@ jobs:
           {
             echo 'ImmortalWrt APK 插件包固定发布。'
             echo
+            echo '平台：${{ matrix.platform_name }}'
+            echo '架构：${{ matrix.architecture }}'
+            echo 'SDK 目标：${{ matrix.sdk_target }}'
+            echo "固定标签：$RELEASE_TAG"
             echo "本次编译：$PACKAGES"
             echo "源提交：$GITHUB_SHA"
+            echo "最新整合包：$ARCHIVE_NAME"
             echo
             echo '每个 APK 包名仅保留最近 3 个版本。'
-            echo '全部最新 APK 同时提供 ZIP 一键下载。'
+            echo 'ZIP 仅包含本平台每个插件的最新版本。'
           } > "$notes_file"
 
           if gh release view "$RELEASE_TAG" \
@@ -202,28 +319,28 @@ jobs:
               --repo "$GITHUB_REPOSITORY" --clobber
             gh release edit "$RELEASE_TAG" \
               --repo "$GITHUB_REPOSITORY" \
-              --title 'ImmortalWrt APK 插件包' \
+              --title 'ImmortalWrt APK 插件包（${{ matrix.platform_name }}）' \
               --notes-file "$notes_file" \
               --prerelease=false
           else
             gh release create "$RELEASE_TAG" "${assets[@]}" \
               --repo "$GITHUB_REPOSITORY" \
               --target "$GITHUB_SHA" \
-              --title 'ImmortalWrt APK 插件包' \
+              --title 'ImmortalWrt APK 插件包（${{ matrix.platform_name }}）' \
               --notes-file "$notes_file"
           fi
 
-      - name: Keep three versions per package
-        if: steps.packages.outputs.changed == 'true'
+      - name: 每个插件保留三个版本
         run: |
           .github/scripts/prune-apk-release.sh \
             "$RELEASE_TAG" 3 "$RUNNER_TEMP/latest-apk-assets.tsv"
 
-      - name: Publish all-package archive
-        if: steps.packages.outputs.changed == 'true'
+      - name: 发布 ${{ matrix.platform_name }} 最新整合包
+        env:
+          ARCHIVE_NAME: ${{ steps.archive.outputs.archive_name }}
         run: |
           bundle_dir="$RUNNER_TEMP/all-apk-packages"
-          archive="$RUNNER_TEMP/immortalwrt-apk-packages.zip"
+          archive="$RUNNER_TEMP/$ARCHIVE_NAME"
           rm -rf "$bundle_dir" "$archive"
           mkdir -p "$bundle_dir"
 
@@ -241,5 +358,20 @@ jobs:
             sha256sum -- *.apk > SHA256SUMS
             zip -9 -q "$archive" -- *.apk SHA256SUMS
           )
+
+          release_id="$(gh api \
+            "repos/$GITHUB_REPOSITORY/releases/tags/$RELEASE_TAG" \
+            --jq '.id')"
+          while IFS=$'\t' read -r asset_id asset_name; do
+            [[ "$asset_name" == "$ARCHIVE_PREFIX-"*.zip ]] || continue
+            gh api --method DELETE \
+              "repos/$GITHUB_REPOSITORY/releases/assets/$asset_id"
+          done < <(
+            gh api --paginate \
+              "repos/$GITHUB_REPOSITORY/releases/$release_id/assets?per_page=100" \
+              --jq '.[] | [.id, .name] | @tsv'
+          )
+
           gh release upload "$RELEASE_TAG" "$archive" \
-            --repo "$GITHUB_REPOSITORY" --clobber
+            --repo "$GITHUB_REPOSITORY"
+          echo "### 已发布：$ARCHIVE_NAME" >> "$GITHUB_STEP_SUMMARY"

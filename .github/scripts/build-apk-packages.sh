@@ -2,14 +2,21 @@
 
 set -euo pipefail
 
-if (( $# < 3 )); then
-	printf 'Usage: %s <sdk-root> <output-dir> <package>...\n' "$0" >&2
+if (( $# < 5 )); then
+	printf 'Usage: %s <sdk-root> <output-dir> <target> <subtarget> <package>...\n' "$0" >&2
 	exit 2
 fi
 
 SDK_ROOT="$(realpath "$1")"
 OUTPUT_DIR="$2"
-shift 2
+TARGET="$3"
+SUBTARGET="$4"
+shift 4
+
+[[ "$TARGET" =~ ^[a-z0-9_]+$ && "$SUBTARGET" =~ ^[a-z0-9_]+$ ]] || {
+	printf 'Invalid target: %s/%s\n' "$TARGET" "$SUBTARGET" >&2
+	exit 1
+}
 
 REPO_ROOT="$(cd "$(dirname "$0")/../.." && pwd)"
 mapfile -t DISCOVERED_PACKAGES < <(
@@ -75,8 +82,8 @@ done
 
 {
 	printf '%s\n' \
-		'CONFIG_TARGET_qualcommax=y' \
-		'CONFIG_TARGET_qualcommax_ipq60xx=y' \
+		"CONFIG_TARGET_${TARGET}=y" \
+		"CONFIG_TARGET_${TARGET}_${SUBTARGET}=y" \
 		'CONFIG_TARGET_MULTI_PROFILE=y' \
 		'CONFIG_DEVEL=y' \
 		'CONFIG_BUILD_LOG=y'

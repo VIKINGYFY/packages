@@ -1370,7 +1370,7 @@ function renderNodeSettings(section, data, features, main_node, routing_mode, no
 	o.modalonly = true;
 
 	o = s.option(form.Flag, 'multiplex_brutal', _('Enable TCP Brutal'),
-		_('Enable TCP Brutal congestion control algorithm'));
+		_('Enable TCP Brutal congestion control algorithm.'));
 	o.depends('multiplex', '1');
 	o.modalonly = true;
 
@@ -1690,7 +1690,7 @@ return view.extend({
 									.then(L.bind(this.map.reset, this.map))
 									.then(L.ui.hideModal)
 									.catch((err) => {
-										ui.addNotification(null, E('p', _('Unknown error: %s').format(err)), 'error');
+									ui.addNotification(null, E('p', _('Unknown error: %s.').format(err)), 'error');
 									});
 							} else {
 								return ui.hideModal();
@@ -1751,7 +1751,7 @@ return view.extend({
 		o.rmempty = false;
 
 		o = s.taboption('subscription', form.Value, 'auto_update_time', _('Cron expression'), E('span', [
-			_('Minutes(0-59) Hours(0-23) Dates(1-31) Months(1-12) Weeks(0-6)'),
+			_('Minutes (0-59), hours (0-23), days (1-31), months (1-12), weekdays (0-6).'),
 			E('br'),
 			E('a', {
 				'href': 'https://cron.ciding.cc/',
@@ -1839,7 +1839,7 @@ return view.extend({
 			return fs.exec_direct('/etc/homeproxy/scripts/update_subscriptions.uc').then((res) => {
 				return location.reload();
 			}).catch((err) => {
-				ui.addNotification(null, E('p', _('An error occurred during updating subscriptions: %s').format(err)));
+				ui.addNotification(null, E('p', _('An error occurred during updating subscriptions: %s.').format(err)));
 				return this.map.reset();
 			});
 		}

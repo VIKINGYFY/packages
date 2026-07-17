@@ -1,0 +1,121 @@
+name: 探测并更新 sing-box
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: '45 0 * * *'
+
+permissions:
+  actions: write
+  contents: write
+
+concurrency:
+  group: update-sing-box
+  cancel-in-progress: false
+
+jobs:
+  update:
+    runs-on: ubuntu-24.04
+    env:
+      GH_TOKEN: ${{ github.token }}
+    steps:
+      - name: 检出并同步插件仓库
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          ref: ${{ github.event.repository.default_branch }}
+
+      - name: 使用远端分支重置本地仓库
+        env:
+          PACKAGE_BRANCH: ${{ github.event.repository.default_branch }}
+        run: |
+          git fetch origin "$PACKAGE_BRANCH"
+          git reset --hard "origin/$PACKAGE_BRANCH"
+
+      - name: 探测 sing-box 上游版本
+        id: upstream
+        run: |
+          makefile='sing-box/Makefile'
+          upstream_tag="$(gh api 'repos/SagerNet/sing-box/releases?per_page=30' \
+            --jq '[.[] | select(.draft == false)][0].tag_name')"
+          [[ "$upstream_tag" =~ ^v[0-9]+\.[0-9]+\.[0-9]+([.-][0-9A-Za-z.]+)?$ ]]
+
+          upstream_version="${upstream_tag#v}"
+          current_version="$(sed -n 's/^PKG_UPSTREAM_VERSION:=//p' "$makefile")"
+          changed=true
+          if [[ "$current_version" == "$upstream_version" ]]; then
+            changed=false
+            echo "sing-box 已是最新版本：$upstream_version"
+          fi
+
+          {
+            echo "changed=$changed"
+            echo "tag=$upstream_tag"
+            echo "version=$upstream_version"
+          } >> "$GITHUB_OUTPUT"
+
+      - name: 下载并校验上游源码
+        if: steps.upstream.outputs.changed == 'true'
+        id: source
+        env:
+          UPSTREAM_TAG: ${{ steps.upstream.outputs.tag }}
+        run: |
+          archive="$RUNNER_TEMP/sing-box.tar.gz"
+          curl -fL --retry 3 \
+            "https://codeload.github.com/SagerNet/sing-box/tar.gz/$UPSTREAM_TAG" \
+            -o "$archive"
+          tar -tzf "$archive" >/dev/null
+          echo "hash=$(sha256sum "$archive" | cut -d' ' -f1)" >> "$GITHUB_OUTPUT"
+
+      - name: 更新 sing-box 软件包元数据
+        if: steps.upstream.outputs.changed == 'true'
+        env:
+          SOURCE_HASH: ${{ steps.source.outputs.hash }}
+          UPSTREAM_VERSION: ${{ steps.upstream.outputs.version }}
+        run: |
+          makefile='sing-box/Makefile'
+          if [[ "$UPSTREAM_VERSION" =~ ^([0-9]+\.[0-9]+\.[0-9]+)-([A-Za-z]+)\.([0-9]+)$ ]]; then
+            package_version="${BASH_REMATCH[1]}_${BASH_REMATCH[2],,}${BASH_REMATCH[3]}"
+          elif [[ "$UPSTREAM_VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+            package_version="$UPSTREAM_VERSION"
+          else
+            printf '无法转换 sing-box 版本号：%s\n' "$UPSTREAM_VERSION" >&2
+            exit 1
+          fi
+
+          sed -i \
+            -e "s/^PKG_UPSTREAM_VERSION:=.*/PKG_UPSTREAM_VERSION:=$UPSTREAM_VERSION/" \
+            -e "s/^PKG_VERSION:=.*/PKG_VERSION:=$package_version/" \
+            -e 's/^PKG_RELEASE:=.*/PKG_RELEASE:=1/' \
+            -e "s/^PKG_HASH:=.*/PKG_HASH:=$SOURCE_HASH/" \
+            "$makefile"
+
+          grep -Fx "PKG_UPSTREAM_VERSION:=$UPSTREAM_VERSION" "$makefile"
+          grep -Fx "PKG_VERSION:=$package_version" "$makefile"
+          grep -Fx 'PKG_RELEASE:=1' "$makefile"
+          grep -Fx "PKG_HASH:=$SOURCE_HASH" "$makefile"
+          git diff --check
+
+      - name: 提交并推送 sing-box 更新
+        if: steps.upstream.outputs.changed == 'true'
+        env:
+          PACKAGE_BRANCH: ${{ github.event.repository.default_branch }}
+          UPSTREAM_VERSION: ${{ steps.upstream.outputs.version }}
+        run: |
+          git add -- sing-box/Makefile
+          git diff --cached --quiet && exit 0
+
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git commit -m "更新 sing-box 至 ${UPSTREAM_VERSION}-r1"
+          git push origin "HEAD:$PACKAGE_BRANCH"
+
+      - name: 触发 sing-box 双平台编译发布
+        if: steps.upstream.outputs.changed == 'true'
+        env:
+          PACKAGE_BRANCH: ${{ github.event.repository.default_branch }}
+        run: |
+          gh workflow run Build-APK-Packages.yml \
+            --repo "$GITHUB_REPOSITORY" \
+            --ref "$PACKAGE_BRANCH" \
+            --field packages=sing-box

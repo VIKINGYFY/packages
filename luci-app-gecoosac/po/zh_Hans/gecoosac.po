@@ -82,8 +82,8 @@ msgstr "每周"
 
 #: luci-app-gecoosac/htdocs/luci-static/resources/view/gecoosac.js:296
 #: luci-app-gecoosac/htdocs/luci-static/resources/view/gecoosac.js:299
-msgid "Failed to clear firmware directory: %s"
-msgstr "清理固件目录失败：%s"
+msgid "Failed to clear firmware directory: %s."
+msgstr "清理固件目录失败：%s。"
 
 #: luci-app-gecoosac/htdocs/luci-static/resources/view/gecoosac.js:335
 msgid "Failed to update the log cleanup schedule."
@@ -188,8 +188,8 @@ msgid "Service action failed with code %s."
 msgstr "服务操作失败，返回代码 %s。"
 
 #: luci-app-gecoosac/htdocs/luci-static/resources/view/gecoosac.js:81
-msgid "Service action failed: %s"
-msgstr "服务操作失败：%s"
+msgid "Service action failed: %s."
+msgstr "服务操作失败：%s。"
 
 #: luci-app-gecoosac/htdocs/luci-static/resources/view/gecoosac.js:148
 msgid "Start"
@@ -206,8 +206,8 @@ msgid ""
 msgstr "目录不能是根目录，也不能包含上级目录组件。"
 
 #: luci-app-gecoosac/htdocs/luci-static/resources/view/gecoosac.js:116
-msgid "Unable to read logs: %s"
-msgstr "无法读取日志：%s"
+msgid "Unable to read logs: %s."
+msgstr "无法读取日志：%s。"
 
 #: luci-app-gecoosac/htdocs/luci-static/resources/view/gecoosac.js:295
 msgid "Unknown error"
@@ -222,4 +222,6 @@ msgid ""
 "Write Gecoos AC output to a dedicated log file in the database directory. "
 "Log contents are automatically deleted when the file exceeds the selected "
 "size limit."
-msgstr "将 Gecoos AC 输出写入数据库目录中的专用日志文件。日志文件超过所选容量限制时，内容会被自动删除。"
+msgstr ""
+"将 Gecoos AC 输出写入数据库目录中的专用日志文件。日志文件超过所选容量限制时，"
+"内容会被自动删除。"

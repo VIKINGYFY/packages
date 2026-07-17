@@ -65,7 +65,7 @@ function validateCronExpression(section_id, value) {
 
 function cronDescription() {
 	return E('span', [
-		_('Minutes(0-59) Hours(0-23) Dates(1-31) Months(1-12) Weeks(0-6)'),
+		_('Minutes (0-59), hours (0-23), days (1-31), months (1-12), weekdays (0-6).'),
 		E('br'),
 		E('a', {
 			'href': 'https://cron.ciding.cc/',
@@ -190,7 +190,7 @@ return view.extend({
 				E('br'), message
 			]), level);
 		}).catch(function(err) {
-			ui.addNotification(null, E('p', _('Wake command failed: %s').format(err.message || err)), 'error');
+			ui.addNotification(null, E('p', _('Wake command failed: %s.').format(err.message || err)), 'error');
 		});
 	},
 

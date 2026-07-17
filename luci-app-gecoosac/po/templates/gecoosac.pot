@@ -74,7 +74,7 @@ msgstr ""
 
 #: luci-app-gecoosac/htdocs/luci-static/resources/view/gecoosac.js:296
 #: luci-app-gecoosac/htdocs/luci-static/resources/view/gecoosac.js:299
-msgid "Failed to clear firmware directory: %s"
+msgid "Failed to clear firmware directory: %s."
 msgstr ""
 
 #: luci-app-gecoosac/htdocs/luci-static/resources/view/gecoosac.js:335
@@ -180,7 +180,7 @@ msgid "Service action failed with code %s."
 msgstr ""
 
 #: luci-app-gecoosac/htdocs/luci-static/resources/view/gecoosac.js:81
-msgid "Service action failed: %s"
+msgid "Service action failed: %s."
 msgstr ""
 
 #: luci-app-gecoosac/htdocs/luci-static/resources/view/gecoosac.js:148
@@ -198,7 +198,7 @@ msgid ""
 msgstr ""
 
 #: luci-app-gecoosac/htdocs/luci-static/resources/view/gecoosac.js:116
-msgid "Unable to read logs: %s"
+msgid "Unable to read logs: %s."
 msgstr ""
 
 #: luci-app-gecoosac/htdocs/luci-static/resources/view/gecoosac.js:295

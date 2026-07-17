@@ -78,7 +78,7 @@ function runServiceAction(action, button) {
 	}).then(function() {
 		return updateStatus();
 	}).catch(function(err) {
-		notifyError(_('Service action failed: %s').format(err.message || err));
+		notifyError(_('Service action failed: %s.').format(err.message || err));
 	}).finally(function() {
 		if (button)
 			button.disabled = false;
@@ -113,7 +113,7 @@ function showLogs() {
 			])
 		]);
 	}).catch(function(err) {
-		notifyError(_('Unable to read logs: %s').format(err.message || err));
+		notifyError(_('Unable to read logs: %s.').format(err.message || err));
 	});
 }
 
@@ -293,10 +293,10 @@ return view.extend({
 				}
 				else {
 					var details = result && (result.message || L.toArray(result.errors).join('; ')) || _('Unknown error');
-					ui.addNotification(null, E('p', _('Failed to clear firmware directory: %s').format(details)), 'error');
+					ui.addNotification(null, E('p', _('Failed to clear firmware directory: %s.').format(details)), 'error');
 				}
 			}).catch(function(err) {
-				ui.addNotification(null, E('p', _('Failed to clear firmware directory: %s').format(err.message || err)), 'error');
+				ui.addNotification(null, E('p', _('Failed to clear firmware directory: %s.').format(err.message || err)), 'error');
 			});
 		};
 

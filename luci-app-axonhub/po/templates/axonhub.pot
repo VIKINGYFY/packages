@@ -203,7 +203,7 @@ msgid "Service action failed with code %s."
 msgstr ""
 
 #: luci-app-axonhub/htdocs/luci-static/resources/view/axonhub.js:92
-msgid "Service action failed: %s"
+msgid "Service action failed: %s."
 msgstr ""
 
 #: luci-app-axonhub/htdocs/luci-static/resources/view/axonhub.js:159
@@ -215,7 +215,7 @@ msgid "The AxonHub binary is missing."
 msgstr ""
 
 #: luci-app-axonhub/htdocs/luci-static/resources/view/axonhub.js:127
-msgid "Unable to read logs: %s"
+msgid "Unable to read logs: %s."
 msgstr ""
 
 #: luci-app-axonhub/htdocs/luci-static/resources/view/axonhub.js:169

@@ -213,8 +213,8 @@ msgid "Service action failed with code %s."
 msgstr "服务操作失败，返回代码 %s。"
 
 #: luci-app-axonhub/htdocs/luci-static/resources/view/axonhub.js:92
-msgid "Service action failed: %s"
-msgstr "服务操作失败：%s"
+msgid "Service action failed: %s."
+msgstr "服务操作失败：%s。"
 
 #: luci-app-axonhub/htdocs/luci-static/resources/view/axonhub.js:159
 msgid "Start"
@@ -225,8 +225,8 @@ msgid "The AxonHub binary is missing."
 msgstr "未找到 AxonHub 可执行文件。"
 
 #: luci-app-axonhub/htdocs/luci-static/resources/view/axonhub.js:127
-msgid "Unable to read logs: %s"
-msgstr "无法读取日志：%s"
+msgid "Unable to read logs: %s."
+msgstr "无法读取日志：%s。"
 
 #: luci-app-axonhub/htdocs/luci-static/resources/view/axonhub.js:169
 msgid "View Log"

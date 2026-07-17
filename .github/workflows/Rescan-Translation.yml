@@ -22,6 +22,11 @@ jobs:
         with:
           fetch-depth: 0
 
+      - name: 使用远端分支重置本地仓库
+        run: |
+          git fetch origin "$GITHUB_REF_NAME"
+          git reset --hard "origin/$GITHUB_REF_NAME"
+
       - name: Install translation tools
         env:
           DEBIAN_FRONTEND: noninteractive
@@ -43,6 +48,5 @@ jobs:
           changed_packages="$(git diff --cached --name-only | cut -d/ -f1 | sort -u | paste -sd, -)"
           git config user.name 'github-actions[bot]'
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
-          git commit -m "chore: maintain translations and permissions for ${changed_packages}"
-          git pull --rebase origin "${GITHUB_REF_NAME}"
+          git commit -m "维护翻译与权限：${changed_packages}"
           git push origin "HEAD:${GITHUB_REF_NAME}"

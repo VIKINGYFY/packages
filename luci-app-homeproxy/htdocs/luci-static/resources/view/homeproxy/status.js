@@ -359,7 +359,7 @@ function getRuntimeLog(o, name, _option_index, section_id, _in_table) {
 				]);
 			else
 				log = E('pre', { 'wrap': 'pre' }, [
-					_('Unknown error: %s').format(err)
+					_('Unknown error: %s.').format(err)
 				]);
 
 			dom.content(log_textarea, log);

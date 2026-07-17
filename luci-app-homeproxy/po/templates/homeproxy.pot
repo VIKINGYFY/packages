@@ -163,7 +163,7 @@ msgid "Alternative TLS port"
 msgstr ""
 
 #: luci-app-homeproxy/htdocs/luci-static/resources/view/homeproxy/node.js:1842
-msgid "An error occurred during updating subscriptions: %s"
+msgid "An error occurred during updating subscriptions: %s."
 msgstr ""
 
 #: luci-app-homeproxy/htdocs/luci-static/resources/view/homeproxy/client.js:1267
@@ -766,7 +766,7 @@ msgstr ""
 
 #: luci-app-homeproxy/htdocs/luci-static/resources/view/homeproxy/node.js:1373
 #: luci-app-homeproxy/htdocs/luci-static/resources/view/homeproxy/server.js:506
-msgid "Enable TCP Brutal congestion control algorithm"
+msgid "Enable TCP Brutal congestion control algorithm."
 msgstr ""
 
 #: luci-app-homeproxy/htdocs/luci-static/resources/view/homeproxy/node.js:1558
@@ -1532,7 +1532,8 @@ msgid "Minimum streams"
 msgstr ""
 
 #: luci-app-homeproxy/htdocs/luci-static/resources/view/homeproxy/node.js:1754
-msgid "Minutes(0-59) Hours(0-23) Dates(1-31) Months(1-12) Weeks(0-6)"
+msgid ""
+"Minutes (0-59), hours (0-23), days (1-31), months (1-12), weekdays (0-6)."
 msgstr ""
 
 #: luci-app-homeproxy/htdocs/luci-static/resources/view/homeproxy/client.js:354
@@ -2177,8 +2178,8 @@ msgstr ""
 #: luci-app-homeproxy/htdocs/luci-static/resources/view/homeproxy/client.js:649
 #: luci-app-homeproxy/htdocs/luci-static/resources/view/homeproxy/client.js:1128
 msgid ""
-"Sniffed protocol, see <a target=\"_blank\" href=\"https://sing-box.sagernet."
-"org/configuration/route/sniff/\">Sniff</a> for details."
+"Sniffed protocol, see <a target=\"_blank\" href=\"https://sing-"
+"box.sagernet.org/configuration/route/sniff/\">Sniff</a> for details."
 msgstr ""
 
 #: luci-app-homeproxy/htdocs/luci-static/resources/view/homeproxy/status.js:262
@@ -2576,7 +2577,7 @@ msgstr ""
 
 #: luci-app-homeproxy/htdocs/luci-static/resources/view/homeproxy/client.js:131
 #: luci-app-homeproxy/htdocs/luci-static/resources/view/homeproxy/server.js:130
-msgid "The modern ImmortalWrt proxy platform for ARM64/AMD64. — AI Edition"
+msgid "The modern ImmortalWrt proxy platform for ARM64/AMD64. — AI Edition."
 msgstr ""
 
 #: luci-app-homeproxy/htdocs/luci-static/resources/view/homeproxy/client.js:485
@@ -2766,7 +2767,7 @@ msgstr ""
 
 #: luci-app-homeproxy/htdocs/luci-static/resources/view/homeproxy/node.js:1693
 #: luci-app-homeproxy/htdocs/luci-static/resources/view/homeproxy/status.js:362
-msgid "Unknown error: %s"
+msgid "Unknown error: %s."
 msgstr ""
 
 #: luci-app-homeproxy/htdocs/luci-static/resources/view/homeproxy/node.js:1525

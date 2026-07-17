@@ -46,8 +46,9 @@ msgid "MAC Address"
 msgstr "MAC 地址"
 
 #: luci-app-wolultra/htdocs/luci-static/resources/view/wolultra.js:68
-msgid "Minutes(0-59) Hours(0-23) Dates(1-31) Months(1-12) Weeks(0-6)"
-msgstr "分(0-59) 时(0-23) 日(1-31) 月(1-12) 周(0-6)"
+msgid ""
+"Minutes (0-59), hours (0-23), days (1-31), months (1-12), weekdays (0-6)."
+msgstr "分（0-59）、时（0-23）、日（1-31）、月（1-12）、周（0-6）。"
 
 #: luci-app-wolultra/htdocs/luci-static/resources/view/wolultra.js:108
 msgid "Name"
@@ -85,8 +86,8 @@ msgid "Wake command completed with code %d."
 msgstr "唤醒命令执行完成，返回码为 %d。"
 
 #: luci-app-wolultra/htdocs/luci-static/resources/view/wolultra.js:193
-msgid "Wake command failed: %s"
-msgstr "唤醒命令执行失败：%s"
+msgid "Wake command failed: %s."
+msgstr "唤醒命令执行失败：%s。"
 
 #: luci-app-wolultra/htdocs/luci-static/resources/view/wolultra.js:99
 msgid "Wake local network devices immediately or on an individual schedule."
@@ -95,21 +96,3 @@ msgstr "立即唤醒局域网设备，或为每台设备设置独立的定时唤
 #: luci-app-wolultra/htdocs/luci-static/resources/view/wolultra.js:63
 msgid "valid cron expression"
 msgstr "有效的定时任务表达式"
-
-#~ msgid "Day (1-31)"
-#~ msgstr "日(1-31)"
-
-#~ msgid "Hour (0-23)"
-#~ msgstr "时(0-23)"
-
-#~ msgid "Invalid value for %s: %s. Must be between %d and %d or \"*\"."
-#~ msgstr "%s 的值 %s 无效，必须为 %d 至 %d 之间的整数或“*”。"
-
-#~ msgid "Minute (0-59)"
-#~ msgstr "分(0-59)"
-
-#~ msgid "Month (1-12)"
-#~ msgstr "月(1-12)"
-
-#~ msgid "Week (0-6)"
-#~ msgstr "周(0-6)"

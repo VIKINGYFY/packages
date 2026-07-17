@@ -89,7 +89,7 @@ function runServiceAction(action, button) {
 	}).then(function() {
 		return updateStatus();
 	}).catch(function(err) {
-		notifyError(_('Service action failed: %s').format(err.message || err));
+		notifyError(_('Service action failed: %s.').format(err.message || err));
 	}).finally(function() {
 		if (button)
 			button.disabled = false;
@@ -124,7 +124,7 @@ function showLogs() {
 			])
 		]);
 	}).catch(function(err) {
-		notifyError(_('Unable to read logs: %s').format(err.message || err));
+		notifyError(_('Unable to read logs: %s.').format(err.message || err));
 	});
 }
 

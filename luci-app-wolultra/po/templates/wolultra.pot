@@ -38,7 +38,8 @@ msgid "MAC Address"
 msgstr ""
 
 #: luci-app-wolultra/htdocs/luci-static/resources/view/wolultra.js:68
-msgid "Minutes(0-59) Hours(0-23) Dates(1-31) Months(1-12) Weeks(0-6)"
+msgid ""
+"Minutes (0-59), hours (0-23), days (1-31), months (1-12), weekdays (0-6)."
 msgstr ""
 
 #: luci-app-wolultra/htdocs/luci-static/resources/view/wolultra.js:108
@@ -77,7 +78,7 @@ msgid "Wake command completed with code %d."
 msgstr ""
 
 #: luci-app-wolultra/htdocs/luci-static/resources/view/wolultra.js:193
-msgid "Wake command failed: %s"
+msgid "Wake command failed: %s."
 msgstr ""
 
 #: luci-app-wolultra/htdocs/luci-static/resources/view/wolultra.js:99

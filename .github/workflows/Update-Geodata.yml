@@ -21,6 +21,11 @@ jobs:
         with:
           fetch-depth: 0
 
+      - name: 使用远端分支重置本地仓库
+        run: |
+          git fetch origin "$GITHUB_REF_NAME"
+          git reset --hard "origin/$GITHUB_REF_NAME"
+
       - name: Install resource tools
         env:
           DEBIAN_FRONTEND: noninteractive
@@ -41,6 +46,5 @@ jobs:
 
           git config user.name 'github-actions[bot]'
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
-          git commit -m "chore(resources): update HomeProxy data to ${{ steps.resources.outputs.version }}"
-          git pull --rebase origin "${GITHUB_REF_NAME}"
+          git commit -m "更新 HomeProxy 数据至 ${{ steps.resources.outputs.version }}"
           git push origin "HEAD:${GITHUB_REF_NAME}"

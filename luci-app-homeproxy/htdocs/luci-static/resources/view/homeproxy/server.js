@@ -127,7 +127,7 @@ return view.extend({
 		let features = data[1];
 
 		m = new form.Map('homeproxy', _('HomeProxy Server'),
-			_('The modern ImmortalWrt proxy platform for ARM64/AMD64. — AI Edition'));
+			_('The modern ImmortalWrt proxy platform for ARM64/AMD64. — AI Edition.'));
 
 		s = m.section(form.TypedSection);
 		s.render = function() {
@@ -503,7 +503,7 @@ return view.extend({
 
 		if (features.hp_has_tcp_brutal) {
 			o = s.option(form.Flag, 'multiplex_brutal', _('Enable TCP Brutal'),
-				_('Enable TCP Brutal congestion control algorithm'));
+				_('Enable TCP Brutal congestion control algorithm.'));
 			o.depends('multiplex', '1');
 			o.modalonly = true;
 

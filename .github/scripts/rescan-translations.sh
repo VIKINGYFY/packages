@@ -115,7 +115,24 @@ for package_dir in "${PACKAGE_DIRS[@]}"; do
 	perl "$UPDATE_SCRIPT" "$package_dir/po"
 	find "$package_dir/po" -type f -name '*.po~' -delete
 	while IFS= read -r -d '' po_file; do
+		msgattrib --no-obsolete -o "$po_file" "$po_file"
 		msgfmt --check -o /dev/null "$po_file"
+		fuzzy_count="$(
+			msgattrib --only-fuzzy --no-obsolete "$po_file" |
+				awk '/^#,.*fuzzy/ { count++ } END { print count + 0 }'
+		)"
+		if (( fuzzy_count > 0 )); then
+			echo "Fuzzy translation found: $po_file" >&2
+			exit 1
+		fi
+		untranslated_count="$(
+			msgattrib --untranslated --no-obsolete "$po_file" |
+				awk '/^msgstr ""$/ { count++ } END { print count + 0 }'
+		)"
+		if (( untranslated_count > 0 )); then
+			echo "Untranslated message found: $po_file" >&2
+			exit 1
+		fi
 	done < <(find "$package_dir/po" -type f -name '*.po' -print0)
 
 	echo "Updated translations: $package_dir"

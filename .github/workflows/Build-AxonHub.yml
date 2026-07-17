@@ -1,4 +1,4 @@
-name: Build and release AxonHub
+name: 编译并发布 AxonHub
 
 on:
   workflow_dispatch:
@@ -24,11 +24,18 @@ jobs:
           fetch-depth: 0
           ref: ${{ github.event.repository.default_branch }}
 
+      - name: 使用远端分支重置本地仓库
+        env:
+          PACKAGE_BRANCH: ${{ github.event.repository.default_branch }}
+        run: |
+          git fetch origin "$PACKAGE_BRANCH"
+          git reset --hard "origin/$PACKAGE_BRANCH"
+
       - name: Resolve latest upstream source
         id: version
         run: |
           upstream_branch='unstable'
-          package_version="$(TZ=Asia/Singapore date +%Y%m%d)"
+          package_version="$(TZ=Asia/Shanghai date +%Y%m%d)"
           version="${upstream_branch}-${package_version}"
           release_tag="axonhub-${version}"
           upstream_commit="$(gh api "repos/looplj/axonhub/commits/$upstream_branch" --jq '.sha')"
@@ -123,7 +130,7 @@ jobs:
           RELEASE_TAG: ${{ steps.version.outputs.release_tag }}
           UPSTREAM_COMMIT: ${{ steps.version.outputs.upstream_commit }}
         run: |
-          notes="Daily Linux build from looplj/axonhub unstable commit ${UPSTREAM_COMMIT}."
+          notes="基于 looplj/axonhub unstable 分支提交 ${UPSTREAM_COMMIT} 编译的 Linux 正式发布版。"
           assets=(
             release/axonhub_linux_amd64
             release/axonhub_linux_arm64
@@ -156,6 +163,9 @@ jobs:
           LOONG64_HASH: ${{ steps.build.outputs.loong64_hash }}
           PACKAGE_BRANCH: ${{ github.event.repository.default_branch }}
         run: |
+          git fetch origin "$PACKAGE_BRANCH"
+          git reset --hard "origin/$PACKAGE_BRANCH"
+
           makefile='axonhub/Makefile'
           current_version="$(sed -n 's/^PKG_VERSION:=//p' "$makefile")"
           current_release="$(sed -n 's/^PKG_RELEASE:=//p' "$makefile")"
@@ -207,6 +217,5 @@ jobs:
 
           git config user.name 'github-actions[bot]'
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
-          git commit -m "chore(axonhub): update daily build to ${BUILD_VERSION}-r${release}"
-          git pull --rebase origin "$PACKAGE_BRANCH"
+          git commit -m "更新 AxonHub 至 ${BUILD_VERSION}-r${release}"
           git push origin "HEAD:$PACKAGE_BRANCH"
