@@ -20,10 +20,12 @@ concurrency:
 
 jobs:
   resolve:
+    name: 确定需要编译的插件
     runs-on: ubuntu-24.04
     outputs:
       changed: ${{ steps.packages.outputs.changed }}
       packages: ${{ steps.packages.outputs.packages }}
+      packages_display: ${{ steps.packages.outputs.packages_display }}
     steps:
       - name: 检出插件仓库
         uses: actions/checkout@v4
@@ -36,62 +38,11 @@ jobs:
           BEFORE_SHA: ${{ github.event.before }}
           REQUESTED_PACKAGES: ${{ inputs.packages }}
         run: |
-          mapfile -t all_packages < <(
-            find . -mindepth 2 -maxdepth 2 -type f -name Makefile \
-              -printf '%h\n' |
-              sed 's#^\./##' |
-              awk -F / '$1 !~ /^\./' |
-              sort -u
-          )
-          selected_packages=()
-
-          if [[ "$GITHUB_EVENT_NAME" == 'workflow_dispatch' ]]; then
-            if [[ -n "$REQUESTED_PACKAGES" ]]; then
-              IFS=',' read -ra requested <<< "$REQUESTED_PACKAGES"
-              for package in "${requested[@]}"; do
-                package="${package//[[:space:]]/}"
-                [[ -n "$package" ]] || continue
-                if ! printf '%s\n' "${all_packages[@]}" | grep -Fqx "$package"; then
-                  printf '未知插件目录：%s\n' "$package" >&2
-                  exit 1
-                fi
-                selected_packages+=("$package")
-              done
-            else
-              selected_packages=("${all_packages[@]}")
-            fi
-          else
-            if [[ -z "$BEFORE_SHA" ]] || [[ "$BEFORE_SHA" =~ ^0+$ ]]; then
-              mapfile -t changed_files < <(
-                git show --format= --name-only "$GITHUB_SHA"
-              )
-            else
-              mapfile -t changed_files < <(
-                git diff --name-only "$BEFORE_SHA" "$GITHUB_SHA"
-              )
-            fi
-
-            for package in "${all_packages[@]}"; do
-              for path in "${changed_files[@]}"; do
-                if [[ "$path" == "$package/"* ]]; then
-                  selected_packages+=("$package")
-                  break
-                fi
-              done
-            done
-          fi
-
-          if (( ${#selected_packages[@]} == 0 )); then
-            echo 'changed=false' >> "$GITHUB_OUTPUT"
-            echo '未检测到需要编译的插件。' >> "$GITHUB_STEP_SUMMARY"
-          else
-            packages_csv="$(IFS=,; echo "${selected_packages[*]}")"
-            echo 'changed=true' >> "$GITHUB_OUTPUT"
-            echo "packages=$packages_csv" >> "$GITHUB_OUTPUT"
-            echo "### APK 插件：$packages_csv" >> "$GITHUB_STEP_SUMMARY"
-          fi
+          .github/scripts/resolve-build-packages.sh \
+            "$GITHUB_EVENT_NAME" "$BEFORE_SHA" "$REQUESTED_PACKAGES"
 
   build:
+    name: 编译 ${{ matrix.platform_name }} APK
     needs: resolve
     if: needs.resolve.outputs.changed == 'true'
     runs-on: ubuntu-24.04
@@ -101,11 +52,13 @@ jobs:
       matrix:
         include:
           - platform: arm64
+            platform_name: ARM64
             sdk_path: qualcommax/ipq60xx
             sdk_prefix: immortalwrt-sdk-qualcommax-ipq60xx_
             target: qualcommax
             subtarget: ipq60xx
           - platform: amd64
+            platform_name: AMD64
             sdk_path: x86/64
             sdk_prefix: immortalwrt-sdk-x86-64_
             target: x86
@@ -203,7 +156,7 @@ jobs:
           "$SDK_ROOT/scripts/feeds" update -a
           "$SDK_ROOT/scripts/feeds" install -a
 
-      - name: 编译 ${{ matrix.platform }} APK
+      - name: 编译 ${{ matrix.platform_name }} APK
         env:
           PACKAGES: ${{ needs.resolve.outputs.packages }}
         run: |
@@ -215,7 +168,7 @@ jobs:
             '${{ matrix.subtarget }}' \
             "${selected_packages[@]}"
 
-      - name: 上传 ${{ matrix.platform }} 编译结果
+      - name: 上传 ${{ matrix.platform_name }} 编译结果
         uses: actions/upload-artifact@v4
         with:
           name: apk-output-${{ matrix.platform }}
@@ -224,6 +177,7 @@ jobs:
           retention-days: 1
 
   publish:
+    name: 发布 ${{ matrix.platform_name }} APK
     needs:
       - resolve
       - build
@@ -287,7 +241,7 @@ jobs:
 
       - name: 发布 ${{ matrix.platform_name }} APK
         env:
-          PACKAGES: ${{ needs.resolve.outputs.packages }}
+          PACKAGES_DISPLAY: ${{ needs.resolve.outputs.packages_display }}
           ARCHIVE_NAME: ${{ steps.archive.outputs.archive_name }}
         run: |
           output_dir="$RUNNER_TEMP/apk-output"
@@ -305,7 +259,7 @@ jobs:
             echo '架构：${{ matrix.architecture }}'
             echo 'SDK 目标：${{ matrix.sdk_target }}'
             echo "固定标签：$RELEASE_TAG"
-            echo "本次编译：$PACKAGES"
+            echo "本次编译：$PACKAGES_DISPLAY"
             echo "源提交：$GITHUB_SHA"
             echo "最新整合包：$ARCHIVE_NAME"
             echo
@@ -375,3 +329,18 @@ jobs:
           gh release upload "$RELEASE_TAG" "$archive" \
             --repo "$GITHUB_REPOSITORY"
           echo "### 已发布：$ARCHIVE_NAME" >> "$GITHUB_STEP_SUMMARY"
+
+  cleanup:
+    name: 清理旧版 APK 发布与标签
+    needs: publish
+    runs-on: ubuntu-24.04
+    env:
+      GH_TOKEN: ${{ github.token }}
+    steps:
+      - name: 检出插件仓库
+        uses: actions/checkout@v4
+
+      - name: 删除旧 APK Release 和 Tag
+        run: |
+          source .github/scripts/ci-common.sh
+          ci_delete_release_and_tag apk-packages

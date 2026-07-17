@@ -4,20 +4,16 @@ set -euo pipefail
 shopt -s nullglob
 
 SCRIPT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
-REPO_ROOT="${REPO_ROOT:-$(cd -- "$SCRIPT_DIR/../.." && pwd)}"
+# shellcheck source=ci-common.sh
+source "$SCRIPT_DIR/ci-common.sh"
+REPO_ROOT="$CI_REPO_ROOT"
 
 cd "$REPO_ROOT"
 
 if (( $# > 0 )); then
 	PACKAGE_DIRS=("$@")
 else
-	mapfile -t PACKAGE_DIRS < <(
-		find . -mindepth 2 -maxdepth 2 -type f -name Makefile \
-			-printf '%h\n' |
-			sed 's#^\./##' |
-			awk -F / '$1 !~ /^\./' |
-			sort -u
-	)
+	mapfile -t PACKAGE_DIRS < <(ci_discover_packages)
 fi
 
 for package_dir in "${PACKAGE_DIRS[@]}"; do

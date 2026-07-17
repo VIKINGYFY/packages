@@ -11,7 +11,9 @@ fi
 : "${GITHUB_REPOSITORY:?GITHUB_REPOSITORY is required}"
 
 SCRIPT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
-REPO_ROOT="${REPO_ROOT:-$(cd -- "$SCRIPT_DIR/../.." && pwd)}"
+# shellcheck source=ci-common.sh
+source "$SCRIPT_DIR/ci-common.sh"
+REPO_ROOT="$CI_REPO_ROOT"
 RELEASE_TAG="$1"
 KEEP="${2:-3}"
 LATEST_ASSETS_FILE="${3:-}"
@@ -27,20 +29,12 @@ classified_file="$(mktemp)"
 trap 'rm -f "$assets_file" "$classified_file"' EXIT
 
 mapfile -t package_dirs < <(
-	find "$REPO_ROOT" -mindepth 2 -maxdepth 2 -type f -name Makefile \
-		-printf '%h\n' |
-		sed "s#^$REPO_ROOT/##" |
-		awk -F / '$1 !~ /^\./' |
-		sort -u
+	ci_discover_packages
 )
 
 package_names=()
 for package_dir in "${package_dirs[@]}"; do
-	name="$(sed -n 's/^PKG_NAME:=//p' "$REPO_ROOT/$package_dir/Makefile" | head -n1)"
-	[[ -n "$name" ]] || {
-		printf 'PKG_NAME not found in %s/Makefile\n' "$package_dir" >&2
-		exit 1
-	}
+	name="$(ci_package_name "$package_dir")"
 	package_names+=("$name")
 	if [[ "$name" == luci-app-* ]] && [[ -d "$REPO_ROOT/$package_dir/po" ]]; then
 		package_names+=("luci-i18n-${name#luci-app-}-zh-cn")
@@ -54,6 +48,11 @@ mapfile -t package_names < <(
 		cut -f2- |
 		awk '!seen[$0]++'
 )
+
+declare -A current_package_names=()
+for name in "${package_names[@]}"; do
+	current_package_names["$name"]=1
+done
 
 gh api --paginate \
 	"repos/$GITHUB_REPOSITORY/releases/$release_id/assets?per_page=100" \
@@ -75,8 +74,10 @@ while IFS=$'\t' read -r asset_id asset_name asset_label created_at; do
 		done
 	fi
 
-	if [[ -z "$name" ]]; then
-		printf 'Unable to identify release asset package: %s\n' "$asset_name" >&2
+	if [[ -z "$name" || -z "${current_package_names[$name]:-}" ]]; then
+		printf '删除已移除插件的发布资产：%s\n' "$asset_name"
+		gh api --method DELETE \
+			"repos/$GITHUB_REPOSITORY/releases/assets/$asset_id"
 		continue
 	fi
 	printf '%s\t%s\t%s\t%s\n' \

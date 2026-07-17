@@ -1,50 +1,55 @@
-name: Update HomeProxy geodata
+name: 每日检查并更新 HomeProxy 数据
 
 on:
   workflow_dispatch:
   schedule:
-    - cron: '0 0 * * 0'
+    # Asia/Shanghai 12:15
+    - cron: '15 4 * * *'
 
 permissions:
   contents: write
 
 concurrency:
-  group: update-homeproxy-geodata
+  group: repository-maintenance
   cancel-in-progress: false
 
 jobs:
   update:
+    name: 检查并更新 HomeProxy 数据
     runs-on: ubuntu-24.04
     steps:
-      - name: Checkout repository
+      - name: 检出插件仓库
         uses: actions/checkout@v4
         with:
           fetch-depth: 0
+          ref: ${{ github.event.repository.default_branch }}
 
-      - name: 使用远端分支重置本地仓库
+      - name: 同步默认分支
+        env:
+          PACKAGE_BRANCH: ${{ github.event.repository.default_branch }}
         run: |
-          git fetch origin "$GITHUB_REF_NAME"
-          git reset --hard "origin/$GITHUB_REF_NAME"
+          source .github/scripts/ci-common.sh
+          ci_sync_branch "$PACKAGE_BRANCH"
 
-      - name: Install resource tools
+      - name: 安装数据更新工具
         env:
           DEBIAN_FRONTEND: noninteractive
         run: |
           sudo apt-get -qq update
           sudo apt-get -qq install --no-install-recommends curl jq unzip
 
-      - name: Update HomeProxy resources
+      - name: 检查并更新 HomeProxy 数据
         id: resources
         run: .github/scripts/update-homeproxy-geodata.sh
 
-      - name: Commit resource updates
+      - name: 提交数据更新
+        env:
+          PACKAGE_BRANCH: ${{ github.event.repository.default_branch }}
+          RESOURCE_VERSION: ${{ steps.resources.outputs.version }}
         run: |
-          git add -- \
+          source .github/scripts/ci-common.sh
+          ci_commit_and_push \
+            "$PACKAGE_BRANCH" \
+            "chore: 更新 HomeProxy 数据至 $RESOURCE_VERSION" \
             luci-app-homeproxy/root/etc/homeproxy/resources \
             luci-app-homeproxy/root/etc/homeproxy/dashboard
-          git diff --cached --quiet && exit 0
-
-          git config user.name 'github-actions[bot]'
-          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
-          git commit -m "更新 HomeProxy 数据至 ${{ steps.resources.outputs.version }}"
-          git push origin "HEAD:${GITHUB_REF_NAME}"

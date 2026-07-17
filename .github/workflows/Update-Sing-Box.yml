@@ -1,38 +1,39 @@
-name: 探测并更新 sing-box
+name: 每日检查并更新 sing-box
 
 on:
   workflow_dispatch:
   schedule:
-    - cron: '45 0 * * *'
+    # Asia/Shanghai 06:15
+    - cron: '15 22 * * *'
 
 permissions:
-  actions: write
   contents: write
 
 concurrency:
-  group: update-sing-box
+  group: repository-maintenance
   cancel-in-progress: false
 
 jobs:
   update:
+    name: 检查并更新 sing-box
     runs-on: ubuntu-24.04
     env:
       GH_TOKEN: ${{ github.token }}
     steps:
-      - name: 检出并同步插件仓库
+      - name: 检出插件仓库
         uses: actions/checkout@v4
         with:
           fetch-depth: 0
           ref: ${{ github.event.repository.default_branch }}
 
-      - name: 使用远端分支重置本地仓库
+      - name: 同步默认分支
         env:
           PACKAGE_BRANCH: ${{ github.event.repository.default_branch }}
         run: |
-          git fetch origin "$PACKAGE_BRANCH"
-          git reset --hard "origin/$PACKAGE_BRANCH"
+          source .github/scripts/ci-common.sh
+          ci_sync_branch "$PACKAGE_BRANCH"
 
-      - name: 探测 sing-box 上游版本
+      - name: 检查 sing-box 上游版本
         id: upstream
         run: |
           makefile='sing-box/Makefile'
@@ -54,7 +55,7 @@ jobs:
             echo "version=$upstream_version"
           } >> "$GITHUB_OUTPUT"
 
-      - name: 下载并校验上游源码
+      - name: 下载并校验 sing-box 源码
         if: steps.upstream.outputs.changed == 'true'
         id: source
         env:
@@ -96,26 +97,14 @@ jobs:
           grep -Fx "PKG_HASH:=$SOURCE_HASH" "$makefile"
           git diff --check
 
-      - name: 提交并推送 sing-box 更新
+      - name: 提交 sing-box 更新
         if: steps.upstream.outputs.changed == 'true'
         env:
           PACKAGE_BRANCH: ${{ github.event.repository.default_branch }}
           UPSTREAM_VERSION: ${{ steps.upstream.outputs.version }}
         run: |
-          git add -- sing-box/Makefile
-          git diff --cached --quiet && exit 0
-
-          git config user.name 'github-actions[bot]'
-          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
-          git commit -m "更新 sing-box 至 ${UPSTREAM_VERSION}-r1"
-          git push origin "HEAD:$PACKAGE_BRANCH"
-
-      - name: 触发 sing-box 双平台编译发布
-        if: steps.upstream.outputs.changed == 'true'
-        env:
-          PACKAGE_BRANCH: ${{ github.event.repository.default_branch }}
-        run: |
-          gh workflow run Build-APK-Packages.yml \
-            --repo "$GITHUB_REPOSITORY" \
-            --ref "$PACKAGE_BRANCH" \
-            --field packages=sing-box
+          source .github/scripts/ci-common.sh
+          ci_commit_and_push \
+            "$PACKAGE_BRANCH" \
+            "chore: 更新 sing-box 至 ${UPSTREAM_VERSION}-r1" \
+            sing-box/Makefile

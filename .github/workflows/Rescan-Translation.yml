@@ -1,52 +1,55 @@
-name: Maintain translations and permissions
+name: 每日维护插件说明、翻译与权限
 
 on:
   workflow_dispatch:
-  push:
-    branches:
-      - main
+  schedule:
+    # Asia/Shanghai 18:15
+    - cron: '15 10 * * *'
 
 permissions:
   contents: write
 
 concurrency:
-  group: rescan-translations-${{ github.ref }}
+  group: repository-maintenance
   cancel-in-progress: false
 
 jobs:
-  scan:
+  maintain:
+    name: 维护插件说明、翻译与权限
     runs-on: ubuntu-24.04
     steps:
-      - name: Checkout repository
+      - name: 检出插件仓库
         uses: actions/checkout@v4
         with:
           fetch-depth: 0
+          ref: ${{ github.event.repository.default_branch }}
 
-      - name: 使用远端分支重置本地仓库
+      - name: 同步默认分支
+        env:
+          PACKAGE_BRANCH: ${{ github.event.repository.default_branch }}
         run: |
-          git fetch origin "$GITHUB_REF_NAME"
-          git reset --hard "origin/$GITHUB_REF_NAME"
+          source .github/scripts/ci-common.sh
+          ci_sync_branch "$PACKAGE_BRANCH"
 
-      - name: Install translation tools
+      - name: 安装翻译工具
         env:
           DEBIAN_FRONTEND: noninteractive
         run: |
           sudo apt-get -qq update
           sudo apt-get -qq install --no-install-recommends gettext
 
-      - name: Fix executable permissions
-        run: .github/scripts/fix-package-permissions.sh
-
-      - name: Rescan translations
-        run: .github/scripts/rescan-translations.sh
-
-      - name: Commit maintenance updates
+      - name: 维护插件说明、翻译与权限
         run: |
-          git add -u -- .
-          git diff --cached --quiet && exit 0
+          .github/scripts/maintain-repository.sh
+          .github/scripts/rescan-translations.sh
+          git diff --check
 
-          changed_packages="$(git diff --cached --name-only | cut -d/ -f1 | sort -u | paste -sd, -)"
-          git config user.name 'github-actions[bot]'
-          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
-          git commit -m "维护翻译与权限：${changed_packages}"
-          git push origin "HEAD:${GITHUB_REF_NAME}"
+      - name: 提交维护结果
+        env:
+          PACKAGE_BRANCH: ${{ github.event.repository.default_branch }}
+        run: |
+          source .github/scripts/ci-common.sh
+          ci_commit_and_push \
+            "$PACKAGE_BRANCH" \
+            'chore: 维护插件说明、翻译与权限' \
+            .

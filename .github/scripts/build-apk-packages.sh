@@ -18,14 +18,11 @@ shift 4
 	exit 1
 }
 
-REPO_ROOT="$(cd "$(dirname "$0")/../.." && pwd)"
-mapfile -t DISCOVERED_PACKAGES < <(
-	find "$REPO_ROOT" -mindepth 2 -maxdepth 2 -type f -name Makefile \
-		-printf '%h\n' |
-		sed "s#^$REPO_ROOT/##" |
-		awk -F / '$1 !~ /^\./' |
-		sort -u
-)
+SCRIPT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
+# shellcheck source=ci-common.sh
+source "$SCRIPT_DIR/ci-common.sh"
+REPO_ROOT="$CI_REPO_ROOT"
+mapfile -t DISCOVERED_PACKAGES < <(ci_discover_packages)
 
 declare -A DISCOVERED=()
 for package in "${DISCOVERED_PACKAGES[@]}"; do
@@ -46,16 +43,7 @@ if [[ ! -x "$SDK_ROOT/scripts/feeds" ]]; then
 fi
 
 package_name() {
-	local package_dir="$1"
-	local name
-
-	name="$(sed -n 's/^PKG_NAME:=//p' "$REPO_ROOT/$package_dir/Makefile" | head -n1)"
-	[[ -n "$name" ]] || {
-		printf 'PKG_NAME not found in %s/Makefile\n' "$package_dir" >&2
-		exit 1
-	}
-
-	printf '%s\n' "$name"
+	ci_package_name "$1"
 }
 
 for package in "${DISCOVERED_PACKAGES[@]}"; do
