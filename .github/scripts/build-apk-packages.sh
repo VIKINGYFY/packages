@@ -101,12 +101,21 @@ done
 rm -rf "$OUTPUT_DIR"
 mkdir -p "$OUTPUT_DIR"
 
+APK_TOOL="$SDK_ROOT/staging_dir/host/bin/apk"
+[[ -x "$APK_TOOL" ]] || {
+	printf 'SDK apk tool not found: %s\n' "$APK_TOOL" >&2
+	exit 1
+}
+
 copy_apk() {
 	local package_name="$1"
 	local found=0
-	local source_file target_file
+	local source_file target_file metadata actual_name
 
 	while IFS= read -r -d '' source_file; do
+		metadata="$("$APK_TOOL" adbdump "$source_file")"
+		actual_name="$(awk '/^  name: / { sub(/^  name: /, ""); print; exit }' <<< "$metadata")"
+		[[ "$actual_name" == "$package_name" ]] || continue
 		found=1
 		target_file="$OUTPUT_DIR/$(basename "$source_file")"
 
@@ -135,12 +144,6 @@ done
 mapfile -d '' -t APK_FILES < <(find "$OUTPUT_DIR" -maxdepth 1 -type f -name '*.apk' -print0 | sort -z)
 (( ${#APK_FILES[@]} > 0 )) || {
 	printf 'No APK files were collected.\n' >&2
-	exit 1
-}
-
-APK_TOOL="$SDK_ROOT/staging_dir/host/bin/apk"
-[[ -x "$APK_TOOL" ]] || {
-	printf 'SDK apk tool not found: %s\n' "$APK_TOOL" >&2
 	exit 1
 }
 
