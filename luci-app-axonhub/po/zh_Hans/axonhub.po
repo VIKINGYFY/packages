@@ -161,8 +161,8 @@ msgid "Maximum idle database connections"
 msgstr "数据库最大空闲连接数"
 
 #: luci-app-axonhub/htdocs/luci-static/resources/view/axonhub.js:239
-msgid "Native AxonHub service and management interface."
-msgstr "AxonHub（AI网关）原生服务和管理入口。"
+msgid "Native AxonHub service and management interface. — AI Edition"
+msgstr "AxonHub（AI 网关）原生服务和管理入口。—— AI Edition"
 
 #: luci-app-axonhub/htdocs/luci-static/resources/view/axonhub.js:112
 msgid "No AxonHub log entries were found."

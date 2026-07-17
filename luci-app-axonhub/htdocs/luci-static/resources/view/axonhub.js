@@ -236,7 +236,7 @@ return view.extend({
 		var m, s, o;
 
 		m = new form.Map('axonhub', _('AxonHub'),
-			_('Native AxonHub service and management interface.') +
+			_('Native AxonHub service and management interface. — AI Edition') +
 			(info.version ? ' ' + _('Installed version: %s').format(info.version) : ''));
 
 		s = m.section(form.TypedSection);

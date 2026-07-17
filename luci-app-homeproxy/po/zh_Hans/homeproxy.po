@@ -18,7 +18,7 @@ msgstr "%s 日志"
 msgid "%s ms"
 msgstr "%s 毫秒"
 
-#: luci-app-homeproxy/htdocs/luci-static/resources/view/homeproxy/node.js:1876
+#: luci-app-homeproxy/htdocs/luci-static/resources/view/homeproxy/node.js:1871
 msgid "%s nodes removed"
 msgstr "移除了 %s 个节点"
 
@@ -137,7 +137,7 @@ msgid "Allow access from the Internet."
 msgstr "允许来自互联网的访问。"
 
 #: luci-app-homeproxy/htdocs/luci-static/resources/view/homeproxy/node.js:1430
-#: luci-app-homeproxy/htdocs/luci-static/resources/view/homeproxy/node.js:1805
+#: luci-app-homeproxy/htdocs/luci-static/resources/view/homeproxy/node.js:1800
 msgid "Allow insecure"
 msgstr "允许不安全连接"
 
@@ -145,7 +145,7 @@ msgstr "允许不安全连接"
 msgid "Allow insecure connection at TLS client."
 msgstr "允许 TLS 客户端侧的不安全连接。"
 
-#: luci-app-homeproxy/htdocs/luci-static/resources/view/homeproxy/node.js:1806
+#: luci-app-homeproxy/htdocs/luci-static/resources/view/homeproxy/node.js:1801
 msgid ""
 "Allow insecure connection by default when adding nodes from subscriptions."
 msgstr "从订阅添加节点时，默认允许不安全连接。"
@@ -172,7 +172,7 @@ msgstr "备用 HTTP 端口"
 msgid "Alternative TLS port"
 msgstr "备用 TLS 端口"
 
-#: luci-app-homeproxy/htdocs/luci-static/resources/view/homeproxy/node.js:1842
+#: luci-app-homeproxy/htdocs/luci-static/resources/view/homeproxy/node.js:1837
 msgid "An error occurred during updating subscriptions: %s."
 msgstr "更新订阅时发生错误：%s。"
 
@@ -288,7 +288,7 @@ msgstr "绑定出站流量至指定端口。留空自动检测。"
 msgid "BitTorrent"
 msgstr "BitTorrent"
 
-#: luci-app-homeproxy/htdocs/luci-static/resources/view/homeproxy/node.js:1790
+#: luci-app-homeproxy/htdocs/luci-static/resources/view/homeproxy/node.js:1785
 msgid "Blacklist mode"
 msgstr "黑名单模式"
 
@@ -520,7 +520,7 @@ msgstr "默认出站 DNS"
 msgid "Default outbound for connections not matched by any routing rules."
 msgstr "用于未被任何路由规则匹配的连接的默认出站。"
 
-#: luci-app-homeproxy/htdocs/luci-static/resources/view/homeproxy/node.js:1812
+#: luci-app-homeproxy/htdocs/luci-static/resources/view/homeproxy/node.js:1807
 msgid "Default packet encoding"
 msgstr "默认包封装格式"
 
@@ -558,7 +558,7 @@ msgstr "直连 MAC 地址"
 #: luci-app-homeproxy/htdocs/luci-static/resources/view/homeproxy/node.js:940
 #: luci-app-homeproxy/htdocs/luci-static/resources/view/homeproxy/node.js:953
 #: luci-app-homeproxy/htdocs/luci-static/resources/view/homeproxy/node.js:1505
-#: luci-app-homeproxy/htdocs/luci-static/resources/view/homeproxy/node.js:1789
+#: luci-app-homeproxy/htdocs/luci-static/resources/view/homeproxy/node.js:1784
 #: luci-app-homeproxy/htdocs/luci-static/resources/view/homeproxy/server.js:265
 #: luci-app-homeproxy/htdocs/luci-static/resources/view/homeproxy/server.js:278
 msgid "Disable"
@@ -676,7 +676,7 @@ msgstr "丢弃数据包"
 msgid "Drop requests"
 msgstr "丢弃请求"
 
-#: luci-app-homeproxy/htdocs/luci-static/resources/view/homeproxy/node.js:1796
+#: luci-app-homeproxy/htdocs/luci-static/resources/view/homeproxy/node.js:1791
 msgid ""
 "Drop/keep nodes that contain the specific keywords. <a target=\"_blank\" "
 "href=\"https://developer.mozilla.org/en-US/docs/Web/JavaScript/Guide/"
@@ -686,7 +686,7 @@ msgstr ""
 "developer.mozilla.org/zh-CN/docs/Web/JavaScript/Guide/Regular_Expressions\">"
 "正则表达式</a>。"
 
-#: luci-app-homeproxy/htdocs/luci-static/resources/view/homeproxy/node.js:1788
+#: luci-app-homeproxy/htdocs/luci-static/resources/view/homeproxy/node.js:1783
 msgid "Drop/keep specific nodes from subscriptions."
 msgstr "从订阅中丢弃/保留指定节点。"
 
@@ -867,8 +867,8 @@ msgstr "预查询服务器"
 #: luci-app-homeproxy/htdocs/luci-static/resources/view/homeproxy/node.js:884
 #: luci-app-homeproxy/htdocs/luci-static/resources/view/homeproxy/node.js:1521
 #: luci-app-homeproxy/htdocs/luci-static/resources/view/homeproxy/node.js:1716
-#: luci-app-homeproxy/htdocs/luci-static/resources/view/homeproxy/node.js:1777
-#: luci-app-homeproxy/htdocs/luci-static/resources/view/homeproxy/node.js:1780
+#: luci-app-homeproxy/htdocs/luci-static/resources/view/homeproxy/node.js:1772
+#: luci-app-homeproxy/htdocs/luci-static/resources/view/homeproxy/node.js:1775
 #: luci-app-homeproxy/htdocs/luci-static/resources/view/homeproxy/server.js:235
 #: luci-app-homeproxy/htdocs/luci-static/resources/view/homeproxy/server.js:613
 #: luci-app-homeproxy/htdocs/luci-static/resources/view/homeproxy/server.js:615
@@ -911,11 +911,11 @@ msgstr "上传 %s 失败，错误：%s。"
 msgid "Fatal"
 msgstr "致命"
 
-#: luci-app-homeproxy/htdocs/luci-static/resources/view/homeproxy/node.js:1795
+#: luci-app-homeproxy/htdocs/luci-static/resources/view/homeproxy/node.js:1790
 msgid "Filter keywords"
 msgstr "过滤关键词"
 
-#: luci-app-homeproxy/htdocs/luci-static/resources/view/homeproxy/node.js:1787
+#: luci-app-homeproxy/htdocs/luci-static/resources/view/homeproxy/node.js:1782
 msgid "Filter nodes"
 msgstr "过滤节点"
 
@@ -1596,7 +1596,7 @@ msgstr "多路复用协议。"
 msgid "NOT RUNNING"
 msgstr "未运行"
 
-#: luci-app-homeproxy/htdocs/luci-static/resources/view/homeproxy/node.js:1818
+#: luci-app-homeproxy/htdocs/luci-static/resources/view/homeproxy/node.js:1813
 msgid "NOTE: Save current settings before updating subscriptions."
 msgstr "注意：更新订阅前先保存当前配置。"
 
@@ -1639,11 +1639,11 @@ msgstr "无 TCP 传输层，纯 HTTP 已合并到 HTTP 传输层。"
 msgid "No additional encryption support: It's basically duplicate encryption."
 msgstr "无额外加密支持：它基本上是重复加密。"
 
-#: luci-app-homeproxy/htdocs/luci-static/resources/view/homeproxy/node.js:1835
+#: luci-app-homeproxy/htdocs/luci-static/resources/view/homeproxy/node.js:1830
 msgid "No subscription available"
 msgstr "无可用订阅"
 
-#: luci-app-homeproxy/htdocs/luci-static/resources/view/homeproxy/node.js:1860
+#: luci-app-homeproxy/htdocs/luci-static/resources/view/homeproxy/node.js:1855
 msgid "No subscription node"
 msgstr "无订阅节点"
 
@@ -1669,7 +1669,7 @@ msgstr "节点"
 #: luci-app-homeproxy/htdocs/luci-static/resources/view/homeproxy/node.js:1125
 #: luci-app-homeproxy/htdocs/luci-static/resources/view/homeproxy/node.js:1163
 #: luci-app-homeproxy/htdocs/luci-static/resources/view/homeproxy/node.js:1275
-#: luci-app-homeproxy/htdocs/luci-static/resources/view/homeproxy/node.js:1813
+#: luci-app-homeproxy/htdocs/luci-static/resources/view/homeproxy/node.js:1808
 #: luci-app-homeproxy/htdocs/luci-static/resources/view/homeproxy/server.js:379
 #: luci-app-homeproxy/htdocs/luci-static/resources/view/homeproxy/server.js:394
 msgid "None"
@@ -2000,11 +2000,11 @@ msgstr "拒绝"
 msgid "Remote"
 msgstr "远程"
 
-#: luci-app-homeproxy/htdocs/luci-static/resources/view/homeproxy/node.js:1857
+#: luci-app-homeproxy/htdocs/luci-static/resources/view/homeproxy/node.js:1852
 msgid "Remove %s nodes"
 msgstr "移除 %s 个节点"
 
-#: luci-app-homeproxy/htdocs/luci-static/resources/view/homeproxy/node.js:1847
+#: luci-app-homeproxy/htdocs/luci-static/resources/view/homeproxy/node.js:1842
 msgid "Remove all nodes from subscriptions"
 msgstr "移除所有订阅节点"
 
@@ -2162,11 +2162,11 @@ msgstr "Safari / Apple Network API"
 msgid "Salamander"
 msgstr "Salamander"
 
-#: luci-app-homeproxy/htdocs/luci-static/resources/view/homeproxy/node.js:1820
+#: luci-app-homeproxy/htdocs/luci-static/resources/view/homeproxy/node.js:1815
 msgid "Save current settings"
 msgstr "保存当前设置"
 
-#: luci-app-homeproxy/htdocs/luci-static/resources/view/homeproxy/node.js:1817
+#: luci-app-homeproxy/htdocs/luci-static/resources/view/homeproxy/node.js:1812
 msgid "Save subscriptions settings"
 msgstr "保存订阅设置"
 
@@ -2210,8 +2210,8 @@ msgstr "嗅探到的客户端类型（QUIC 客户端类型或 SSH 客户端名�
 #: luci-app-homeproxy/htdocs/luci-static/resources/view/homeproxy/client.js:649
 #: luci-app-homeproxy/htdocs/luci-static/resources/view/homeproxy/client.js:1128
 msgid ""
-"Sniffed protocol, see <a target=\"_blank\" href=\"https://sing-box.sagernet."
-"org/configuration/route/sniff/\">Sniff</a> for details."
+"Sniffed protocol, see <a target=\"_blank\" href=\"https://sing-"
+"box.sagernet.org/configuration/route/sniff/\">Sniff</a> for details."
 msgstr ""
 "嗅探协议，具体参见 <a target=\"_blank\" href=\"https://sing-box.sagernet.org/"
 "configuration/route/sniff/\">Sniff</a>。"
@@ -2300,7 +2300,7 @@ msgstr "字符串"
 msgid "Sub (%s)"
 msgstr "订阅（%s）"
 
-#: luci-app-homeproxy/htdocs/luci-static/resources/view/homeproxy/node.js:1770
+#: luci-app-homeproxy/htdocs/luci-static/resources/view/homeproxy/node.js:1765
 msgid "Subscription URLs"
 msgstr "订阅地址"
 
@@ -2322,7 +2322,7 @@ msgid "Successfully updated."
 msgstr "更新成功。"
 
 #: luci-app-homeproxy/htdocs/luci-static/resources/view/homeproxy/node.js:1640
-#: luci-app-homeproxy/htdocs/luci-static/resources/view/homeproxy/node.js:1771
+#: luci-app-homeproxy/htdocs/luci-static/resources/view/homeproxy/node.js:1766
 msgid ""
 "Support Hysteria, Shadowsocks, Trojan, v2rayN (VMess), and XTLS (VLESS) "
 "online configuration delivery standard."
@@ -2476,8 +2476,8 @@ msgstr "测试 URL"
 msgid "Test all"
 msgstr "全部测试"
 
+#: luci-app-homeproxy/htdocs/luci-static/resources/view/homeproxy/node.js:1902
 #: luci-app-homeproxy/htdocs/luci-static/resources/view/homeproxy/node.js:1907
-#: luci-app-homeproxy/htdocs/luci-static/resources/view/homeproxy/node.js:1912
 msgid "Test current list"
 msgstr "测试当前列表"
 
@@ -2500,7 +2500,7 @@ msgstr "测试容差"
 msgid "Testing"
 msgstr "测试中"
 
-#: luci-app-homeproxy/htdocs/luci-static/resources/view/homeproxy/node.js:1900
+#: luci-app-homeproxy/htdocs/luci-static/resources/view/homeproxy/node.js:1895
 msgid "Testing current list..."
 msgstr "正在测试当前列表..."
 
@@ -2636,8 +2636,8 @@ msgstr "可接受的最低 TLS 版本。"
 
 #: luci-app-homeproxy/htdocs/luci-static/resources/view/homeproxy/client.js:131
 #: luci-app-homeproxy/htdocs/luci-static/resources/view/homeproxy/server.js:130
-msgid "The modern ImmortalWrt proxy platform for ARM64/AMD64. — AI Edition."
-msgstr "为 ARM64/AMD64 设计的现代 ImmortalWrt 代理平台。—— AI Edition。"
+msgid "The modern ImmortalWrt proxy platform for ARM64/AMD64. — AI Edition"
+msgstr "为 ARM64/AMD64 设计的现代 ImmortalWrt 代理平台。—— AI Edition"
 
 #: luci-app-homeproxy/htdocs/luci-static/resources/view/homeproxy/client.js:485
 #: luci-app-homeproxy/htdocs/luci-static/resources/view/homeproxy/server.js:870
@@ -2705,7 +2705,7 @@ msgstr ""
 "检测到任何活动，则会关闭连接。"
 
 #: luci-app-homeproxy/htdocs/luci-static/resources/view/homeproxy/node.js:1433
-#: luci-app-homeproxy/htdocs/luci-static/resources/view/homeproxy/node.js:1808
+#: luci-app-homeproxy/htdocs/luci-static/resources/view/homeproxy/node.js:1803
 msgid ""
 "This is <strong>DANGEROUS</strong>, your traffic is almost like "
 "<strong>PLAIN TEXT</strong>! Use at your own risk!"
@@ -2839,7 +2839,7 @@ msgstr "未知错误：%s。"
 msgid "Unsupported fingerprint!"
 msgstr "不支持的指纹！"
 
-#: luci-app-homeproxy/htdocs/luci-static/resources/view/homeproxy/node.js:1832
+#: luci-app-homeproxy/htdocs/luci-static/resources/view/homeproxy/node.js:1827
 msgid "Update %s subscriptions"
 msgstr "更新 %s 个订阅"
 
@@ -2863,15 +2863,15 @@ msgstr "更新间隔"
 msgid "Update interval of rule set."
 msgstr "规则集更新间隔。"
 
-#: luci-app-homeproxy/htdocs/luci-static/resources/view/homeproxy/node.js:1827
+#: luci-app-homeproxy/htdocs/luci-static/resources/view/homeproxy/node.js:1822
 msgid "Update nodes from subscriptions"
 msgstr "从订阅更新节点"
 
-#: luci-app-homeproxy/htdocs/luci-static/resources/view/homeproxy/node.js:1767
+#: luci-app-homeproxy/htdocs/luci-static/resources/view/homeproxy/node.js:1762
 msgid "Update resources and subscriptions via proxy."
 msgstr "通过代理更新资源和订阅。"
 
-#: luci-app-homeproxy/htdocs/luci-static/resources/view/homeproxy/node.js:1766
+#: luci-app-homeproxy/htdocs/luci-static/resources/view/homeproxy/node.js:1761
 msgid "Update via proxy"
 msgstr "使用代理更新"
 
@@ -2925,7 +2925,7 @@ msgstr "用于验证返回证书上的主机名。"
 msgid "User"
 msgstr "用户"
 
-#: luci-app-homeproxy/htdocs/luci-static/resources/view/homeproxy/node.js:1800
+#: luci-app-homeproxy/htdocs/luci-static/resources/view/homeproxy/node.js:1795
 msgid "User-Agent"
 msgstr "用户代理"
 
@@ -2970,7 +2970,7 @@ msgstr "WebSocket"
 msgid "Website"
 msgstr "网站"
 
-#: luci-app-homeproxy/htdocs/luci-static/resources/view/homeproxy/node.js:1791
+#: luci-app-homeproxy/htdocs/luci-static/resources/view/homeproxy/node.js:1786
 msgid "Whitelist mode"
 msgstr "白名单模式"
 
@@ -2991,7 +2991,7 @@ msgid "WireGuard requires base64-encoded private keys."
 msgstr "WireGuard 要求 base64 编码的私钥。"
 
 #: luci-app-homeproxy/htdocs/luci-static/resources/view/homeproxy/node.js:1277
-#: luci-app-homeproxy/htdocs/luci-static/resources/view/homeproxy/node.js:1815
+#: luci-app-homeproxy/htdocs/luci-static/resources/view/homeproxy/node.js:1810
 msgid "XUDP (Xray-core)"
 msgstr "XUDP (Xray-core)"
 
@@ -3047,7 +3047,7 @@ msgid "non-empty value"
 msgstr "非空值"
 
 #: luci-app-homeproxy/htdocs/luci-static/resources/view/homeproxy/node.js:1276
-#: luci-app-homeproxy/htdocs/luci-static/resources/view/homeproxy/node.js:1814
+#: luci-app-homeproxy/htdocs/luci-static/resources/view/homeproxy/node.js:1809
 msgid "packet addr (v2ray-core v5+)"
 msgstr "packet addr (v2ray-core v5+)"
 
@@ -3112,8 +3112,8 @@ msgstr "有效 DNS 服务器地址"
 #: luci-app-homeproxy/htdocs/luci-static/resources/view/homeproxy/client.js:552
 #: luci-app-homeproxy/htdocs/luci-static/resources/view/homeproxy/client.js:1402
 #: luci-app-homeproxy/htdocs/luci-static/resources/view/homeproxy/client.js:1405
-#: luci-app-homeproxy/htdocs/luci-static/resources/view/homeproxy/node.js:1777
-#: luci-app-homeproxy/htdocs/luci-static/resources/view/homeproxy/node.js:1780
+#: luci-app-homeproxy/htdocs/luci-static/resources/view/homeproxy/node.js:1772
+#: luci-app-homeproxy/htdocs/luci-static/resources/view/homeproxy/node.js:1775
 msgid "valid URL"
 msgstr "有效网址"
 

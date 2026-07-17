@@ -1,7 +1,7 @@
 msgid ""
 msgstr "Content-Type: text/plain; charset=UTF-8"
 
-#: luci-app-wolultra/htdocs/luci-static/resources/view/wolultra.js:101
+#: luci-app-wolultra/htdocs/luci-static/resources/view/wolultra.js:95
 msgid "Client Settings"
 msgstr ""
 
@@ -9,11 +9,11 @@ msgstr ""
 msgid "Control"
 msgstr ""
 
-#: luci-app-wolultra/htdocs/luci-static/resources/view/wolultra.js:131
+#: luci-app-wolultra/htdocs/luci-static/resources/view/wolultra.js:125
 msgid "Cron expression"
 msgstr ""
 
-#: luci-app-wolultra/htdocs/luci-static/resources/view/wolultra.js:80
+#: luci-app-wolultra/htdocs/luci-static/resources/view/wolultra.js:74
 msgid "Disabled"
 msgstr ""
 
@@ -21,11 +21,11 @@ msgstr ""
 msgid "Expecting: %s"
 msgstr ""
 
-#: luci-app-wolultra/htdocs/luci-static/resources/view/wolultra.js:203
+#: luci-app-wolultra/htdocs/luci-static/resources/view/wolultra.js:197
 msgid "Failed to update scheduled wake tasks."
 msgstr ""
 
-#: luci-app-wolultra/htdocs/luci-static/resources/view/wolultra.js:105
+#: luci-app-wolultra/htdocs/luci-static/resources/view/wolultra.js:99
 msgid "General Settings"
 msgstr ""
 
@@ -33,56 +33,58 @@ msgstr ""
 msgid "Grant access to luci-app-wolultra"
 msgstr ""
 
-#: luci-app-wolultra/htdocs/luci-static/resources/view/wolultra.js:111
+#: luci-app-wolultra/htdocs/luci-static/resources/view/wolultra.js:105
 msgid "MAC Address"
 msgstr ""
 
-#: luci-app-wolultra/htdocs/luci-static/resources/view/wolultra.js:68
+#: luci-app-wolultra/htdocs/luci-static/resources/view/wolultra.js:67
 msgid ""
 "Minutes (0-59), hours (0-23), days (1-31), months (1-12), weekdays (0-6)."
 msgstr ""
 
-#: luci-app-wolultra/htdocs/luci-static/resources/view/wolultra.js:108
+#: luci-app-wolultra/htdocs/luci-static/resources/view/wolultra.js:102
 msgid "Name"
 msgstr ""
 
-#: luci-app-wolultra/htdocs/luci-static/resources/view/wolultra.js:116
+#: luci-app-wolultra/htdocs/luci-static/resources/view/wolultra.js:110
 msgid "Network Interface"
 msgstr ""
 
-#: luci-app-wolultra/htdocs/luci-static/resources/view/wolultra.js:176
+#: luci-app-wolultra/htdocs/luci-static/resources/view/wolultra.js:170
 msgid "Please save the client before waking it up."
 msgstr ""
 
-#: luci-app-wolultra/htdocs/luci-static/resources/view/wolultra.js:106
-#: luci-app-wolultra/htdocs/luci-static/resources/view/wolultra.js:122
-#: luci-app-wolultra/htdocs/luci-static/resources/view/wolultra.js:127
+#: luci-app-wolultra/htdocs/luci-static/resources/view/wolultra.js:100
+#: luci-app-wolultra/htdocs/luci-static/resources/view/wolultra.js:116
+#: luci-app-wolultra/htdocs/luci-static/resources/view/wolultra.js:121
 msgid "Scheduled Wake"
 msgstr ""
 
-#: luci-app-wolultra/htdocs/luci-static/resources/view/wolultra.js:98
+#: luci-app-wolultra/htdocs/luci-static/resources/view/wolultra.js:92
 #: luci-app-wolultra/root/usr/share/luci/menu.d/luci-app-wolultra.json:14
 msgid "WOL Ultra"
 msgstr ""
 
-#: luci-app-wolultra/htdocs/luci-static/resources/view/wolultra.js:157
+#: luci-app-wolultra/htdocs/luci-static/resources/view/wolultra.js:151
 msgid "Wake"
 msgstr ""
 
-#: luci-app-wolultra/htdocs/luci-static/resources/view/wolultra.js:189
+#: luci-app-wolultra/htdocs/luci-static/resources/view/wolultra.js:183
 msgid "Wake Host"
 msgstr ""
 
-#: luci-app-wolultra/htdocs/luci-static/resources/view/wolultra.js:185
+#: luci-app-wolultra/htdocs/luci-static/resources/view/wolultra.js:179
 msgid "Wake command completed with code %d."
 msgstr ""
 
-#: luci-app-wolultra/htdocs/luci-static/resources/view/wolultra.js:193
+#: luci-app-wolultra/htdocs/luci-static/resources/view/wolultra.js:187
 msgid "Wake command failed: %s."
 msgstr ""
 
-#: luci-app-wolultra/htdocs/luci-static/resources/view/wolultra.js:99
-msgid "Wake local network devices immediately or on an individual schedule."
+#: luci-app-wolultra/htdocs/luci-static/resources/view/wolultra.js:93
+msgid ""
+"Wake local network devices immediately or on an individual schedule. — AI "
+"Edition"
 msgstr ""
 
 #: luci-app-wolultra/htdocs/luci-static/resources/view/wolultra.js:63

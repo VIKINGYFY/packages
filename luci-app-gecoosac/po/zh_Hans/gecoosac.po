@@ -133,8 +133,8 @@ msgstr "MEM %s"
 #: luci-app-gecoosac/htdocs/luci-static/resources/view/gecoosac.js:242
 msgid ""
 "Native Gecoos AC service and management interface. Default web password: "
-"admin."
-msgstr "Gecoos AC 原生服务和管理入口。默认 Web 密码：admin。"
+"admin. — AI Edition"
+msgstr "Gecoos AC 原生服务和管理入口。默认 Web 密码：admin。—— AI Edition"
 
 #: luci-app-gecoosac/htdocs/luci-static/resources/view/gecoosac.js:101
 msgid "No Gecoos AC log entries were found."

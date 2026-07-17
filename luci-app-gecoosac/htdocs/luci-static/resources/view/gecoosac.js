@@ -239,7 +239,7 @@ return view.extend({
 		var m, s, o;
 
 		m = new form.Map('gecoosac', _('Gecoos AC'),
-			_('Native Gecoos AC service and management interface. Default web password: admin.'));
+			_('Native Gecoos AC service and management interface. Default web password: admin. — AI Edition'));
 
 		s = m.section(form.TypedSection);
 		s.anonymous = true;

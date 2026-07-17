@@ -125,7 +125,7 @@ msgstr ""
 #: luci-app-gecoosac/htdocs/luci-static/resources/view/gecoosac.js:242
 msgid ""
 "Native Gecoos AC service and management interface. Default web password: "
-"admin."
+"admin. — AI Edition"
 msgstr ""
 
 #: luci-app-gecoosac/htdocs/luci-static/resources/view/gecoosac.js:101

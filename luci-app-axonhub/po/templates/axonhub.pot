@@ -151,7 +151,7 @@ msgid "Maximum idle database connections"
 msgstr ""
 
 #: luci-app-axonhub/htdocs/luci-static/resources/view/axonhub.js:239
-msgid "Native AxonHub service and management interface."
+msgid "Native AxonHub service and management interface. — AI Edition"
 msgstr ""
 
 #: luci-app-axonhub/htdocs/luci-static/resources/view/axonhub.js:112

@@ -64,15 +64,9 @@ function validateCronExpression(section_id, value) {
 }
 
 function cronDescription() {
-	return E('span', [
-		_('Minutes (0-59), hours (0-23), days (1-31), months (1-12), weekdays (0-6).'),
-		E('br'),
-		E('a', {
-			'href': 'https://cron.ciding.cc/',
-			'target': '_blank',
-			'rel': 'noreferrer noopener'
-		}, 'https://cron.ciding.cc/')
-	]);
+	return _('Minutes (0-59), hours (0-23), days (1-31), months (1-12), weekdays (0-6).') +
+		'<br/>' +
+		'<a target="_blank" rel="noreferrer noopener" href="https://cron.ciding.cc/">https://cron.ciding.cc/</a>';
 }
 
 function scheduleText(section_id) {
@@ -96,7 +90,7 @@ return view.extend({
 		var view = this;
 
 		m = new form.Map('wolultra', _('WOL Ultra'),
-			_('Wake local network devices immediately or on an individual schedule.'));
+			_('Wake local network devices immediately or on an individual schedule. — AI Edition'));
 
 		s = m.section(form.GridSection, 'macclient', _('Client Settings'));
 		s.anonymous = true;
