@@ -2178,8 +2178,8 @@ msgstr ""
 #: luci-app-homeproxy/htdocs/luci-static/resources/view/homeproxy/client.js:649
 #: luci-app-homeproxy/htdocs/luci-static/resources/view/homeproxy/client.js:1128
 msgid ""
-"Sniffed protocol, see <a target=\"_blank\" href=\"https://sing-"
-"box.sagernet.org/configuration/route/sniff/\">Sniff</a> for details."
+"Sniffed protocol, see <a target=\"_blank\" href=\"https://sing-box.sagernet."
+"org/configuration/route/sniff/\">Sniff</a> for details."
 msgstr ""
 
 #: luci-app-homeproxy/htdocs/luci-static/resources/view/homeproxy/status.js:262
