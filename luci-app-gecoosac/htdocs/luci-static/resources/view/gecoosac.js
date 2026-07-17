@@ -184,7 +184,7 @@ function getStatus() {
 		status.unmanaged = processRunning && !managedRunning;
 		status.running = managedRunning || processRunning;
 
-		if (instance && instance.pid)
+		if (!status.pid && instance && instance.pid)
 			status.pid = instance.pid;
 
 		return status;

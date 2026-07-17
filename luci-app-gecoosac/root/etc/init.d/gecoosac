@@ -29,6 +29,16 @@ normalize_log_max_size() {
 	esac
 }
 
+normalize_directory() {
+	local path="$1"
+
+	while [ "$path" != "${path%/}" ]; do
+		path="${path%/}"
+	done
+	[ -n "$path" ] || path='/'
+	printf '%s\n' "$path"
+}
+
 validate_directory() {
 	case "$1" in
 		/*) ;;
@@ -36,7 +46,10 @@ validate_directory() {
 	esac
 
 	case "$1" in
-		/|*..*|*[!A-Za-z0-9_./-]*) return 1 ;;
+		/|*[!A-Za-z0-9_./-]*) return 1 ;;
+	esac
+	case "$1/" in
+		*/../*) return 1 ;;
 	esac
 
 	return 0
@@ -52,6 +65,18 @@ validate_db_directory() {
 	esac
 
 	return 0
+}
+
+migrate_legacy_database() {
+	local db_dir="$1"
+	local legacy_path="${db_dir}data.db"
+	local target_path="$db_dir/data.db"
+
+	[ -e "$legacy_path" ] || return 0
+	[ ! -e "$target_path" ] || return 0
+	[ -d "$legacy_path" ] && [ ! -L "$legacy_path" ] || return 1
+
+	mv "$legacy_path" "$target_path"
 }
 
 configure_log_cleanup() {
@@ -158,11 +183,12 @@ start_service() {
 	esac
 	[ "$port" -ge 1 ] 2>/dev/null && [ "$port" -le 65535 ] 2>/dev/null || port=60650
 
-	upload_dir="${upload_dir%/}"
-	db_dir="${db_dir%/}"
+	upload_dir="$(normalize_directory "$upload_dir")"
+	db_dir="$(normalize_directory "$db_dir")"
 	validate_directory "$upload_dir" || return 1
 	validate_db_directory "$db_dir" || return 1
 	mkdir -p "$upload_dir" "$db_dir" || return 1
+	migrate_legacy_database "$db_dir" || return 1
 
 	log_file="$db_dir/logs/gecoosac.log"
 	if [ "$log_enabled" -eq 1 ]; then
@@ -176,16 +202,16 @@ start_service() {
 	else
 		procd_set_param command "$PROG"
 	fi
-	procd_append_param command -f "$upload_dir"
+	procd_append_param command -f "$upload_dir/"
 	procd_append_param command -p "$port"
 	procd_append_param command -debug '0'
-	procd_append_param command -dbpath "$db_dir"
+	procd_append_param command -dbpath "$db_dir/"
+	procd_append_param command -piddir '/var/run/'
 	procd_append_param command -token '1'
 	procd_append_param command -lang 'zh'
 	procd_append_param command -isonlyoneprot '1'
 	procd_append_param command -showtip '0'
 	procd_set_param env GIN_MODE=release "GECOOSAC_LOG_MAX_SIZE_MB=$log_max_size"
-	procd_set_param pidfile /var/run/gecoosac.pid
 	procd_set_param stdout 0
 	procd_set_param stderr 0
 	procd_set_param respawn 3600 5 5
