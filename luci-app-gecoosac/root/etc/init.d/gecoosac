@@ -172,18 +172,26 @@ start_service() {
 
 	procd_open_instance gecoosac
 	if [ "$log_enabled" -eq 1 ]; then
-		procd_set_param command "$LOG_RUNNER" "$log_file" "$PROG"
+		procd_set_param command "$LOG_RUNNER" "$log_file" "$PROG" \
+			-f "$upload_dir" \
+			-p "$port" \
+			-debug 0 \
+			-dbpath "$db_dir" \
+			-token 1 \
+			-lang zh \
+			-isonlyoneprot 1 \
+			-showtip 0
 	else
-		procd_set_param command "$PROG"
+		procd_set_param command "$PROG" \
+			-f "$upload_dir" \
+			-p "$port" \
+			-debug 0 \
+			-dbpath "$db_dir" \
+			-token 1 \
+			-lang zh \
+			-isonlyoneprot 1 \
+			-showtip 0
 	fi
-	procd_append_param command -f "$upload_dir"
-	procd_append_param command -p "$port"
-	procd_append_param command -debug '0'
-	procd_append_param command -dbpath "$db_dir"
-	procd_append_param command -token '1'
-	procd_append_param command -lang 'zh'
-	procd_append_param command -isonlyoneprot '1'
-	procd_append_param command -showtip '0'
 	procd_set_param env GIN_MODE=release "GECOOSAC_LOG_MAX_SIZE_MB=$log_max_size"
 	procd_set_param pidfile /var/run/gecoosac.pid
 	procd_set_param stdout 0
