@@ -2,6 +2,9 @@
 
 ucode "/etc/homeproxy/scripts/migrate_config.uc" || exit 1
 
+[ -f "/www/luci-static/resources/icons/loading.gif" ] && \
+	sed -i "s,/loading.svg,/loading.gif,g" "/www/luci-static/resources/view/homeproxy/status.js"
+
 dashboard_root='/etc/homeproxy/dashboard'
 dashboard_legacy="$dashboard_root/files"
 dashboard_version="$dashboard_root/dashboard.ver"

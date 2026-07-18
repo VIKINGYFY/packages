@@ -1,0 +1,88 @@
+#!/bin/sh
+
+. /usr/share/gecoosac/runtime.sh
+
+PORT_HELPER=/usr/libexec/gecoosac-random-port
+
+migrate_legacy_database() {
+	local db_dir="$1"
+	local legacy_path="${db_dir}data.db"
+	local target_path="$db_dir/data.db"
+
+	[ -e "$legacy_path" ] || return 0
+	[ ! -e "$target_path" ] || return 0
+	[ -d "$legacy_path" ] && [ ! -L "$legacy_path" ] || return 1
+	mkdir -p "$db_dir" || return 1
+	mv "$legacy_path" "$target_path"
+}
+
+config_version="$(uci -q get gecoosac.config.config_version)"
+port="$(uci -q get gecoosac.config.port)"
+log_enabled="$(uci -q get gecoosac.config.log)"
+log_max_size="$(uci -q get gecoosac.config.log_max_size)"
+cleanup_schedule="$(uci -q get gecoosac.config.log_cleanup_schedule)"
+db_dir="$(uci -q get gecoosac.config.db_dir)"
+changed=0
+
+if [ -z "$config_version" ] && [ "$port" = '60650' ]; then
+	port="$("$PORT_HELPER")" || exit 1
+	[ -n "$port" ] || exit 1
+	uci -q set gecoosac.config.port="$port"
+	changed=1
+fi
+
+if [ -z "$log_enabled" ]; then
+	log_enabled='0'
+	uci -q set gecoosac.config.log="$log_enabled"
+	changed=1
+fi
+
+case "$log_max_size" in
+	10|20|30|40|50) ;;
+	*)
+		uci -q set gecoosac.config.log_max_size='20'
+		changed=1
+		;;
+esac
+
+if [ "$config_version" = '1' ]; then
+	if [ "$log_enabled" = '1' ]; then
+		log_enabled='0'
+		uci -q set gecoosac.config.log="$log_enabled"
+		changed=1
+	fi
+	if [ "$cleanup_schedule" = 'weekly' ]; then
+		cleanup_schedule='daily'
+		uci -q set gecoosac.config.log_cleanup_schedule="$cleanup_schedule"
+		changed=1
+	fi
+fi
+
+case "$cleanup_schedule" in
+	disabled|daily|weekly|monthly) ;;
+	*)
+		uci -q set gecoosac.config.log_cleanup_schedule='daily'
+		changed=1
+		;;
+esac
+
+for option in isonlyoneprot m_port https crt_file key_file lang passwd debug token showtip; do
+	if uci -q get gecoosac.config."$option" >/dev/null; then
+		uci -q delete gecoosac.config."$option"
+		changed=1
+	fi
+done
+
+if [ "$config_version" != '2' ]; then
+	uci -q set gecoosac.config.config_version='2'
+	changed=1
+fi
+
+[ "$changed" -eq 0 ] || uci -q commit gecoosac
+
+[ -n "$db_dir" ] || db_dir='/etc/gecoosac/'
+db_dir="$(normalize_directory "$db_dir")"
+validate_db_directory "$db_dir" || exit 1
+migrate_legacy_database "$db_dir" || exit 1
+
+exit 0

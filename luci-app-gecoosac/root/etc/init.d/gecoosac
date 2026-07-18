@@ -2,6 +2,7 @@
 
 . /lib/functions.sh
 . /lib/functions/procd.sh
+. /usr/share/gecoosac/runtime.sh
 
 USE_PROCD=1
 START=90
@@ -27,56 +28,6 @@ normalize_log_max_size() {
 		10|20|30|40|50) printf '%s\n' "$1" ;;
 		*) printf '%s\n' '20' ;;
 	esac
-}
-
-normalize_directory() {
-	local path="$1"
-
-	while [ "$path" != "${path%/}" ]; do
-		path="${path%/}"
-	done
-	[ -n "$path" ] || path='/'
-	printf '%s\n' "$path"
-}
-
-validate_directory() {
-	case "$1" in
-		/*) ;;
-		*) return 1 ;;
-	esac
-
-	case "$1" in
-		/|*[!A-Za-z0-9_./-]*) return 1 ;;
-	esac
-	case "$1/" in
-		*/../*) return 1 ;;
-	esac
-
-	return 0
-}
-
-validate_db_directory() {
-	validate_directory "$1" || return 1
-
-	case "$1" in
-		/tmp|/tmp/*|/var|/var/*|/rom|/rom/*|/proc|/proc/*|/sys|/sys/*|/dev|/dev/*)
-			return 1
-			;;
-	esac
-
-	return 0
-}
-
-migrate_legacy_database() {
-	local db_dir="$1"
-	local legacy_path="${db_dir}data.db"
-	local target_path="$db_dir/data.db"
-
-	[ -e "$legacy_path" ] || return 0
-	[ ! -e "$target_path" ] || return 0
-	[ -d "$legacy_path" ] && [ ! -L "$legacy_path" ] || return 1
-
-	mv "$legacy_path" "$target_path"
 }
 
 configure_log_cleanup() {
@@ -188,7 +139,6 @@ start_service() {
 	validate_directory "$upload_dir" || return 1
 	validate_db_directory "$db_dir" || return 1
 	mkdir -p "$upload_dir" "$db_dir" || return 1
-	migrate_legacy_database "$db_dir" || return 1
 
 	log_file="$db_dir/logs/gecoosac.log"
 	if [ "$log_enabled" -eq 1 ]; then

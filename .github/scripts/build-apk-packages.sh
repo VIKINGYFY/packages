@@ -30,10 +30,15 @@ for package in "${DISCOVERED_PACKAGES[@]}"; do
 done
 
 SELECTED_PACKAGES=("$@")
+BUILD_ZH_HANS=false
 for package in "${SELECTED_PACKAGES[@]}"; do
 	if [[ -z "${DISCOVERED[$package]:-}" ]]; then
 		printf 'Package directory was not discovered: %s\n' "$package" >&2
 		exit 1
+	fi
+	name="$(ci_package_name "$package")"
+	if [[ "$name" == luci-app-* ]] && [[ -d "$REPO_ROOT/$package/po/zh_Hans" ]]; then
+		BUILD_ZH_HANS=true
 	fi
 done
 
@@ -75,13 +80,13 @@ done
 		'CONFIG_TARGET_MULTI_PROFILE=y' \
 		'CONFIG_DEVEL=y' \
 		'CONFIG_BUILD_LOG=y'
+	if [[ "$BUILD_ZH_HANS" == true ]]; then
+		printf '%s\n' 'CONFIG_LUCI_LANG_zh_Hans=m'
+	fi
 
 	for package in "${SELECTED_PACKAGES[@]}"; do
 		name="$(package_name "$package")"
 		printf 'CONFIG_PACKAGE_%s=m\n' "$name"
-		if [[ "$name" == luci-app-* ]] && [[ -d "$REPO_ROOT/$package/po" ]]; then
-			printf 'CONFIG_PACKAGE_luci-i18n-%s-zh-cn=m\n' "${name#luci-app-}"
-		fi
 	done
 } > "$SDK_ROOT/.config"
 
@@ -131,7 +136,7 @@ copy_apk() {
 for package in "${SELECTED_PACKAGES[@]}"; do
 	name="$(package_name "$package")"
 	copy_apk "$name"
-	if [[ "$name" == luci-app-* ]] && [[ -d "$REPO_ROOT/$package/po" ]]; then
+	if [[ "$name" == luci-app-* ]] && [[ -d "$REPO_ROOT/$package/po/zh_Hans" ]]; then
 		copy_apk "luci-i18n-${name#luci-app-}-zh-cn"
 	fi
 done

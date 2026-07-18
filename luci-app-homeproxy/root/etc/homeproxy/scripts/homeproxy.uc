@@ -85,6 +85,90 @@ export function isEmpty(res) {
 	return !res || res === 'nil' || (type(res) in ['array', 'object'] && length(res) === 0);
 };
 
+export function normalizeList(value) {
+	if (isEmpty(value))
+		return [];
+	return (type(value) === 'array') ? value : [value];
+};
+
+export function filterExistingNodes(uci, config, value, onRemove) {
+	let nodes = normalizeList(value);
+	let result = [], seen = {};
+
+	for (let node in nodes) {
+		if (isEmpty(node) || seen[node])
+			continue;
+		seen[node] = true;
+
+		if (uci.get(config, node) !== 'node') {
+			if (type(onRemove) === 'function')
+				onRemove(node);
+			continue;
+		}
+
+		push(result, node);
+	}
+
+	return result;
+};
+
+export function reconcileUrltestNodes(uci, config, logger) {
+	let changed = false, removed = 0, disabled = 0;
+
+	function log(message) {
+		if (type(logger) === 'function')
+			logger(message);
+	}
+
+	function reconcileList(section, option) {
+		const current = uci.get(config, section, option);
+		const normalized = normalizeList(current);
+		const available = filterExistingNodes(uci, config, normalized, (node) => {
+			removed++;
+			log(sprintf('URLTest node %s is unavailable; removing it from %s.%s.', node, section, option));
+		});
+
+		if (sprintf('%J', normalized) !== sprintf('%J', available)) {
+			if (length(available))
+				uci.set(config, section, option, available);
+			else
+				uci.delete(config, section, option);
+			changed = true;
+		}
+
+		return available;
+	}
+
+	const mainNodes = reconcileList('config', 'main_urltest_nodes');
+	if (uci.get(config, 'config', 'main_node') === 'urltest' && !length(mainNodes)) {
+		const fallback = uci.get_first(config, 'node') || 'nil';
+		uci.set(config, 'config', 'main_node', fallback);
+		changed = true;
+		log((fallback === 'nil') ?
+			'Main URLTest group is empty; disabling the client.' :
+			sprintf('Main URLTest group is empty; switching to node %s.', fallback));
+	}
+
+	uci.foreach(config, 'routing_node', (section) => {
+		if (section.node !== 'urltest')
+			return;
+
+		const nodes = reconcileList(section['.name'], 'urltest_nodes');
+		if (section.enabled === '1' && !length(nodes)) {
+			uci.set(config, section['.name'], 'enabled', '0');
+			changed = true;
+			disabled++;
+			log(sprintf('Routing URLTest group %s is empty; disabling it.', section['.name']));
+		}
+	});
+
+	return {
+		changed,
+		removed,
+		disabled
+	};
+};
+
 export function hasForceProxyRules(uci, config, proxyDomainList) {
 	if (!isEmpty(proxyDomainList))
 		return true;

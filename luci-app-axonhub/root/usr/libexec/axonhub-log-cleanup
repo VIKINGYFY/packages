@@ -1,6 +1,7 @@
 #!/bin/sh
 
 . /lib/functions.sh
+. /usr/share/axonhub/runtime.sh
 
 STORAGE_HELPER=/usr/libexec/axonhub-find-storage
 
@@ -18,22 +19,12 @@ case "$cleanup_schedule" in
 esac
 
 if [ "$data_dir" = 'auto' ]; then
-	data_dir="$($STORAGE_HELPER)"
+	data_dir="$($STORAGE_HELPER)" || exit 1
 fi
-data_dir="${data_dir%/}"
+data_dir="$(normalize_directory "$data_dir")"
 
-case "$data_dir" in
-	/|/tmp|/tmp/*|/var|/var/*|/rom|/rom/*|/proc|/proc/*|/sys|/sys/*|/dev|/dev/*)
-		exit 1
-		;;
-	/*) ;;
-	*) exit 1 ;;
-esac
-case "$data_dir" in
-	*..*|*[!A-Za-z0-9_./-]*) exit 1 ;;
-esac
+validate_data_dir "$data_dir" || exit 1
 
-for log_file in "$data_dir/axonhub.log" "$data_dir/logs/axonhub.log"; do
-	[ ! -f "$log_file" ] || : > "$log_file"
-	rm -f "$log_file".*
-done
+log_file="$data_dir/axonhub.log"
+[ ! -f "$log_file" ] || : > "$log_file"
+rm -f "$log_file".*

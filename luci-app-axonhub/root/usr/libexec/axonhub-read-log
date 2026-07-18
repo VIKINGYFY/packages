@@ -1,6 +1,7 @@
 #!/bin/sh
 
 . /lib/functions.sh
+. /usr/share/axonhub/runtime.sh
 
 STORAGE_HELPER=/usr/libexec/axonhub-find-storage
 
@@ -14,21 +15,10 @@ if [ "$log_to_syslog" -eq 1 ]; then
 fi
 
 if [ "$data_dir" = 'auto' ]; then
-	data_dir="$($STORAGE_HELPER)"
+	data_dir="$($STORAGE_HELPER)" || exit 1
 fi
-data_dir="${data_dir%/}"
-
-case "$data_dir" in
-	/*) ;;
-	*) exit 1 ;;
-esac
-case "$data_dir" in
-	*..*|*[!A-Za-z0-9_./-]*) exit 1 ;;
-esac
+data_dir="$(normalize_directory "$data_dir")"
+validate_directory "$data_dir" || exit 1
 
 log_file="$data_dir/axonhub.log"
-if [ ! -f "$log_file" ] && [ -f "$data_dir/logs/axonhub.log" ]; then
-	log_file="$data_dir/logs/axonhub.log"
-fi
-
 tail -n 100 "$log_file" 2>/dev/null

@@ -1,62 +1,14 @@
 #!/bin/sh
 
+PORT_HELPER=/usr/libexec/gecoosac-random-port
+
 port="$(uci -q get gecoosac.config.port)"
-config_version="$(uci -q get gecoosac.config.config_version)"
-log_enabled="$(uci -q get gecoosac.config.log)"
-log_max_size="$(uci -q get gecoosac.config.log_max_size)"
-cleanup_schedule="$(uci -q get gecoosac.config.log_cleanup_schedule)"
 changed=0
 
-if [ -z "$port" ] || [ "$port" = 'auto' ] || { [ -z "$config_version" ] && [ "$port" = '60650' ]; }; then
-	port="$(/usr/libexec/gecoosac-random-port)"
+if [ -z "$port" ] || [ "$port" = 'auto' ]; then
+	port="$("$PORT_HELPER")" || exit 1
+	[ -n "$port" ] || exit 1
 	uci -q set gecoosac.config.port="$port"
-	changed=1
-fi
-
-if [ -z "$log_enabled" ]; then
-	log_enabled='0'
-	uci -q set gecoosac.config.log="$log_enabled"
-	changed=1
-fi
-
-case "$log_max_size" in
-	10|20|30|40|50) ;;
-	*)
-		uci -q set gecoosac.config.log_max_size='20'
-		changed=1
-		;;
-esac
-
-if [ "$config_version" = '1' ]; then
-	if [ "$log_enabled" = '1' ]; then
-		log_enabled='0'
-		uci -q set gecoosac.config.log="$log_enabled"
-		changed=1
-	fi
-	if [ "$cleanup_schedule" = 'weekly' ]; then
-		cleanup_schedule='daily'
-		uci -q set gecoosac.config.log_cleanup_schedule="$cleanup_schedule"
-		changed=1
-	fi
-fi
-
-case "$cleanup_schedule" in
-	disabled|daily|weekly|monthly) ;;
-	*)
-		uci -q set gecoosac.config.log_cleanup_schedule='daily'
-		changed=1
-		;;
-esac
-
-for option in isonlyoneprot m_port https crt_file key_file lang passwd debug token showtip; do
-	if uci -q get gecoosac.config."$option" >/dev/null; then
-		uci -q delete gecoosac.config."$option"
-		changed=1
-	fi
-done
-
-if [ "$config_version" != '2' ]; then
-	uci -q set gecoosac.config.config_version='2'
 	changed=1
 fi
 

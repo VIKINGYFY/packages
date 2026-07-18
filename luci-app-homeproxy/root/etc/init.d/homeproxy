@@ -79,6 +79,10 @@ start_service() {
 		log "Error: failed to initialize runtime ports."
 		return 1
 	fi
+	if ! ucode -S "$HP_DIR/scripts/cleanup_urltest.uc" >>"$LOG_PATH" 2>&1; then
+		log "Error: failed to clean unavailable URLTest nodes."
+		return 1
+	fi
 	config_load "$CONF"
 
 	local routing_mode proxy_mode

@@ -1,24 +1,12 @@
 #!/bin/sh
 
 . /lib/functions.sh
+. /usr/share/gecoosac/runtime.sh
 
 config_load gecoosac
 config_get db_dir config db_dir '/etc/gecoosac/'
 
-while [ "$db_dir" != "${db_dir%/}" ]; do
-	db_dir="${db_dir%/}"
-done
-[ -n "$db_dir" ] || db_dir='/'
-
-case "$db_dir" in
-	/*) ;;
-	*) exit 1 ;;
-esac
-case "$db_dir" in
-	/|*[!A-Za-z0-9_./-]*) exit 1 ;;
-esac
-case "$db_dir/" in
-	*/../*) exit 1 ;;
-esac
+db_dir="$(normalize_directory "$db_dir")"
+validate_directory "$db_dir" || exit 1
 
 tail -n 100 "$db_dir/logs/gecoosac.log" 2>/dev/null

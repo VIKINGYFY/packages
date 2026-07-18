@@ -17,7 +17,7 @@ import { init_action } from 'luci.sys';
 
 import {
 	wGET, decodeBase64Str, getTime, isEmpty, parseURL,
-	shellQuote, validation, HP_DIR, RUN_DIR
+	reconcileUrltestNodes, shellQuote, validation, HP_DIR, RUN_DIR
 } from 'homeproxy';
 
 /* UCI config start */
@@ -43,7 +43,6 @@ const mixed_port = int(uci.get(uciconfig, uciinfra, 'mixed_port')) || 5330;
 const update_proxy = (via_proxy === '1') ? `http://127.0.0.1:${mixed_port}` : null;
 const service_running = system('/etc/init.d/homeproxy running >/dev/null 2>&1') === 0;
 
-const main_node = uci.get(uciconfig, ucimain, 'main_node') || 'nil';
 /* UCI config end */
 
 /* Common var start */
@@ -1183,35 +1182,17 @@ function main() {
 			}
 		});
 
-	if (!isEmpty(main_node)) {
+	reconcileUrltestNodes(uci, uciconfig, (message) => log(message));
+
+	const current_main_node = uci.get(uciconfig, ucimain, 'main_node') || 'nil';
+	if (current_main_node !== 'nil' && current_main_node !== 'urltest' &&
+	    uci.get(uciconfig, current_main_node) !== ucinode) {
 		const first_server = uci.get_first(uciconfig, ucinode);
-		if (first_server) {
-			let main_urltest_nodes;
-			if (main_node === 'urltest') {
-				main_urltest_nodes = filter(normalize_list(uci.get(uciconfig, ucimain, 'main_urltest_nodes')) || [], (v) => {
-					if (!uci.get(uciconfig, v)) {
-						log(sprintf('Node %s is gone, removing from urltest list.', v));
-						return false;
-					}
-					return true;
-				});
-				if (length(main_urltest_nodes))
-					uci.set(uciconfig, ucimain, 'main_urltest_nodes', main_urltest_nodes);
-			}
-
-			if ((main_node === 'urltest') ? !length(main_urltest_nodes) : !uci.get(uciconfig, main_node)) {
-				uci.set(uciconfig, ucimain, 'main_node', first_server);
-				uci.delete(uciconfig, ucimain, 'main_urltest_nodes');
-
-				log('Main node is gone, switching to the first node.');
-			}
-
-		} else {
-			uci.set(uciconfig, ucimain, 'main_node', 'nil');
-			uci.delete(uciconfig, ucimain, 'main_urltest_nodes');
-
+		uci.set(uciconfig, ucimain, 'main_node', first_server || 'nil');
+		if (first_server)
+			log('Main node is gone, switching to the first node.');
+		else
 			log('No available node, disabling the client.');
-		}
 	}
 	const config_changed = !isEmpty(uci.changes(uciconfig));
 	if (config_changed && uci.commit(uciconfig) !== true)

@@ -3,15 +3,9 @@
 {%-
 import { readfile } from 'fs';
 import { cursor } from 'uci';
-import { isEmpty } from '/etc/homeproxy/scripts/homeproxy.uc';
+import { isEmpty, normalizeList } from '/etc/homeproxy/scripts/homeproxy.uc';
 
 const fw4 = require('fw4');
-
-function normalize_list(value) {
-	if (isEmpty(value))
-		return [];
-	return (type(value) === 'array') ? value : [value];
-}
 
 function array_to_nftarr(array) {
 	return `{ ${join(', ', uniq(array))} }`;
@@ -48,7 +42,7 @@ uci.load(cfgname);
 const routing_mode = uci.get(cfgname, 'config', 'routing_mode') || 'bypass_mainland_china',
       mainland_mode = routing_mode === 'bypass_mainland_china',
       ipv6_support = uci.get(cfgname, 'config', 'ipv6_support') || '0',
-      listen_interfaces = normalize_list(uci.get(cfgname, 'control', 'listen_interfaces')),
+      listen_interfaces = normalizeList(uci.get(cfgname, 'control', 'listen_interfaces')),
       self_mark = uci.get(cfgname, 'infra', 'self_mark') || '100',
       tproxy_port = uci.get(cfgname, 'infra', 'tproxy_port') || '5332',
       tproxy_mark = resolve_mark(uci.get(cfgname, 'infra', 'tproxy_mark') || '101');
@@ -66,14 +60,14 @@ if (routing_port === 'common')
 	routing_port = uci.get(cfgname, 'infra', 'common_port');
 const routing_ports = isEmpty(routing_port) ? [] : split(routing_port, ',');
 
-const lan_direct_ipv4 = normalize_list(uci.get(cfgname, 'control', 'lan_direct_ipv4_ips')),
-      lan_direct_mac = normalize_list(uci.get(cfgname, 'control', 'lan_direct_mac_addrs')),
-      lan_proxy_ipv4 = mainland_mode ? normalize_list(uci.get(cfgname, 'control', 'lan_proxy_ipv4_ips')) : [],
-      lan_proxy_mac = mainland_mode ? normalize_list(uci.get(cfgname, 'control', 'lan_proxy_mac_addrs')) : [],
-      wan_proxy_ipv4 = mainland_mode ? normalize_list(uci.get(cfgname, 'control', 'wan_proxy_ipv4_ips')) : [],
-      wan_proxy_ipv6 = mainland_mode ? normalize_list(uci.get(cfgname, 'control', 'wan_proxy_ipv6_ips')) : [],
-      wan_direct_ipv4 = normalize_list(uci.get(cfgname, 'control', 'wan_direct_ipv4_ips')),
-      wan_direct_ipv6 = normalize_list(uci.get(cfgname, 'control', 'wan_direct_ipv6_ips'));
+const lan_direct_ipv4 = normalizeList(uci.get(cfgname, 'control', 'lan_direct_ipv4_ips')),
+      lan_direct_mac = normalizeList(uci.get(cfgname, 'control', 'lan_direct_mac_addrs')),
+      lan_proxy_ipv4 = mainland_mode ? normalizeList(uci.get(cfgname, 'control', 'lan_proxy_ipv4_ips')) : [],
+      lan_proxy_mac = mainland_mode ? normalizeList(uci.get(cfgname, 'control', 'lan_proxy_mac_addrs')) : [],
+      wan_proxy_ipv4 = mainland_mode ? normalizeList(uci.get(cfgname, 'control', 'wan_proxy_ipv4_ips')) : [],
+      wan_proxy_ipv6 = mainland_mode ? normalizeList(uci.get(cfgname, 'control', 'wan_proxy_ipv6_ips')) : [],
+      wan_direct_ipv4 = normalizeList(uci.get(cfgname, 'control', 'wan_direct_ipv4_ips')),
+      wan_direct_ipv6 = normalizeList(uci.get(cfgname, 'control', 'wan_direct_ipv6_ips'));
 
 const dns_redirect = uci.get(cfgname, 'infra', 'dns_redirect') || '1',
       dns_hijacked = uci.get('dhcp', '@dnsmasq[0]', 'dns_redirect') || '0',

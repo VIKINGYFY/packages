@@ -8,7 +8,7 @@
 'use strict';
 
 import { cursor } from 'uci';
-import { isEmpty } from 'homeproxy';
+import { isEmpty, normalizeList } from 'homeproxy';
 
 const uci = cursor();
 const uciconfig = 'homeproxy';
@@ -22,12 +22,6 @@ const stockWanProxyIPv6 = [
 	'2001:67c:4e8::/48', '2001:b28:f23c::/47',
 	'2001:b28:f23f::/48', '2a0a:f280::/32'
 ];
-
-function normalizeList(value) {
-	if (isEmpty(value))
-		return [];
-	return (type(value) === 'array') ? value : [value];
-}
 
 function onlyContains(left, right) {
 	const values = normalizeList(left);

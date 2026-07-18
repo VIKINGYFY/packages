@@ -1,0 +1,102 @@
+#!/bin/sh
+
+. /usr/share/axonhub/runtime.sh
+
+PORT_HELPER=/usr/libexec/axonhub-random-port
+
+migrate_log_files() {
+	local data_dir="$1"
+	local legacy_dir="$data_dir/logs"
+	local legacy_file suffix target_file
+
+	[ -d "$legacy_dir" ] || return 0
+
+	for legacy_file in "$legacy_dir"/axonhub.log*; do
+		[ -f "$legacy_file" ] || continue
+		suffix="${legacy_file#"$legacy_dir/axonhub.log"}"
+		target_file="$data_dir/axonhub.log$suffix"
+		if [ -e "$target_file" ]; then
+			target_file="$target_file.legacy"
+			[ ! -e "$target_file" ] || return 1
+		fi
+		mv "$legacy_file" "$target_file" || return 1
+	done
+
+	rmdir "$legacy_dir" 2>/dev/null || true
+}
+
+config_version="$(uci -q get axonhub.main.config_version)"
+port="$(uci -q get axonhub.main.port)"
+log_to_syslog="$(uci -q get axonhub.main.log_to_syslog)"
+log_cleanup_days="$(uci -q get axonhub.main.log_cleanup_days)"
+log_cleanup_schedule="$(uci -q get axonhub.main.log_cleanup_schedule)"
+data_dir="$(uci -q get axonhub.main.data_dir)"
+changed=0
+
+if [ -z "$config_version" ] && [ "$port" = '8090' ]; then
+	port="$("$PORT_HELPER")" || exit 1
+	[ -n "$port" ] || exit 1
+	uci -q set axonhub.main.port="$port"
+	changed=1
+fi
+
+if [ -z "$config_version" ] && { [ -z "$log_to_syslog" ] || [ "$log_to_syslog" = '1' ]; }; then
+	uci -q set axonhub.main.log_to_syslog='0'
+	changed=1
+fi
+
+if [ -z "$log_cleanup_schedule" ]; then
+	case "$log_cleanup_days" in
+		0) log_cleanup_schedule='disabled' ;;
+		''|*[!0-9]*) log_cleanup_schedule='daily' ;;
+		*)
+			if [ "$log_cleanup_days" -le 3 ]; then
+				log_cleanup_schedule='daily'
+			elif [ "$log_cleanup_days" -le 21 ]; then
+				log_cleanup_schedule='weekly'
+			else
+				log_cleanup_schedule='monthly'
+			fi
+			;;
+	esac
+	uci -q set axonhub.main.log_cleanup_schedule="$log_cleanup_schedule"
+	changed=1
+fi
+
+if [ "$config_version" = '4' ] && [ "$log_cleanup_schedule" = 'weekly' ]; then
+	log_cleanup_schedule='daily'
+	uci -q set axonhub.main.log_cleanup_schedule="$log_cleanup_schedule"
+	changed=1
+fi
+
+case "$log_cleanup_schedule" in
+	disabled|daily|weekly|monthly) ;;
+	*)
+		uci -q set axonhub.main.log_cleanup_schedule='daily'
+		changed=1
+		;;
+esac
+
+if [ -n "$log_cleanup_days" ]; then
+	uci -q delete axonhub.main.log_cleanup_days
+	changed=1
+fi
+
+if uci -q get axonhub.main.listen_addr >/dev/null; then
+	uci -q delete axonhub.main.listen_addr
+	changed=1
+fi
+
+if [ "$config_version" != '5' ]; then
+	uci -q set axonhub.main.config_version='5'
+	changed=1
+fi
+
+[ "$changed" -eq 0 ] || uci -q commit axonhub
+
+data_dir="$(normalize_directory "$data_dir")"
+validate_data_dir "$data_dir" || exit 1
+external_mount_ready "$data_dir" || exit 1
+migrate_log_files "$data_dir" || exit 1
+
+exit 0

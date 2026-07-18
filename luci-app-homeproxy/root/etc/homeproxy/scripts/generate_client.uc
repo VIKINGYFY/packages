@@ -13,7 +13,8 @@ import { connect } from 'ubus';
 import { cursor } from 'uci';
 
 import {
-	hasForceProxyRules, isEmpty, parseURL, strToBool, strToInt, strToTime,
+	filterExistingNodes, hasForceProxyRules, isEmpty, normalizeList, parseURL,
+	strToBool, strToInt, strToTime,
 	removeBlankAttrs, renderEndpoint, renderOutbound, validation, HP_DIR, RUN_DIR
 } from 'homeproxy';
 
@@ -41,14 +42,6 @@ const ucinode = 'node';
 const uciruleset = 'ruleset';
 
 const routing_mode = uci.get(uciconfig, ucimain, 'routing_mode') || 'bypass_mainland_china';
-
-function normalize_list(value) {
-	if (isEmpty(value))
-		return [];
-	if (type(value) === 'array')
-		return value;
-	return [value];
-}
 
 function render_domain_rules(domains) {
 	let suffixes = [], keywords = [];
@@ -127,7 +120,7 @@ if (routing_mode !== 'custom') {
 
 const proxy_mode = uci.get(uciconfig, ucimain, 'proxy_mode') || 'tun',
       default_interface = uci.get(uciconfig, ucicontrol, 'bind_interface'),
-      listen_interfaces = normalize_list(uci.get(uciconfig, ucicontrol, 'listen_interfaces'));
+      listen_interfaces = normalizeList(uci.get(uciconfig, ucicontrol, 'listen_interfaces'));
 
 const mixed_port = uci.get(uciconfig, uciinfra, 'mixed_port') || '5330';
 const clash_api_port = strToInt(uci.get(uciconfig, uciinfra, 'clash_api_port'));
@@ -184,7 +177,7 @@ function merge_control_options(options) {
 	for (let option in options) {
 		if (!option)
 			continue;
-		values = [...values, ...normalize_list(uci.get(uciconfig, ucicontrol, option))];
+		values = [...values, ...normalizeList(uci.get(uciconfig, ucicontrol, option))];
 	}
 	return values;
 }
@@ -387,16 +380,6 @@ function render_dns_rule_match(cfg) {
 		process_path_regex: cfg.process_path_regex,
 		user: cfg.user
 	};
-}
-
-function filter_existing_nodes(nodes) {
-	if (type(nodes) !== 'array' || isEmpty(nodes))
-		return [];
-
-	return filter(nodes, (k) => {
-		const node = uci.get_all(uciconfig, k) || {};
-		return !isEmpty(node);
-	});
 }
 
 function generate_outbound(node) {
@@ -714,9 +697,11 @@ if (!isEmpty(main_node)) {
 	let urltest_nodes = [];
 
 	if (main_node === 'urltest') {
-		const main_urltest_nodes = filter_existing_nodes(
-			normalize_list(uci.get(uciconfig, ucimain, 'main_urltest_nodes'))
+		const main_urltest_nodes = filterExistingNodes(
+			uci, uciconfig, uci.get(uciconfig, ucimain, 'main_urltest_nodes')
 		);
+		if (!length(main_urltest_nodes))
+			die('Main URLTest group has no available nodes.');
 		const main_urltest_interval = uci.get(uciconfig, ucimain, 'main_urltest_interval');
 		const main_urltest_tolerance = uci.get(uciconfig, ucimain, 'main_urltest_tolerance');
 		const main_urltest_interrupt = uci.get(uciconfig, ucimain, 'main_urltest_interrupt_exist_connections') || '1';
@@ -776,7 +761,9 @@ if (!isEmpty(main_node)) {
 			return;
 
 		if (cfg.node === 'urltest') {
-			const urltest_list = filter_existing_nodes(normalize_list(cfg.urltest_nodes));
+			const urltest_list = filterExistingNodes(uci, uciconfig, cfg.urltest_nodes);
+			if (!length(urltest_list))
+				die(sprintf('Routing URLTest group %s has no available nodes.', cfg['.name']));
 			push(config.outbounds, {
 				type: 'urltest',
 				tag: 'cfg-' + cfg['.name'] + '-out',

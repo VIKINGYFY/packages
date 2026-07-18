@@ -5,9 +5,6 @@ if ! /usr/libexec/homeproxy-runtime-init; then
 	exit 1
 fi
 
-[ -f "/www/luci-static/resources/icons/loading.gif" ] && \
-	sed -i "s,/loading.svg,/loading.gif,g" "/www/luci-static/resources/view/homeproxy/status.js"
-
 if ! uci -q batch <<-EOF >"/dev/null"
 	delete firewall.homeproxy_pre
 
