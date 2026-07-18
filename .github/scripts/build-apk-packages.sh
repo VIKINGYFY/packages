@@ -93,6 +93,15 @@ done
 make -C "$SDK_ROOT" defconfig
 
 for package in "${SELECTED_PACKAGES[@]}"; do
+	name="$(package_name "$package")"
+	while IFS= read -r -d '' cached_source; do
+		printf '删除待更新软件包的旧源码缓存：%s\n' "${cached_source##*/}"
+		unlink "$cached_source"
+	done < <(
+		find "$SDK_ROOT/dl" -maxdepth 1 -type f \
+			\( -name "$name-*" -o -name "$name.*" \) -print0
+	)
+
 	make -C "$SDK_ROOT" "package/$package/clean"
 	make -C "$SDK_ROOT" -j"$(nproc)" "package/$package/compile" ||
 		make -C "$SDK_ROOT" -j1 "package/$package/compile" V=s

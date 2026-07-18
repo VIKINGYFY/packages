@@ -139,12 +139,17 @@ jobs:
           [[ -n "$sdk_root" ]]
           echo "SDK_ROOT=$sdk_root" >> "$GITHUB_ENV"
 
+      - name: 确定滚动下载缓存版本
+        id: cache
+        run: echo "date=$(TZ=Asia/Shanghai date +%Y%m%d)" >> "$GITHUB_OUTPUT"
+
       - name: 缓存软件包下载
         uses: actions/cache@v4
         with:
           path: ~/.cache/immortalwrt-dl/${{ matrix.platform }}
-          key: immortalwrt-dl-${{ matrix.platform }}-${{ hashFiles('**/Makefile') }}
+          key: immortalwrt-dl-${{ matrix.platform }}-${{ steps.cache.outputs.date }}-${{ hashFiles('**/Makefile') }}
           restore-keys: |
+            immortalwrt-dl-${{ matrix.platform }}-${{ steps.cache.outputs.date }}-
             immortalwrt-dl-${{ matrix.platform }}-
 
       - name: 准备软件包源
