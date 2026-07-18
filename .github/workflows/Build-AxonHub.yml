@@ -1,4 +1,4 @@
-name: 每日检查并发布 AxonHub 核心
+name: 每日检查并更新 axonhub 核心
 
 on:
   workflow_dispatch:
@@ -7,6 +7,7 @@ on:
     - cron: '15 16 * * *'
 
 permissions:
+  actions: write
   contents: write
 
 concurrency:
@@ -15,12 +16,12 @@ concurrency:
 
 jobs:
   release:
-    name: 检查并发布 AxonHub 核心
+    name: 检查并更新 axonhub 核心
     runs-on: ubuntu-24.04
     env:
       GH_TOKEN: ${{ github.token }}
     steps:
-      - name: 检出插件仓库
+      - name: 检出软件包仓库
         uses: actions/checkout@v4
         with:
           fetch-depth: 0
@@ -33,7 +34,7 @@ jobs:
           source .github/scripts/ci-common.sh
           ci_sync_branch "$PACKAGE_BRANCH"
 
-      - name: 检查 AxonHub 上游提交
+      - name: 检查 axonhub 上游提交
         id: version
         run: |
           upstream_branch='unstable'
@@ -58,8 +59,8 @@ jobs:
              gh release view "$release_tag" \
                --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
             changed=false
-            echo "AxonHub 上游无更新：$upstream_commit"
-            echo '### AxonHub 上游无更新，本次任务结束。' >> "$GITHUB_STEP_SUMMARY"
+            echo "axonhub 上游无更新：$upstream_commit"
+            echo '### axonhub 上游无更新，本次任务结束。' >> "$GITHUB_STEP_SUMMARY"
           fi
 
           {
@@ -71,14 +72,28 @@ jobs:
             echo "upstream_commit=$upstream_commit"
           } >> "$GITHUB_OUTPUT"
 
-      - name: 检出 AxonHub 源码
-        if: steps.version.outputs.changed == 'true'
+      - name: 检出 axonhub 源码
         uses: actions/checkout@v4
         with:
           repository: looplj/axonhub
           ref: ${{ steps.version.outputs.upstream_commit }}
           fetch-depth: 20
           path: upstream
+
+      - name: 生成 axonhub 发布说明
+        env:
+          BUILD_VERSION: ${{ steps.version.outputs.version }}
+          UPSTREAM_BRANCH: ${{ steps.version.outputs.upstream_branch }}
+        run: |
+          notes_file="$RUNNER_TEMP/axonhub-release-notes.md"
+          {
+            echo "版本：$BUILD_VERSION"
+            echo "上游分支：$UPSTREAM_BRANCH"
+            echo '支持架构：AMD64, ARM64, LoongArch64'
+            echo
+            echo '最近三次提交'
+            git -C upstream log -3 --format='%h %s'
+          } > "$notes_file"
 
       - name: 配置 pnpm
         if: steps.version.outputs.changed == 'true'
@@ -138,13 +153,10 @@ jobs:
           "$output_dir/axonhub_linux_amd64" version | grep -F "$BUILD_VERSION"
           test "$(find "$output_dir" -maxdepth 1 -type f -name 'axonhub_linux_*' | wc -l)" -eq 3
 
-      - name: 发布 AxonHub 核心
+      - name: 发布 axonhub 核心
         if: steps.version.outputs.changed == 'true'
         env:
           RELEASE_TAG: ${{ steps.version.outputs.release_tag }}
-          BUILD_VERSION: ${{ steps.version.outputs.version }}
-          UPSTREAM_BRANCH: ${{ steps.version.outputs.upstream_branch }}
-          UPSTREAM_COMMIT: ${{ steps.version.outputs.upstream_commit }}
         run: |
           notes_file="$RUNNER_TEMP/axonhub-release-notes.md"
           assets=(
@@ -153,38 +165,35 @@ jobs:
             release/axonhub_linux_loong64
           )
 
-          {
-            echo '# AxonHub 核心最新版'
-            echo
-            echo "版本：$BUILD_VERSION"
-            echo "上游分支：$UPSTREAM_BRANCH"
-            echo "上游提交：$UPSTREAM_COMMIT"
-            echo '支持架构：AMD64, ARM64, LoongArch64'
-            echo
-            echo '## 最近三次提交'
-            echo
-            git -C upstream log -3 \
-              --format="- [\`%h\`](https://github.com/looplj/axonhub/commit/%H) %s"
-          } > "$notes_file"
-
           if gh release view "$RELEASE_TAG" \
             --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
             gh release upload "$RELEASE_TAG" "${assets[@]}" \
               --repo "$GITHUB_REPOSITORY" --clobber
             gh release edit "$RELEASE_TAG" \
               --repo "$GITHUB_REPOSITORY" \
-              --title "AxonHub 核心最新版（$BUILD_VERSION）" \
+              --title "$RELEASE_TAG" \
               --notes-file "$notes_file" \
               --prerelease=false
           else
             gh release create "$RELEASE_TAG" "${assets[@]}" \
               --repo "$GITHUB_REPOSITORY" \
               --target "$GITHUB_SHA" \
-              --title "AxonHub 核心最新版（$BUILD_VERSION）" \
+              --title "$RELEASE_TAG" \
               --notes-file "$notes_file"
           fi
 
-      - name: 更新 AxonHub 软件包元数据
+      - name: 同步 axonhub 发布信息
+        if: steps.version.outputs.changed != 'true'
+        env:
+          RELEASE_TAG: ${{ steps.version.outputs.release_tag }}
+        run: |
+          gh release edit "$RELEASE_TAG" \
+            --repo "$GITHUB_REPOSITORY" \
+            --title "$RELEASE_TAG" \
+            --notes-file "$RUNNER_TEMP/axonhub-release-notes.md" \
+            --prerelease=false
+
+      - name: 更新 axonhub 软件包元数据
         if: steps.version.outputs.changed == 'true'
         env:
           VERSION: ${{ steps.version.outputs.package_version }}
@@ -247,10 +256,18 @@ jobs:
 
           ci_commit_and_push \
             "$PACKAGE_BRANCH" \
-            "chore: 更新 AxonHub 至 ${BUILD_VERSION}-r${release}" \
+            "chore: 更新 axonhub 至 ${BUILD_VERSION}-r${release}" \
             "$makefile"
 
-      - name: 仅保留最新 AxonHub 核心发布
+      - name: 编译并发布 axonhub 核心 APK
+        if: steps.version.outputs.changed == 'true'
+        env:
+          PACKAGE_BRANCH: ${{ github.event.repository.default_branch }}
+        run: |
+          source .github/scripts/ci-common.sh
+          ci_dispatch_apk_build "$PACKAGE_BRANCH" axonhub
+
+      - name: 仅保留最新 axonhub 核心发布
         env:
           RELEASE_TAG: ${{ steps.version.outputs.release_tag }}
         run: |

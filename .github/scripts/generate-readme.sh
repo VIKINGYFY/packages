@@ -98,16 +98,27 @@ source_label() {
 	printf '[%s](%s)' "$label" "$url"
 }
 
-plugin_product() {
+plugin_description() {
 	local package_dir="$1"
-	local title
 
-	title="$(ci_make_value "$package_dir" LUCI_TITLE)"
-	if [[ "$title" =~ ^LuCI[[:space:]]+[Ss]upport[[:space:]]+for[[:space:]]+(.+)$ ]]; then
-		printf '%s\n' "${BASH_REMATCH[1]}"
-	else
-		printf '%s\n' "${package_dir#luci-app-}"
-	fi
+	case "$package_dir" in
+		luci-app-axonhub)
+			printf 'axonhub 核心的 LuCI 管理界面与 OpenWrt 集成。\n'
+			;;
+		luci-app-gecoosac)
+			printf 'gecoosac 核心的 LuCI 管理界面与 OpenWrt 集成。\n'
+			;;
+		luci-app-homeproxy)
+			printf 'sing-box 核心的 LuCI 管理界面与 OpenWrt 集成。\n'
+			;;
+		luci-app-wolultra)
+			printf 'wol 功能的 LuCI 管理界面与 OpenWrt 集成。\n'
+			;;
+		*)
+			printf '%s 的 LuCI 管理界面与 OpenWrt 集成。\n' \
+				"${package_dir#luci-app-}"
+			;;
+	esac
 }
 
 mapfile -t package_dirs < <(ci_discover_packages)
@@ -125,10 +136,10 @@ mapfile -t package_dirs < <(ci_discover_packages)
 		name="$(ci_package_name "$package_dir")"
 		[[ "$name" == luci-app-* ]] || continue
 		version="$(ci_package_version "$package_dir")"
-		product="$(plugin_product "$package_dir")"
+		description="$(plugin_description "$package_dir")"
 		source_url="$(package_source_url "$package_dir")"
-		printf "| \`%s\` | \`%s\` | %s 的 LuCI 管理界面与 OpenWrt 集成。 | %s |\n" \
-			"$name" "$version" "$product" "$(source_label "$source_url")"
+		printf "| \`%s\` | \`%s\` | %s | %s |\n" \
+			"$name" "$version" "$description" "$(source_label "$source_url")"
 	done
 	echo
 	echo '## 核心与依赖来源'
@@ -146,9 +157,9 @@ mapfile -t package_dirs < <(ci_discover_packages)
 	echo
 	echo '## 自动维护'
 	echo
-	echo 'CI 每日检查受维护的上游项目，仅在发现更新时继续构建、提交和发布。插件目录通过 Makefile 自动发现；新增或删除插件后，构建范围、发布资产清理和本页插件列表会自动调整。'
+	echo 'CI 每日检查受维护的上游项目，仅在发现更新时继续构建、提交和发布。软件包目录通过 Makefile 自动发现；新增或删除软件包后，构建范围和发布资产清理会自动调整，LuCI 插件列表也会自动更新。'
 	echo
-	echo 'APK 发布按 ARM64 和 AMD64 分开维护；每个包名保留最近三个版本，并提供包含各插件最新版的整合包。AxonHub 核心发布仅保留最新版，发布说明包含上游最近三次提交信息。'
+	echo 'APK 发布按 ARM64 和 AMD64 分开维护；每个包名保留最近三个版本，并提供包含各软件包最新版的整合包。axonhub 核心发布仅保留最新版，发布说明包含上游最近三次提交信息。'
 	echo
 	echo '## License'
 	echo

@@ -1,10 +1,10 @@
-name: 编译并发布 APK 插件包
+name: 编译并发布 APK 软件包
 
 on:
   workflow_dispatch:
     inputs:
       packages:
-        description: 留空编译全部插件；CI 可填写逗号分隔的插件目录
+        description: 留空编译全部软件包；CI 可填写逗号分隔的软件包目录
         required: false
         type: string
   push:
@@ -20,19 +20,19 @@ concurrency:
 
 jobs:
   resolve:
-    name: 确定需要编译的插件
+    name: 确定需要编译的软件包
     runs-on: ubuntu-24.04
     outputs:
       changed: ${{ steps.packages.outputs.changed }}
       packages: ${{ steps.packages.outputs.packages }}
       packages_display: ${{ steps.packages.outputs.packages_display }}
     steps:
-      - name: 检出插件仓库
+      - name: 检出软件包仓库
         uses: actions/checkout@v4
         with:
           fetch-depth: 0
 
-      - name: 确定需要编译的插件
+      - name: 确定需要编译的软件包
         id: packages
         env:
           BEFORE_SHA: ${{ github.event.before }}
@@ -67,7 +67,7 @@ jobs:
       SDK_BASE_URL: https://downloads.immortalwrt.org/snapshots/targets/${{ matrix.sdk_path }}
       SDK_ARCHIVE_PREFIX: ${{ matrix.sdk_prefix }}
     steps:
-      - name: 检出插件仓库
+      - name: 检出软件包仓库
         uses: actions/checkout@v4
 
       - name: 安装 SDK 依赖
@@ -80,7 +80,7 @@ jobs:
             libelf-dev libncurses-dev libssl-dev python3 python3-setuptools \
             rsync swig time unzip wget xsltproc zip zlib1g-dev zstd
 
-      - name: 维护插件源码
+      - name: 维护软件包源码
         env:
           PACKAGES: ${{ needs.resolve.outputs.packages }}
         run: |
@@ -139,7 +139,7 @@ jobs:
           [[ -n "$sdk_root" ]]
           echo "SDK_ROOT=$sdk_root" >> "$GITHUB_ENV"
 
-      - name: 缓存插件下载
+      - name: 缓存软件包下载
         uses: actions/cache@v4
         with:
           path: ~/.cache/immortalwrt-dl/${{ matrix.platform }}
@@ -147,7 +147,7 @@ jobs:
           restore-keys: |
             immortalwrt-dl-${{ matrix.platform }}-
 
-      - name: 准备插件源
+      - name: 准备软件包源
         run: |
           cache_dir="$HOME/.cache/immortalwrt-dl/${{ matrix.platform }}"
           mkdir -p "$cache_dir"
@@ -201,7 +201,7 @@ jobs:
       RELEASE_TAG: ${{ matrix.release_tag }}
       ARCHIVE_PREFIX: immortalwrt-apk-packages-${{ matrix.platform }}
     steps:
-      - name: 检出插件仓库
+      - name: 检出软件包仓库
         uses: actions/checkout@v4
 
       - name: 下载 ${{ matrix.platform_name }} 编译结果
@@ -253,7 +253,7 @@ jobs:
           (( ${#assets[@]} > 0 ))
 
           {
-            echo 'ImmortalWrt APK 插件包固定发布。'
+            echo 'ImmortalWrt APK 软件包固定发布。'
             echo
             echo '平台：${{ matrix.platform_name }}'
             echo '架构：${{ matrix.architecture }}'
@@ -264,7 +264,7 @@ jobs:
             echo "最新整合包：$ARCHIVE_NAME"
             echo
             echo '每个 APK 包名仅保留最近 3 个版本。'
-            echo 'ZIP 仅包含本平台每个插件的最新版本。'
+            echo 'ZIP 仅包含本平台每个软件包的最新版本。'
           } > "$notes_file"
 
           if gh release view "$RELEASE_TAG" \
@@ -273,18 +273,18 @@ jobs:
               --repo "$GITHUB_REPOSITORY" --clobber
             gh release edit "$RELEASE_TAG" \
               --repo "$GITHUB_REPOSITORY" \
-              --title 'ImmortalWrt APK 插件包（${{ matrix.platform_name }}）' \
+              --title 'ImmortalWrt APK 软件包（${{ matrix.platform_name }}）' \
               --notes-file "$notes_file" \
               --prerelease=false
           else
             gh release create "$RELEASE_TAG" "${assets[@]}" \
               --repo "$GITHUB_REPOSITORY" \
               --target "$GITHUB_SHA" \
-              --title 'ImmortalWrt APK 插件包（${{ matrix.platform_name }}）' \
+              --title 'ImmortalWrt APK 软件包（${{ matrix.platform_name }}）' \
               --notes-file "$notes_file"
           fi
 
-      - name: 每个插件保留三个版本
+      - name: 每个软件包保留三个版本
         run: |
           .github/scripts/prune-apk-release.sh \
             "$RELEASE_TAG" 3 "$RUNNER_TEMP/latest-apk-assets.tsv"
@@ -337,7 +337,7 @@ jobs:
     env:
       GH_TOKEN: ${{ github.token }}
     steps:
-      - name: 检出插件仓库
+      - name: 检出软件包仓库
         uses: actions/checkout@v4
 
       - name: 删除旧 APK Release 和 Tag

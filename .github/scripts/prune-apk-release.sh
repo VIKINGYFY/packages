@@ -75,7 +75,7 @@ while IFS=$'\t' read -r asset_id asset_name asset_label created_at; do
 	fi
 
 	if [[ -z "$name" || -z "${current_package_names[$name]:-}" ]]; then
-		printf '删除已移除插件的发布资产：%s\n' "$asset_name"
+		printf '删除已移除软件包的发布资产：%s\n' "$asset_name"
 		gh api --method DELETE \
 			"repos/$GITHUB_REPOSITORY/releases/assets/$asset_id"
 		continue

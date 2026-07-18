@@ -6,24 +6,24 @@
 
 | 插件 | 版本 | 简介 | 源码来源 |
 | --- | --- | --- | --- |
-| `luci-app-axonhub` | `20260717-r4` | AxonHub 的 LuCI 管理界面与 OpenWrt 集成。 | [looplj/axonhub](https://github.com/looplj/axonhub) |
-| `luci-app-gecoosac` | `20260717-r5` | gecoosac 的 LuCI 管理界面与 OpenWrt 集成。 | [www.cnrouter.com](http://www.cnrouter.com) |
-| `luci-app-homeproxy` | `20260717-r5` | homeproxy 的 LuCI 管理界面与 OpenWrt 集成。 | [immortalwrt/homeproxy](https://github.com/immortalwrt/homeproxy) |
-| `luci-app-wolultra` | `20260717-r3` | WOL Ultra 的 LuCI 管理界面与 OpenWrt 集成。 | [VIKINGYFY/packages](https://github.com/VIKINGYFY/packages) |
+| `luci-app-axonhub` | `20260717-r4` | axonhub 核心的 LuCI 管理界面与 OpenWrt 集成。 | [looplj/axonhub](https://github.com/looplj/axonhub) |
+| `luci-app-gecoosac` | `20260717-r5` | gecoosac 核心的 LuCI 管理界面与 OpenWrt 集成。 | [www.cnrouter.com](http://www.cnrouter.com) |
+| `luci-app-homeproxy` | `20260717-r5` | sing-box 核心的 LuCI 管理界面与 OpenWrt 集成。 | [immortalwrt/homeproxy](https://github.com/immortalwrt/homeproxy) |
+| `luci-app-wolultra` | `20260717-r3` | wol 功能的 LuCI 管理界面与 OpenWrt 集成。 | [VIKINGYFY/packages](https://github.com/VIKINGYFY/packages) |
 
 ## 核心与依赖来源
 
 | 软件包 | 版本 | 源码来源 |
 | --- | --- | --- |
-| `axonhub` | `20260717-r1` | [looplj/axonhub](https://github.com/looplj/axonhub) |
+| `axonhub` | `20260718-r1` | [looplj/axonhub](https://github.com/looplj/axonhub) |
 | `gecoosac` | `2.2.20251015-r1` | [www.cnrouter.com](http://www.cnrouter.com) |
-| `sing-box` | `1.14.0_alpha45-r1` | [SagerNet/sing-box](https://github.com/SagerNet/sing-box) |
+| `sing-box` | `1.14.0_alpha46-r1` | [SagerNet/sing-box](https://github.com/SagerNet/sing-box) |
 
 ## 自动维护
 
-CI 每日检查受维护的上游项目，仅在发现更新时继续构建、提交和发布。插件目录通过 Makefile 自动发现；新增或删除插件后，构建范围、发布资产清理和本页插件列表会自动调整。
+CI 每日检查受维护的上游项目，仅在发现更新时继续构建、提交和发布。软件包目录通过 Makefile 自动发现；新增或删除软件包后，构建范围和发布资产清理会自动调整，LuCI 插件列表也会自动更新。
 
-APK 发布按 ARM64 和 AMD64 分开维护；每个包名保留最近三个版本，并提供包含各插件最新版的整合包。AxonHub 核心发布仅保留最新版，发布说明包含上游最近三次提交信息。
+APK 发布按 ARM64 和 AMD64 分开维护；每个包名保留最近三个版本，并提供包含各软件包最新版的整合包。axonhub 核心发布仅保留最新版，发布说明包含上游最近三次提交信息。
 
 ## License
 

@@ -24,7 +24,7 @@ if [[ "$EVENT_NAME" == workflow_dispatch ]]; then
 			package="${package//[[:space:]]/}"
 			[[ -n "$package" ]] || continue
 			if ! printf '%s\n' "${all_packages[@]}" | grep -Fqx "$package"; then
-				printf '未知插件目录：%s\n' "$package" >&2
+				printf '未知软件包目录：%s\n' "$package" >&2
 				exit 1
 			fi
 			selected_packages+=("$package")
@@ -38,6 +38,21 @@ else
 	else
 		mapfile -t changed_files < <(git diff --name-only "$BEFORE_SHA" "$GITHUB_SHA")
 	fi
+
+	shared_build_changed=false
+	for path in "${changed_files[@]}"; do
+		case "$path" in
+			.github/workflows/Build-APK-Packages.yml|\
+			.github/scripts/build-apk-packages.sh|\
+			.github/scripts/ci-common.sh|\
+			.github/scripts/fix-package-permissions.sh|\
+			.github/scripts/rescan-translations.sh|\
+			.github/scripts/resolve-build-packages.sh)
+				shared_build_changed=true
+				break
+				;;
+		esac
+	done
 
 	removed_package=false
 	if [[ -n "$BEFORE_SHA" ]] && [[ ! "$BEFORE_SHA" =~ ^0+$ ]]; then
@@ -54,7 +69,7 @@ else
 		done
 	fi
 
-	if [[ "$removed_package" == true ]]; then
+	if [[ "$shared_build_changed" == true || "$removed_package" == true ]]; then
 		select_all
 	else
 		for package in "${all_packages[@]}"; do
@@ -101,9 +116,9 @@ fi
 
 if [[ -n "${GITHUB_STEP_SUMMARY:-}" ]]; then
 	if [[ "$changed" == true ]]; then
-		printf '### APK 插件：%s\n' "$packages_display" >> "$GITHUB_STEP_SUMMARY"
+		printf '### APK 软件包：%s\n' "$packages_display" >> "$GITHUB_STEP_SUMMARY"
 	else
-		echo '未检测到需要编译的插件；纯翻译或说明变更不触发编译。' \
+		echo '未检测到需要编译的软件包；纯翻译或说明变更不触发编译。' \
 			>> "$GITHUB_STEP_SUMMARY"
 	fi
 fi

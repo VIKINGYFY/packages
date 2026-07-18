@@ -1,4 +1,4 @@
-name: 每日检查并更新 sing-box
+name: 每日检查并更新 sing-box 核心
 
 on:
   workflow_dispatch:
@@ -7,6 +7,7 @@ on:
     - cron: '15 22 * * *'
 
 permissions:
+  actions: write
   contents: write
 
 concurrency:
@@ -15,12 +16,12 @@ concurrency:
 
 jobs:
   update:
-    name: 检查并更新 sing-box
+    name: 检查并更新 sing-box 核心
     runs-on: ubuntu-24.04
     env:
       GH_TOKEN: ${{ github.token }}
     steps:
-      - name: 检出插件仓库
+      - name: 检出软件包仓库
         uses: actions/checkout@v4
         with:
           fetch-depth: 0
@@ -108,3 +109,11 @@ jobs:
             "$PACKAGE_BRANCH" \
             "chore: 更新 sing-box 至 ${UPSTREAM_VERSION}-r1" \
             sing-box/Makefile
+
+      - name: 编译并发布 sing-box 核心 APK
+        if: steps.upstream.outputs.changed == 'true'
+        env:
+          PACKAGE_BRANCH: ${{ github.event.repository.default_branch }}
+        run: |
+          source .github/scripts/ci-common.sh
+          ci_dispatch_apk_build "$PACKAGE_BRANCH" sing-box

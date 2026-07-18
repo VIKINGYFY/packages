@@ -112,6 +112,27 @@ ci_commit_and_push() {
 	git push origin "HEAD:$branch"
 }
 
+ci_dispatch_apk_build() {
+	local branch="$1"
+	local packages_csv
+	shift
+
+	: "${GH_TOKEN:?GH_TOKEN is required}"
+	: "${GITHUB_REPOSITORY:?GITHUB_REPOSITORY is required}"
+	(( $# > 0 )) || {
+		printf '未提供需要编译的 APK 软件包。\n' >&2
+		return 1
+	}
+
+	packages_csv="$(ci_join_csv "$@")"
+	printf '触发 APK 软件包编译：分支：%s，软件包：%s\n' \
+		"$branch" "$(ci_format_csv "$packages_csv")"
+	gh workflow run Build-APK-Packages.yml \
+		--repo "$GITHUB_REPOSITORY" \
+		--ref "$branch" \
+		--field "packages=$packages_csv"
+}
+
 ci_tag_matches_prefix() {
 	local tag="$1"
 	shift
