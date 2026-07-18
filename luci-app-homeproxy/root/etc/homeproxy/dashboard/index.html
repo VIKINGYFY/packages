@@ -4,10 +4,7 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover, maximum-scale=1.0, user-scalable=no" />
     <meta name="color-scheme" content="light dark" />
-    <!-- Chrome tint for browsers that still honor theme-color (Chrome, Safari
-         15–18); must match --surface in global.css (the topbar color). Static
-         media variants so the right one applies before JS runs. iOS 26 Safari
-         ignores these and samples #statusbar-tint instead. -->
+    <!-- iOS 26 Safari ignores theme-color and samples #statusbar-tint instead. -->
     <meta name="theme-color" media="(prefers-color-scheme: light)" content="#f0f0f0" />
     <meta name="theme-color" media="(prefers-color-scheme: dark)" content="#181818" />
     <meta name="apple-mobile-web-app-capable" content="yes" />
@@ -15,9 +12,7 @@
     <meta name="apple-mobile-web-app-title" content="sing-box" />
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
     <script>
-      // Resolve the theme before first paint: iOS Safari samples the canvas
-      // color for its chrome early, and a light-first paint would stick.
-      // Must mirror applyTheme() in src/app/context.tsx.
+      // iOS Safari samples the canvas color for its chrome before first paint.
       (function () {
         var dark = false;
         try {
@@ -28,9 +23,6 @@
         } catch (e) {}
         document.documentElement.dataset.theme = dark ? "dark" : "light";
       })();
-      // Apply the saved accent before first paint so accent-colored controls
-      // don't flash monochrome. Must mirror applyAccent() in
-      // src/app/context.tsx (storage key, preset names, custom-color vars).
       (function () {
         try {
           var accent = localStorage.getItem("sing-box-dashboard.accent");
@@ -55,9 +47,6 @@
           }
         } catch (e) {}
       })();
-      // Resolve the language before first paint so Farsi gets dir="rtl"
-      // without a layout flash. Must mirror detectSystemLanguage() in
-      // src/app/i18n.tsx (storage key and tag mapping).
       (function () {
         var lang = "en";
         try {
@@ -92,15 +81,14 @@
       })();
     </script>
     <title>sing-box dashboard</title>
-    <script type="module" crossorigin src="./assets/index-ISEb-50t.js"></script>
-    <link rel="stylesheet" crossorigin href="./assets/index-aIjkYTWI.css">
+    <script type="module" crossorigin src="./assets/index-CAFVQkcr.js"></script>
+    <link rel="stylesheet" crossorigin href="./assets/index-vfast1AG.css">
   <link rel="manifest" href="./manifest.webmanifest"><script id="vite-plugin-pwa:register-sw" src="./registerSW.js" defer></script>
 <link rel="icon" href="./favicon.ico" sizes="48x48">
 <link rel="icon" href="./favicon.svg" sizes="any" type="image/svg+xml">
 <link rel="apple-touch-icon" href="./apple-touch-icon-180x180.png"></head>
   <body>
-    <!-- Sampling target for the iOS 26 Safari status bar tint; static so the
-         first paint already carries the right color. See global.css. -->
+    <!-- iOS 26 Safari samples this fixed element for the status bar tint. -->
     <div id="statusbar-tint" class="statusbar-tint" aria-hidden="true"></div>
     <div id="root"></div>
   </body>
