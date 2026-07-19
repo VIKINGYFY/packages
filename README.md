@@ -17,7 +17,7 @@
 | --- | --- | --- |
 | `axonhub` | `20260718-r3` | [looplj/axonhub](https://github.com/looplj/axonhub) |
 | `gecoosac` | `2.2.20251015-r1` | [www.cnrouter.com](http://www.cnrouter.com) |
-| `sing-box` | `1.14.0_alpha46-r1` | [SagerNet/sing-box](https://github.com/SagerNet/sing-box) |
+| `sing-box` | `1.14.0_alpha47-r1` | [SagerNet/sing-box](https://github.com/SagerNet/sing-box) |
 
 ## 自动维护
 
