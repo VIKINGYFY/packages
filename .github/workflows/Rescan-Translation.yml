@@ -3,8 +3,8 @@ name: 每日维护插件说明、翻译与权限
 on:
   workflow_dispatch:
   schedule:
-    # Asia/Shanghai 18:15
-    - cron: '15 10 * * *'
+    # 中国时间 02:10
+    - cron: '10 18 * * *'
 
 permissions:
   contents: write
@@ -16,10 +16,10 @@ concurrency:
 jobs:
   maintain:
     name: 维护插件说明、翻译与权限
-    runs-on: ubuntu-24.04
+    runs-on: ubuntu-latest
     steps:
       - name: 检出插件仓库
-        uses: actions/checkout@v4
+        uses: actions/checkout@main
         with:
           fetch-depth: 0
           ref: ${{ github.event.repository.default_branch }}

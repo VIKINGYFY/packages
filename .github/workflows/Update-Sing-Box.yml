@@ -1,10 +1,10 @@
-name: 每日检查并更新 sing-box 核心
+name: 每日检查并更新 Sing-Box 核心
 
 on:
   workflow_dispatch:
   schedule:
-    # Asia/Shanghai 06:15
-    - cron: '15 22 * * *'
+    # 中国时间 02:30
+    - cron: '30 18 * * *'
 
 permissions:
   actions: write
@@ -16,13 +16,13 @@ concurrency:
 
 jobs:
   update:
-    name: 检查并更新 sing-box 核心
-    runs-on: ubuntu-24.04
+    name: 检查并更新 Sing-Box 核心
+    runs-on: ubuntu-latest
     env:
       GH_TOKEN: ${{ github.token }}
     steps:
       - name: 检出软件包仓库
-        uses: actions/checkout@v4
+        uses: actions/checkout@main
         with:
           fetch-depth: 0
           ref: ${{ github.event.repository.default_branch }}
@@ -34,7 +34,7 @@ jobs:
           source .github/scripts/ci-common.sh
           ci_sync_branch "$PACKAGE_BRANCH"
 
-      - name: 检查 sing-box 上游版本
+      - name: 检查 Sing-Box 上游版本
         id: upstream
         run: |
           makefile='sing-box/Makefile'
@@ -47,7 +47,7 @@ jobs:
           changed=true
           if [[ "$current_version" == "$upstream_version" ]]; then
             changed=false
-            echo "sing-box 已是最新版本：$upstream_version"
+            echo "Sing-Box 已是最新版本：$upstream_version"
           fi
 
           {
@@ -56,7 +56,7 @@ jobs:
             echo "version=$upstream_version"
           } >> "$GITHUB_OUTPUT"
 
-      - name: 下载并校验 sing-box 源码
+      - name: 下载并校验 Sing-Box 源码
         if: steps.upstream.outputs.changed == 'true'
         id: source
         env:
@@ -69,7 +69,7 @@ jobs:
           tar -tzf "$archive" >/dev/null
           echo "hash=$(sha256sum "$archive" | cut -d' ' -f1)" >> "$GITHUB_OUTPUT"
 
-      - name: 更新 sing-box 软件包元数据
+      - name: 更新 Sing-Box 软件包元数据
         if: steps.upstream.outputs.changed == 'true'
         env:
           SOURCE_HASH: ${{ steps.source.outputs.hash }}
@@ -81,7 +81,7 @@ jobs:
           elif [[ "$UPSTREAM_VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
             package_version="$UPSTREAM_VERSION"
           else
-            printf '无法转换 sing-box 版本号：%s\n' "$UPSTREAM_VERSION" >&2
+            printf '无法转换 Sing-Box 版本号：%s\n' "$UPSTREAM_VERSION" >&2
             exit 1
           fi
 
@@ -98,7 +98,7 @@ jobs:
           grep -Fx "PKG_HASH:=$SOURCE_HASH" "$makefile"
           git diff --check
 
-      - name: 提交 sing-box 更新
+      - name: 提交 Sing-Box 更新
         if: steps.upstream.outputs.changed == 'true'
         env:
           PACKAGE_BRANCH: ${{ github.event.repository.default_branch }}
@@ -107,10 +107,10 @@ jobs:
           source .github/scripts/ci-common.sh
           ci_commit_and_push \
             "$PACKAGE_BRANCH" \
-            "chore: 更新 sing-box 至 ${UPSTREAM_VERSION}-r1" \
+            "chore: 更新 Sing-Box 至 ${UPSTREAM_VERSION}-r1" \
             sing-box/Makefile
 
-      - name: 编译并发布 sing-box 核心 APK
+      - name: 编译并发布 Sing-Box 核心 APK
         if: steps.upstream.outputs.changed == 'true'
         env:
           PACKAGE_BRANCH: ${{ github.event.repository.default_branch }}

@@ -3,8 +3,8 @@ name: 每日清理 CI 缓存与运行记录
 on:
   workflow_dispatch:
   schedule:
-    # Asia/Shanghai 09:15
-    - cron: '15 1 * * *'
+    # 中国时间 02:00
+    - cron: '0 18 * * *'
 
 permissions:
   actions: write
@@ -17,7 +17,7 @@ concurrency:
 jobs:
   cleanup:
     name: 清理 CI 缓存与运行记录
-    runs-on: ubuntu-24.04
+    runs-on: ubuntu-latest
     env:
       GH_TOKEN: ${{ github.token }}
       CACHE_RETENTION_DAYS: '3'
@@ -26,7 +26,7 @@ jobs:
       RUN_KEEP_PER_WORKFLOW: '10'
     steps:
       - name: 检出软件包仓库
-        uses: actions/checkout@v4
+        uses: actions/checkout@main
 
       - name: 删除旧缓存与运行记录
         run: .github/scripts/cleanup-actions-storage.sh

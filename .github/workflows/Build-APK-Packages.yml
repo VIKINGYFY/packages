@@ -21,14 +21,14 @@ concurrency:
 jobs:
   resolve:
     name: 确定需要编译的软件包
-    runs-on: ubuntu-24.04
+    runs-on: ubuntu-latest
     outputs:
       changed: ${{ steps.packages.outputs.changed }}
       packages: ${{ steps.packages.outputs.packages }}
       packages_display: ${{ steps.packages.outputs.packages_display }}
     steps:
       - name: 检出软件包仓库
-        uses: actions/checkout@v4
+        uses: actions/checkout@main
         with:
           fetch-depth: 0
 
@@ -45,7 +45,7 @@ jobs:
     name: 编译 ${{ matrix.platform_name }} APK
     needs: resolve
     if: needs.resolve.outputs.changed == 'true'
-    runs-on: ubuntu-24.04
+    runs-on: ubuntu-latest
     timeout-minutes: 360
     strategy:
       fail-fast: false
@@ -68,7 +68,7 @@ jobs:
       SDK_ARCHIVE_PREFIX: ${{ matrix.sdk_prefix }}
     steps:
       - name: 检出软件包仓库
-        uses: actions/checkout@v4
+        uses: actions/checkout@main
 
       - name: 安装 SDK 依赖
         env:
@@ -109,7 +109,7 @@ jobs:
           echo "sha256=$sha256" >> "$GITHUB_OUTPUT"
 
       - name: 缓存 ImmortalWrt SDK
-        uses: actions/cache@v4
+        uses: actions/cache@main
         with:
           path: ~/.cache/immortalwrt-sdk/${{ matrix.platform }}
           key: immortalwrt-sdk-${{ matrix.platform }}-${{ steps.sdk.outputs.sha256 }}
@@ -144,7 +144,7 @@ jobs:
         run: echo "date=$(TZ=Asia/Shanghai date +%Y%m%d)" >> "$GITHUB_OUTPUT"
 
       - name: 缓存软件包下载
-        uses: actions/cache@v4
+        uses: actions/cache@main
         with:
           path: ~/.cache/immortalwrt-dl/${{ matrix.platform }}
           key: immortalwrt-dl-${{ matrix.platform }}-${{ steps.cache.outputs.date }}-${{ hashFiles('**/Makefile') }}
@@ -174,7 +174,7 @@ jobs:
             "${selected_packages[@]}"
 
       - name: 上传 ${{ matrix.platform_name }} 编译结果
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@main
         with:
           name: apk-output-${{ matrix.platform }}
           path: ${{ runner.temp }}/apk-output
@@ -186,7 +186,7 @@ jobs:
     needs:
       - resolve
       - build
-    runs-on: ubuntu-24.04
+    runs-on: ubuntu-latest
     strategy:
       fail-fast: false
       matrix:
@@ -207,10 +207,10 @@ jobs:
       ARCHIVE_PREFIX: immortalwrt-apk-packages-${{ matrix.platform }}
     steps:
       - name: 检出软件包仓库
-        uses: actions/checkout@v4
+        uses: actions/checkout@main
 
       - name: 下载 ${{ matrix.platform_name }} 编译结果
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@main
         with:
           name: apk-output-${{ matrix.platform }}
           path: ${{ runner.temp }}/apk-output
@@ -338,12 +338,12 @@ jobs:
   cleanup:
     name: 清理旧版 APK 发布与标签
     needs: publish
-    runs-on: ubuntu-24.04
+    runs-on: ubuntu-latest
     env:
       GH_TOKEN: ${{ github.token }}
     steps:
       - name: 检出软件包仓库
-        uses: actions/checkout@v4
+        uses: actions/checkout@main
 
       - name: 删除旧 APK Release 和 Tag
         run: |

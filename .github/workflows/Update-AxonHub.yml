@@ -1,10 +1,10 @@
-name: 每日检查并更新 axonhub 核心
+name: 每日检查并更新 Axonhub 核心
 
 on:
   workflow_dispatch:
   schedule:
-    # Asia/Shanghai 00:15
-    - cron: '15 16 * * *'
+    # 中国时间 02:45
+    - cron: '45 18 * * *'
 
 permissions:
   actions: write
@@ -16,13 +16,13 @@ concurrency:
 
 jobs:
   release:
-    name: 检查并更新 axonhub 核心
-    runs-on: ubuntu-24.04
+    name: 检查并更新 Axonhub 核心
+    runs-on: ubuntu-latest
     env:
       GH_TOKEN: ${{ github.token }}
     steps:
       - name: 检出软件包仓库
-        uses: actions/checkout@v4
+        uses: actions/checkout@main
         with:
           fetch-depth: 0
           ref: ${{ github.event.repository.default_branch }}
@@ -34,7 +34,7 @@ jobs:
           source .github/scripts/ci-common.sh
           ci_sync_branch "$PACKAGE_BRANCH"
 
-      - name: 检查 axonhub 上游提交
+      - name: 检查 Axonhub 上游提交
         id: version
         run: |
           upstream_branch='unstable'
@@ -59,8 +59,8 @@ jobs:
              gh release view "$release_tag" \
                --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
             changed=false
-            echo "axonhub 上游无更新：$upstream_commit"
-            echo '### axonhub 上游无更新，本次任务结束。' >> "$GITHUB_STEP_SUMMARY"
+            echo "Axonhub 上游无更新：$upstream_commit"
+            echo '### Axonhub 上游无更新，本次任务结束。' >> "$GITHUB_STEP_SUMMARY"
           fi
 
           {
@@ -72,15 +72,15 @@ jobs:
             echo "upstream_commit=$upstream_commit"
           } >> "$GITHUB_OUTPUT"
 
-      - name: 检出 axonhub 源码
-        uses: actions/checkout@v4
+      - name: 检出 Axonhub 源码
+        uses: actions/checkout@main
         with:
           repository: looplj/axonhub
           ref: ${{ steps.version.outputs.upstream_commit }}
           fetch-depth: 20
           path: upstream
 
-      - name: 生成 axonhub 发布说明
+      - name: 生成 Axonhub 发布说明
         env:
           BUILD_VERSION: ${{ steps.version.outputs.version }}
           UPSTREAM_BRANCH: ${{ steps.version.outputs.upstream_branch }}
@@ -97,13 +97,13 @@ jobs:
 
       - name: 配置 pnpm
         if: steps.version.outputs.changed == 'true'
-        uses: pnpm/action-setup@v4
+        uses: pnpm/action-setup@master
         with:
           version: 10
 
       - name: 配置 Node.js
         if: steps.version.outputs.changed == 'true'
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@main
         with:
           node-version: '22'
           cache: pnpm
@@ -111,7 +111,7 @@ jobs:
 
       - name: 配置 Go
         if: steps.version.outputs.changed == 'true'
-        uses: actions/setup-go@v5
+        uses: actions/setup-go@main
         with:
           go-version-file: upstream/go.mod
           cache-dependency-path: upstream/go.sum
@@ -153,7 +153,7 @@ jobs:
           "$output_dir/axonhub_linux_amd64" version | grep -F "$BUILD_VERSION"
           test "$(find "$output_dir" -maxdepth 1 -type f -name 'axonhub_linux_*' | wc -l)" -eq 3
 
-      - name: 发布 axonhub 核心
+      - name: 发布 Axonhub 核心
         if: steps.version.outputs.changed == 'true'
         env:
           RELEASE_TAG: ${{ steps.version.outputs.release_tag }}
@@ -182,7 +182,7 @@ jobs:
               --notes-file "$notes_file"
           fi
 
-      - name: 同步 axonhub 发布信息
+      - name: 同步 Axonhub 发布信息
         if: steps.version.outputs.changed != 'true'
         env:
           RELEASE_TAG: ${{ steps.version.outputs.release_tag }}
@@ -193,7 +193,7 @@ jobs:
             --notes-file "$RUNNER_TEMP/axonhub-release-notes.md" \
             --prerelease=false
 
-      - name: 更新 axonhub 软件包元数据
+      - name: 更新 Axonhub 软件包元数据
         if: steps.version.outputs.changed == 'true'
         env:
           VERSION: ${{ steps.version.outputs.package_version }}
@@ -256,10 +256,10 @@ jobs:
 
           ci_commit_and_push \
             "$PACKAGE_BRANCH" \
-            "chore: 更新 axonhub 至 ${BUILD_VERSION}-r${release}" \
+            "chore: 更新 Axonhub 至 ${BUILD_VERSION}-r${release}" \
             "$makefile"
 
-      - name: 编译并发布 axonhub 核心 APK
+      - name: 编译并发布 Axonhub 核心 APK
         if: steps.version.outputs.changed == 'true'
         env:
           PACKAGE_BRANCH: ${{ github.event.repository.default_branch }}
@@ -267,7 +267,7 @@ jobs:
           source .github/scripts/ci-common.sh
           ci_dispatch_apk_build "$PACKAGE_BRANCH" axonhub
 
-      - name: 仅保留最新 axonhub 核心发布
+      - name: 仅保留最新 Axonhub 核心发布
         env:
           RELEASE_TAG: ${{ steps.version.outputs.release_tag }}
         run: |
