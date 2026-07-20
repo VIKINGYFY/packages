@@ -3,8 +3,8 @@ name: 每日检查并更新 HomeProxy 数据
 on:
   workflow_dispatch:
   schedule:
-    # 中国时间 02:20
-    - cron: '20 18 * * *'
+    # 中国时间 02:40
+    - cron: '40 18 * * *'
 
 permissions:
   contents: write

@@ -3,8 +3,8 @@ name: 每日维护插件说明、翻译与权限
 on:
   workflow_dispatch:
   schedule:
-    # 中国时间 02:10
-    - cron: '10 18 * * *'
+    # 中国时间 02:50
+    - cron: '50 18 * * *'
 
 permissions:
   contents: write

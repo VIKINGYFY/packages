@@ -3,8 +3,8 @@ name: 每日检查并更新 Axonhub 核心
 on:
   workflow_dispatch:
   schedule:
-    # 中国时间 02:45
-    - cron: '45 18 * * *'
+    # 中国时间 02:30
+    - cron: '30 18 * * *'
 
 permissions:
   actions: write
