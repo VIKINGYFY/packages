@@ -113,7 +113,7 @@ function showLogs() {
 
 		ui.showModal(_('AxonHub Log'), [
 			E('pre', {
-				'style': 'max-height:60vh;overflow:auto;white-space:pre-wrap;word-break:break-word'
+				'style': 'max-height:60vh;overflow:auto;white-space:pre;word-break:normal;overflow-wrap:normal'
 			}, [ content ]),
 			E('div', { 'class': 'right' }, [
 				E('button', {

@@ -1753,7 +1753,8 @@ return view.extend({
 		o = s.taboption('subscription', form.Value, 'auto_update_time', _('Cron expression'),
 			_('Minutes (0-59), hours (0-23), days (1-31), months (1-12), weekdays (0-6).') +
 			'<br/>' +
-			'<a target="_blank" rel="noreferrer noopener" href="https://cron.ciding.cc/">https://cron.ciding.cc/</a>');
+			'<a target="_blank" rel="noreferrer noopener" href="https://cron.ren/cron-studio.html">' +
+			_('Cron expression online generator') + '</a>');
 		o.default = '0 */6 * * *';
 		o.placeholder = '0 */6 * * *';
 		o.rmempty = false;

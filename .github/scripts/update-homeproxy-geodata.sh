@@ -116,12 +116,21 @@ fi
 if [[ "$ip_ready" -eq 1 ]]; then
 	printf '%s\n' "$ip_version" > "$TEMP_DIR/china_ip4.ver"
 	printf '%s\n' "$ip_version" > "$TEMP_DIR/china_ip6.ver"
+	ip_data_changed=1
+	if cmp -s "$TEMP_DIR/china_ip4.txt" "$RESOURCES_DIR/china_ip4.txt" && \
+	   cmp -s "$TEMP_DIR/china_ip6.txt" "$RESOURCES_DIR/china_ip6.txt"; then
+		ip_data_changed=0
+	fi
 	for file in china_ip4.txt china_ip4.ver china_ip6.txt china_ip6.ver geoip_cn.json; do
 		install -m 0644 "$TEMP_DIR/$file" "$RESOURCES_DIR/$file" || ip_ready=0
 	done
 fi
 if [[ "$ip_ready" -eq 1 ]]; then
-	echo "HomeProxy resources: china_ip $ip_version"
+	if [[ "$ip_data_changed" -eq 0 ]]; then
+		echo "HomeProxy resources: china_ip $ip_version (CIDR data unchanged)"
+	else
+		echo "HomeProxy resources: china_ip $ip_version (CIDR data updated)"
+	fi
 else
 	warn "Failed to update HomeProxy IP resources; continuing."
 	update_failed=1
