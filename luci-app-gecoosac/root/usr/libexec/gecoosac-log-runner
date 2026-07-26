@@ -3,41 +3,46 @@
 log_file="$1"
 shift
 
-max_log_size_mb="${GECOOSAC_LOG_MAX_SIZE_MB:-20}"
 check_interval="${GECOOSAC_LOG_CHECK_INTERVAL:-30}"
+max_log_size=$((20 * 1048576))
+max_backups=3
 
 case "$log_file" in
-	/*/logs/gecoosac.log) ;;
+	/*/gecoosac.log) ;;
 	*) exit 1 ;;
 esac
 case "$check_interval" in
 	''|*[!0-9]*|0) exit 1 ;;
 esac
-case "$max_log_size_mb" in
-	10|20|30|40|50) ;;
-	*) max_log_size_mb=20 ;;
-esac
-max_log_size=$((max_log_size_mb * 1048576))
-
 umask 077
 
-trim_log() {
+rotate_log() {
 	local size
+	local index
 
 	[ -f "$log_file" ] || return 0
 	size="$(wc -c < "$log_file")" || return 1
 	[ "$size" -gt "$max_log_size" ] 2>/dev/null || return 0
+
+	rm -f "$log_file.$max_backups"
+	index=$((max_backups - 1))
+	while [ "$index" -ge 1 ]; do
+		[ ! -f "$log_file.$index" ] || mv -f \
+			"$log_file.$index" "$log_file.$((index + 1))"
+		index=$((index - 1))
+	done
+	cp -p "$log_file" "$log_file.1" || return 1
 	: > "$log_file"
 }
 
-trim_log || exit 1
+rotate_log || exit 1
 "$@" >> "$log_file" 2>&1 &
 child_pid=$!
 
 monitor_log() {
 	while kill -0 "$child_pid" 2>/dev/null; do
 		sleep "$check_interval" || return 0
-		trim_log
+		rotate_log
 	done
 }
 
@@ -53,6 +58,6 @@ wait "$child_pid"
 status=$?
 kill "$monitor_pid" 2>/dev/null
 wait "$monitor_pid" 2>/dev/null
-trim_log
+rotate_log
 trap - INT TERM
 exit "$status"

@@ -7,7 +7,7 @@
 | 插件 | 版本 | 简介 | 源码来源 |
 | --- | --- | --- | --- |
 | `luci-app-axonhub` | `20260717-r5` | axonhub 核心的 LuCI 管理界面与 OpenWrt 集成。 | [looplj/axonhub](https://github.com/looplj/axonhub) |
-| `luci-app-gecoosac` | `20260717-r5` | gecoosac 核心的 LuCI 管理界面与 OpenWrt 集成。 | [www.cnrouter.com](http://www.cnrouter.com) |
+| `luci-app-gecoosac` | `20260717-r6` | gecoosac 核心的 LuCI 管理界面与 OpenWrt 集成。 | [www.cnrouter.com](http://www.cnrouter.com) |
 | `luci-app-homeproxy` | `20260717-r6` | sing-box 核心的 LuCI 管理界面与 OpenWrt 集成。 | [immortalwrt/homeproxy](https://github.com/immortalwrt/homeproxy) |
 | `luci-app-wolultra` | `20260717-r4` | wol 功能的 LuCI 管理界面与 OpenWrt 集成。 | [VIKINGYFY/packages](https://github.com/VIKINGYFY/packages) |
 

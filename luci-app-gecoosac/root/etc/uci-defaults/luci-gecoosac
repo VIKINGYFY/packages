@@ -1,14 +1,10 @@
 #!/bin/sh
 
-PORT_HELPER=/usr/libexec/gecoosac-random-port
-
 port="$(uci -q get gecoosac.config.port)"
 changed=0
 
-if [ -z "$port" ] || [ "$port" = 'auto' ]; then
-	port="$("$PORT_HELPER")" || exit 1
-	[ -n "$port" ] || exit 1
-	uci -q set gecoosac.config.port="$port"
+if [ "$port" != '60650' ]; then
+	uci -q set gecoosac.config.port='60650'
 	changed=1
 fi
 

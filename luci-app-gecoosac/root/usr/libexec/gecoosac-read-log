@@ -5,8 +5,14 @@
 
 config_load gecoosac
 config_get db_dir config db_dir '/etc/gecoosac/'
+config_get_bool log_to_syslog config log_to_syslog 0
+
+if [ "$log_to_syslog" -eq 1 ]; then
+	logread -e 'gecoosac' 2>/dev/null | tail -n 100
+	exit 0
+fi
 
 db_dir="$(normalize_directory "$db_dir")"
 validate_directory "$db_dir" || exit 1
 
-tail -n 100 "$db_dir/logs/gecoosac.log" 2>/dev/null
+tail -n 100 "$db_dir/gecoosac.log" 2>/dev/null

@@ -2,8 +2,6 @@
 
 . /usr/share/gecoosac/runtime.sh
 
-PORT_HELPER=/usr/libexec/gecoosac-random-port
-
 migrate_legacy_database() {
 	local db_dir="$1"
 	local legacy_path="${db_dir}data.db"
@@ -16,41 +14,69 @@ migrate_legacy_database() {
 	mv "$legacy_path" "$target_path"
 }
 
+migrate_log_files() {
+	local db_dir="$1"
+	local legacy_dir="$db_dir/logs"
+	local legacy_file suffix target_file
+
+	[ -d "$legacy_dir" ] || return 0
+
+	for legacy_file in "$legacy_dir"/gecoosac.log*; do
+		[ -f "$legacy_file" ] || continue
+		suffix="${legacy_file#"$legacy_dir/gecoosac.log"}"
+		target_file="$db_dir/gecoosac.log$suffix"
+		if [ -e "$target_file" ]; then
+			target_file="$target_file.legacy"
+			[ ! -e "$target_file" ] || return 1
+		fi
+		mv "$legacy_file" "$target_file" || return 1
+	done
+
+	rmdir "$legacy_dir" 2>/dev/null || true
+}
+
 config_version="$(uci -q get gecoosac.config.config_version)"
 port="$(uci -q get gecoosac.config.port)"
 log_enabled="$(uci -q get gecoosac.config.log)"
 log_max_size="$(uci -q get gecoosac.config.log_max_size)"
+log_level="$(uci -q get gecoosac.config.log_level)"
+log_to_syslog="$(uci -q get gecoosac.config.log_to_syslog)"
 cleanup_schedule="$(uci -q get gecoosac.config.log_cleanup_schedule)"
 db_dir="$(uci -q get gecoosac.config.db_dir)"
 changed=0
 
-if [ -z "$config_version" ] && [ "$port" = '60650' ]; then
-	port="$("$PORT_HELPER")" || exit 1
-	[ -n "$port" ] || exit 1
-	uci -q set gecoosac.config.port="$port"
+if [ "$port" != '60650' ]; then
+	uci -q set gecoosac.config.port='60650'
 	changed=1
 fi
 
-if [ -z "$log_enabled" ]; then
-	log_enabled='0'
-	uci -q set gecoosac.config.log="$log_enabled"
-	changed=1
-fi
-
-case "$log_max_size" in
-	10|20|30|40|50) ;;
+case "$log_level" in
+	debug|info) ;;
 	*)
-		uci -q set gecoosac.config.log_max_size='20'
+		uci -q set gecoosac.config.log_level='info'
 		changed=1
 		;;
 esac
 
-if [ "$config_version" = '1' ]; then
-	if [ "$log_enabled" = '1' ]; then
-		log_enabled='0'
-		uci -q set gecoosac.config.log="$log_enabled"
+case "$log_to_syslog" in
+	0|1) ;;
+	*)
+		uci -q set gecoosac.config.log_to_syslog='0'
 		changed=1
-	fi
+		;;
+esac
+
+if [ -n "$log_enabled" ]; then
+	uci -q delete gecoosac.config.log
+	changed=1
+fi
+
+if [ -n "$log_max_size" ]; then
+	uci -q delete gecoosac.config.log_max_size
+	changed=1
+fi
+
+if [ "$config_version" = '1' ]; then
 	if [ "$cleanup_schedule" = 'weekly' ]; then
 		cleanup_schedule='daily'
 		uci -q set gecoosac.config.log_cleanup_schedule="$cleanup_schedule"
@@ -73,8 +99,8 @@ for option in isonlyoneprot m_port https crt_file key_file lang passwd debug tok
 	fi
 done
 
-if [ "$config_version" != '2' ]; then
-	uci -q set gecoosac.config.config_version='2'
+if [ "$config_version" != '4' ]; then
+	uci -q set gecoosac.config.config_version='4'
 	changed=1
 fi
 
@@ -84,5 +110,6 @@ fi
 db_dir="$(normalize_directory "$db_dir")"
 validate_db_directory "$db_dir" || exit 1
 migrate_legacy_database "$db_dir" || exit 1
+migrate_log_files "$db_dir" || exit 1
 
 exit 0

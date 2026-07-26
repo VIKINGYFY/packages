@@ -49,15 +49,11 @@ var statusNode;
 
 function managementUrl() {
 	var host = window.location.hostname;
-	var port = uci.get('gecoosac', 'config', 'port') || '60650';
-
-	if (port === 'auto')
-		port = '60650';
 
 	if (host.indexOf(':') >= 0 && host.charAt(0) !== '[')
 		host = '[' + host + ']';
 
-	return 'http://' + host + ':' + port + '/';
+	return 'http://' + host + ':60650/';
 }
 
 function notifyError(message) {
@@ -254,13 +250,6 @@ return view.extend({
 		o = s.taboption('general', form.Flag, 'enabled', _('Enable'));
 		o.rmempty = false;
 
-		o = s.taboption('general', form.Value, 'port', _('Listen port'),
-			_('A free port is selected randomly on first installation. The saved value remains unchanged after restarts.'));
-		o.default = '60650';
-		o.placeholder = '60650';
-		o.datatype = 'port';
-		o.rmempty = false;
-
 		o = s.taboption('general', form.Value, 'upload_dir', _('Firmware directory'),
 			_('Directory used to store AP firmware uploaded for upgrades.'));
 		o.default = '/tmp/gecoosac/upload/';
@@ -300,28 +289,26 @@ return view.extend({
 			});
 		};
 
-		o = s.taboption('advanced', form.Flag, 'log', _('Enable logging'),
-			_('Write Gecoos AC output to a dedicated log file in the database directory. Log contents are automatically deleted when the file exceeds the selected size limit.'));
+		o = s.taboption('advanced', form.ListValue, 'log_level', _('Log level'));
+		o.value('debug', _('Debug'));
+		o.value('info', _('Info'));
+		o.default = 'info';
+		o.rmempty = false;
+
+		o = s.taboption('advanced', form.Flag, 'log_to_syslog', _('Write logs to system log'),
+			_('Disabled by default because Gecoos AC can produce a large volume of logs.'));
 		o.default = '0';
 		o.rmempty = false;
 
-		o = s.taboption('advanced', form.ListValue, 'log_max_size', _('Log size limit'));
-		[ '10', '20', '30', '40', '50' ].forEach(function(size) {
-			o.value(size, size + ' MiB');
-		});
-		o.default = '20';
-		o.rmempty = false;
-		o.depends('log', '1');
-
 		o = s.taboption('advanced', form.ListValue, 'log_cleanup_schedule', _('Log cleanup schedule'),
-			_('Clear the dedicated Gecoos AC log at 03:00 on the selected calendar schedule.'));
+			_('Clear the dedicated Gecoos AC log at 03:00 on the selected calendar schedule. System log entries are never cleared.'));
 		o.value('disabled', _('Disabled'));
 		o.value('daily', _('Every day'));
 		o.value('weekly', _('Every week'));
 		o.value('monthly', _('Every month'));
 		o.default = 'daily';
 		o.rmempty = false;
-		o.depends('log', '1');
+		o.depends('log_to_syslog', '0');
 
 		return m.render();
 	},
