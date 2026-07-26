@@ -18,6 +18,7 @@ jobs:
   release:
     name: 检查并更新 Axonhub 核心
     runs-on: ubuntu-latest
+    timeout-minutes: 120
     env:
       GH_TOKEN: ${{ github.token }}
     steps:
@@ -195,6 +196,7 @@ jobs:
 
       - name: 更新 Axonhub 软件包元数据
         if: steps.version.outputs.changed == 'true'
+        id: package_commit
         env:
           VERSION: ${{ steps.version.outputs.package_version }}
           BUILD_VERSION: ${{ steps.version.outputs.version }}
@@ -260,12 +262,13 @@ jobs:
             "$makefile"
 
       - name: 编译并发布 Axonhub 核心 APK
-        if: steps.version.outputs.changed == 'true'
+        if: steps.package_commit.outputs.changed == 'true'
         env:
           PACKAGE_BRANCH: ${{ github.event.repository.default_branch }}
+          SOURCE_SHA: ${{ steps.package_commit.outputs.commit_sha }}
         run: |
           source .github/scripts/ci-common.sh
-          ci_dispatch_apk_build "$PACKAGE_BRANCH" axonhub
+          ci_dispatch_apk_build "$PACKAGE_BRANCH" "$SOURCE_SHA" axonhub
 
       - name: 仅保留最新 Axonhub 核心发布
         env:

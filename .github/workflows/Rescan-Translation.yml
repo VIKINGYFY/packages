@@ -7,6 +7,7 @@ on:
     - cron: '50 18 * * *'
 
 permissions:
+  actions: write
   contents: write
 
 concurrency:
@@ -17,6 +18,9 @@ jobs:
   maintain:
     name: 维护插件说明、翻译与权限
     runs-on: ubuntu-latest
+    timeout-minutes: 30
+    env:
+      GH_TOKEN: ${{ github.token }}
     steps:
       - name: 检出插件仓库
         uses: actions/checkout@main
@@ -45,6 +49,7 @@ jobs:
           git diff --check
 
       - name: 提交维护结果
+        id: maintenance_commit
         env:
           PACKAGE_BRANCH: ${{ github.event.repository.default_branch }}
         run: |
@@ -53,3 +58,15 @@ jobs:
             "$PACKAGE_BRANCH" \
             'chore: 维护插件说明、翻译与权限' \
             .
+
+      - name: 编译受维护影响的 APK
+        if: steps.maintenance_commit.outputs.changed == 'true' && steps.maintenance_commit.outputs.packages != ''
+        env:
+          PACKAGE_BRANCH: ${{ github.event.repository.default_branch }}
+          SOURCE_SHA: ${{ steps.maintenance_commit.outputs.commit_sha }}
+          PACKAGES: ${{ steps.maintenance_commit.outputs.packages }}
+        run: |
+          source .github/scripts/ci-common.sh
+          IFS=',' read -ra selected_packages <<< "$PACKAGES"
+          ci_dispatch_apk_build \
+            "$PACKAGE_BRANCH" "$SOURCE_SHA" "${selected_packages[@]}"

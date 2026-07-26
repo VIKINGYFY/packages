@@ -7,6 +7,7 @@ on:
     - cron: '40 18 * * *'
 
 permissions:
+  actions: write
   contents: write
 
 concurrency:
@@ -17,6 +18,9 @@ jobs:
   update:
     name: 检查并更新 HomeProxy 数据
     runs-on: ubuntu-latest
+    timeout-minutes: 30
+    env:
+      GH_TOKEN: ${{ github.token }}
     steps:
       - name: 检出插件仓库
         uses: actions/checkout@main
@@ -43,6 +47,7 @@ jobs:
         run: .github/scripts/update-homeproxy-geodata.sh
 
       - name: 提交数据更新
+        id: package_commit
         env:
           PACKAGE_BRANCH: ${{ github.event.repository.default_branch }}
           RESOURCE_VERSION: ${{ steps.resources.outputs.version }}
@@ -53,3 +58,13 @@ jobs:
             "chore: 更新 HomeProxy 数据至 $RESOURCE_VERSION" \
             luci-app-homeproxy/root/etc/homeproxy/resources \
             luci-app-homeproxy/root/etc/homeproxy/dashboard
+
+      - name: 编译并发布 HomeProxy APK
+        if: steps.package_commit.outputs.changed == 'true'
+        env:
+          PACKAGE_BRANCH: ${{ github.event.repository.default_branch }}
+          SOURCE_SHA: ${{ steps.package_commit.outputs.commit_sha }}
+        run: |
+          source .github/scripts/ci-common.sh
+          ci_dispatch_apk_build \
+            "$PACKAGE_BRANCH" "$SOURCE_SHA" luci-app-homeproxy

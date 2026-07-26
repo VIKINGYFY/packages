@@ -6,6 +6,7 @@ SCRIPT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
 # shellcheck source=ci-common.sh
 source "$SCRIPT_DIR/ci-common.sh"
 REPO_ROOT="$CI_REPO_ROOT"
+LUCI_I18N_BRANCH='master'
 LUCI_I18N_DIR="${LUCI_I18N_DIR:-}"
 TEMP_DIR=""
 POT_TEMP=""
@@ -25,10 +26,10 @@ else
 	UPDATE_SCRIPT="$TEMP_DIR/i18n-update.pl"
 	curl -fsSL --retry 3 \
 		-o "$SCAN_SCRIPT" \
-		https://github.com/openwrt/luci/raw/master/build/i18n-scan.pl
+		"https://raw.githubusercontent.com/openwrt/luci/$LUCI_I18N_BRANCH/build/i18n-scan.pl"
 	curl -fsSL --retry 3 \
 		-o "$UPDATE_SCRIPT" \
-		https://github.com/openwrt/luci/raw/master/build/i18n-update.pl
+		"https://raw.githubusercontent.com/openwrt/luci/$LUCI_I18N_BRANCH/build/i18n-update.pl"
 fi
 
 [[ -f "$SCAN_SCRIPT" ]] || {

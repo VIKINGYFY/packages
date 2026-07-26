@@ -18,6 +18,7 @@ jobs:
   cleanup:
     name: 清理 CI 缓存与运行记录
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     env:
       GH_TOKEN: ${{ github.token }}
       CACHE_RETENTION_DAYS: '3'

@@ -9,6 +9,10 @@ source "$SCRIPT_DIR/ci-common.sh"
 EVENT_NAME="${1:-${GITHUB_EVENT_NAME:-workflow_dispatch}}"
 BEFORE_SHA="${2:-}"
 REQUESTED_PACKAGES="${3:-}"
+SOURCE_SHA="${4:-${SOURCE_SHA:-${GITHUB_SHA:-}}}"
+
+ci_require_commit_sha "$SOURCE_SHA"
+git -C "$CI_REPO_ROOT" cat-file -e "$SOURCE_SHA^{commit}"
 
 mapfile -t all_packages < <(ci_discover_packages)
 selected_packages=()
@@ -34,9 +38,9 @@ if [[ "$EVENT_NAME" == workflow_dispatch ]]; then
 	fi
 else
 	if [[ -z "$BEFORE_SHA" ]] || [[ "$BEFORE_SHA" =~ ^0+$ ]]; then
-		mapfile -t changed_files < <(git show --format= --name-only "$GITHUB_SHA")
+		mapfile -t changed_files < <(git show --format= --name-only "$SOURCE_SHA")
 	else
-		mapfile -t changed_files < <(git diff --name-only "$BEFORE_SHA" "$GITHUB_SHA")
+		mapfile -t changed_files < <(git diff --name-only "$BEFORE_SHA" "$SOURCE_SHA")
 	fi
 
 	shared_build_changed=false
@@ -46,7 +50,6 @@ else
 			.github/scripts/build-apk-packages.sh|\
 			.github/scripts/ci-common.sh|\
 			.github/scripts/fix-package-permissions.sh|\
-			.github/scripts/rescan-translations.sh|\
 			.github/scripts/resolve-build-packages.sh)
 				shared_build_changed=true
 				break
@@ -79,7 +82,7 @@ else
 				[[ "$path" == "$package/"* ]] || continue
 				package_changed=true
 				case "$path" in
-					"$package/po/"*|"$package/README"|"$package/README.md") ;;
+					"$package/README"|"$package/README.md") ;;
 					*) only_nonbuild_files=false ;;
 				esac
 			done
@@ -106,19 +109,20 @@ fi
 if [[ -n "${GITHUB_OUTPUT:-}" ]]; then
 	{
 		echo "changed=$changed"
+		echo "source_sha=$SOURCE_SHA"
 		echo "packages=$packages_csv"
 		echo "packages_display=$packages_display"
 	} >> "$GITHUB_OUTPUT"
 else
-	printf 'changed=%s\npackages=%s\npackages_display=%s\n' \
-		"$changed" "$packages_csv" "$packages_display"
+	printf 'changed=%s\nsource_sha=%s\npackages=%s\npackages_display=%s\n' \
+		"$changed" "$SOURCE_SHA" "$packages_csv" "$packages_display"
 fi
 
 if [[ -n "${GITHUB_STEP_SUMMARY:-}" ]]; then
 	if [[ "$changed" == true ]]; then
 		printf '### APK 软件包：%s\n' "$packages_display" >> "$GITHUB_STEP_SUMMARY"
 	else
-		echo '未检测到需要编译的软件包；纯翻译或说明变更不触发编译。' \
+		echo '未检测到需要编译的软件包；纯说明变更不触发编译。' \
 			>> "$GITHUB_STEP_SUMMARY"
 	fi
 fi

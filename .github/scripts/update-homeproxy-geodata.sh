@@ -196,5 +196,6 @@ resource_version="${geosite_version:-${ip_version:-${dashboard_version:-unknown}
 set_output version "$resource_version"
 set_output partial_failure "$update_failed"
 if [[ "$update_failed" -ne 0 ]]; then
-	warn "HomeProxy resource update completed with partial failures."
+	echo "HomeProxy resource update failed; refusing to commit partial data." >&2
+	exit 1
 fi

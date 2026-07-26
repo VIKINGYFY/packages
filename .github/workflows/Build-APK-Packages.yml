@@ -1,8 +1,13 @@
 name: 编译并发布 APK 软件包
+run-name: 编译 APK ${{ inputs.packages || '自动检测' }} @ ${{ inputs.source_sha || github.sha }}
 
 on:
   workflow_dispatch:
     inputs:
+      source_sha:
+        description: 待编译的精确提交 SHA；自动更新任务必须填写
+        required: false
+        type: string
       packages:
         description: 留空编译全部软件包；CI 可填写逗号分隔的软件包目录
         required: false
@@ -22,24 +27,28 @@ jobs:
   resolve:
     name: 确定需要编译的软件包
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     outputs:
       changed: ${{ steps.packages.outputs.changed }}
+      source_sha: ${{ steps.packages.outputs.source_sha }}
       packages: ${{ steps.packages.outputs.packages }}
       packages_display: ${{ steps.packages.outputs.packages_display }}
     steps:
-      - name: 检出软件包仓库
+      - name: 检出待编译提交
         uses: actions/checkout@main
         with:
           fetch-depth: 0
+          ref: ${{ inputs.source_sha || github.sha }}
 
       - name: 确定需要编译的软件包
         id: packages
         env:
           BEFORE_SHA: ${{ github.event.before }}
           REQUESTED_PACKAGES: ${{ inputs.packages }}
+          SOURCE_SHA: ${{ inputs.source_sha || github.sha }}
         run: |
           .github/scripts/resolve-build-packages.sh \
-            "$GITHUB_EVENT_NAME" "$BEFORE_SHA" "$REQUESTED_PACKAGES"
+            "$GITHUB_EVENT_NAME" "$BEFORE_SHA" "$REQUESTED_PACKAGES" "$SOURCE_SHA"
 
   build:
     name: 编译 ${{ matrix.platform_name }} APK
@@ -67,8 +76,10 @@ jobs:
       SDK_BASE_URL: https://downloads.immortalwrt.org/snapshots/targets/${{ matrix.sdk_path }}
       SDK_ARCHIVE_PREFIX: ${{ matrix.sdk_prefix }}
     steps:
-      - name: 检出软件包仓库
+      - name: 检出待编译提交
         uses: actions/checkout@main
+        with:
+          ref: ${{ needs.resolve.outputs.source_sha }}
 
       - name: 安装 SDK 依赖
         env:
@@ -80,14 +91,13 @@ jobs:
             libelf-dev libncurses-dev libssl-dev python3 python3-setuptools \
             rsync swig time unzip wget xsltproc zip zlib1g-dev zstd
 
-      - name: 维护软件包源码
+      - name: 验证软件包文件权限
         env:
           PACKAGES: ${{ needs.resolve.outputs.packages }}
         run: |
           IFS=',' read -ra selected_packages <<< "$PACKAGES"
           .github/scripts/fix-package-permissions.sh "${selected_packages[@]}"
-          .github/scripts/rescan-translations.sh "${selected_packages[@]}"
-          git diff --check
+          git diff --exit-code
 
       - name: 确定 ImmortalWrt SDK
         id: sdk
@@ -187,6 +197,7 @@ jobs:
       - resolve
       - build
     runs-on: ubuntu-latest
+    timeout-minutes: 45
     strategy:
       fail-fast: false
       matrix:
@@ -205,9 +216,12 @@ jobs:
       GH_TOKEN: ${{ github.token }}
       RELEASE_TAG: ${{ matrix.release_tag }}
       ARCHIVE_PREFIX: immortalwrt-apk-packages-${{ matrix.platform }}
+      SOURCE_SHA: ${{ needs.resolve.outputs.source_sha }}
     steps:
-      - name: 检出软件包仓库
+      - name: 检出待发布提交
         uses: actions/checkout@main
+        with:
+          ref: ${{ needs.resolve.outputs.source_sha }}
 
       - name: 下载 ${{ matrix.platform_name }} 编译结果
         uses: actions/download-artifact@main
@@ -265,7 +279,7 @@ jobs:
             echo 'SDK 目标：${{ matrix.sdk_target }}'
             echo "固定标签：$RELEASE_TAG"
             echo "本次编译：$PACKAGES_DISPLAY"
-            echo "源提交：$GITHUB_SHA"
+            echo "源提交：$SOURCE_SHA"
             echo "最新整合包：$ARCHIVE_NAME"
             echo
             echo '每个 APK 包名仅保留最近 3 个版本。'
@@ -284,7 +298,7 @@ jobs:
           else
             gh release create "$RELEASE_TAG" "${assets[@]}" \
               --repo "$GITHUB_REPOSITORY" \
-              --target "$GITHUB_SHA" \
+              --target "$SOURCE_SHA" \
               --title 'ImmortalWrt APK 软件包（${{ matrix.platform_name }}）' \
               --notes-file "$notes_file"
           fi
@@ -337,13 +351,18 @@ jobs:
 
   cleanup:
     name: 清理旧版 APK 发布与标签
-    needs: publish
+    needs:
+      - resolve
+      - publish
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     env:
       GH_TOKEN: ${{ github.token }}
     steps:
-      - name: 检出软件包仓库
+      - name: 检出待发布提交
         uses: actions/checkout@main
+        with:
+          ref: ${{ needs.resolve.outputs.source_sha }}
 
       - name: 删除旧 APK Release 和 Tag
         run: |

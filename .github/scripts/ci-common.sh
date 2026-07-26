@@ -3,6 +3,23 @@
 CI_SCRIPT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
 CI_REPO_ROOT="${REPO_ROOT:-$(cd -- "$CI_SCRIPT_DIR/../.." && pwd)}"
 
+ci_write_output() {
+	local name="$1"
+	local value="$2"
+
+	[[ -n "${GITHUB_OUTPUT:-}" ]] || return 0
+	printf '%s=%s\n' "$name" "$value" >> "$GITHUB_OUTPUT"
+}
+
+ci_require_commit_sha() {
+	local sha="$1"
+
+	[[ "$sha" =~ ^[0-9a-f]{40}$ ]] || {
+		printf '无效的 Git 提交 SHA：%s\n' "$sha" >&2
+		return 1
+	}
+}
+
 ci_discover_packages() {
 	find "$CI_REPO_ROOT" -mindepth 2 -maxdepth 2 -type f -name Makefile \
 		-printf '%h\n' |
@@ -62,9 +79,28 @@ ci_format_csv() {
 	}'
 }
 
+ci_packages_from_paths() {
+	local path package
+	declare -A seen=()
+
+	while IFS= read -r path; do
+		[[ "$path" == */* ]] || continue
+		package="${path%%/*}"
+		[[ -f "$CI_REPO_ROOT/$package/Makefile" ]] || continue
+		[[ -z "${seen[$package]:-}" ]] || continue
+		seen["$package"]=1
+		printf '%s\n' "$package"
+	done | sort
+}
+
 ci_sync_branch() {
 	local branch="$1"
 	local target
+
+	[[ "${GITHUB_ACTIONS:-}" == true ]] || {
+		printf 'ci_sync_branch 仅允许在 GitHub Actions 临时工作区运行。\n' >&2
+		return 1
+	}
 
 	cd "$CI_REPO_ROOT" || return 1
 	git fetch origin "$branch"
@@ -77,7 +113,10 @@ ci_sync_branch() {
 ci_commit_and_push() {
 	local branch="$1"
 	local message="$2"
-	local local_head remote_head
+	local base_sha commit_sha local_head remote_head pushed_head
+	local packages_csv packages_display
+	local removed_package=false
+	local -a changed_files package_dirs
 	shift 2
 
 	[[ "$message" =~ ^[a-z]+:\ .+ ]] || {
@@ -91,6 +130,7 @@ ci_commit_and_push() {
 
 	cd "$CI_REPO_ROOT" || return 1
 	local_head="$(git rev-parse HEAD)"
+	base_sha="$local_head"
 	git fetch origin "$branch"
 	remote_head="$(git rev-parse "origin/$branch")"
 	if [[ "$local_head" != "$remote_head" ]]; then
@@ -102,34 +142,80 @@ ci_commit_and_push() {
 	git add -- "$@"
 	if git diff --cached --quiet; then
 		printf '没有需要提交的变更。\n'
+		ci_write_output changed false
+		ci_write_output base_sha "$base_sha"
+		ci_write_output commit_sha "$base_sha"
+		ci_write_output packages ''
+		ci_write_output packages_display ''
 		return 0
 	fi
 	git diff --cached --check
+	mapfile -t changed_files < <(git diff --cached --name-only)
+	mapfile -t package_dirs < <(
+		printf '%s\n' "${changed_files[@]}" | ci_packages_from_paths
+	)
+	for path in "${changed_files[@]}"; do
+		if [[ "$path" == */Makefile && "$path" != */*/* && \
+			"${path%%/*}" != .* && ! -f "$CI_REPO_ROOT/$path" ]]; then
+			removed_package=true
+			break
+		fi
+	done
+	if [[ "$removed_package" == true ]]; then
+		mapfile -t package_dirs < <(ci_discover_packages)
+	fi
+	if (( ${#package_dirs[@]} > 0 )); then
+		packages_csv="$(ci_join_csv "${package_dirs[@]}")"
+		packages_display="$(ci_format_csv "$packages_csv")"
+	else
+		packages_csv=''
+		packages_display=''
+	fi
 
 	git config user.name 'github-actions[bot]'
 	git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
 	git commit -m "$message"
+	commit_sha="$(git rev-parse HEAD)"
 	git push origin "HEAD:$branch"
+	pushed_head="$(git ls-remote --heads origin "refs/heads/$branch" | cut -f1)"
+	[[ "$pushed_head" == "$commit_sha" ]] || {
+		printf '远端分支未指向刚推送的提交：%s != %s\n' \
+			"$pushed_head" "$commit_sha" >&2
+		return 1
+	}
+
+	ci_write_output changed true
+	ci_write_output base_sha "$base_sha"
+	ci_write_output commit_sha "$commit_sha"
+	ci_write_output packages "$packages_csv"
+	ci_write_output packages_display "$packages_display"
 }
 
 ci_dispatch_apk_build() {
 	local branch="$1"
+	local source_sha="$2"
 	local packages_csv
-	shift
+	shift 2
 
 	: "${GH_TOKEN:?GH_TOKEN is required}"
 	: "${GITHUB_REPOSITORY:?GITHUB_REPOSITORY is required}"
+	ci_require_commit_sha "$source_sha" || return 1
+	git -C "$CI_REPO_ROOT" cat-file -e "$source_sha^{commit}" || {
+		printf '本地仓库中不存在待编译提交：%s\n' "$source_sha" >&2
+		return 1
+	}
 	(( $# > 0 )) || {
 		printf '未提供需要编译的 APK 软件包。\n' >&2
 		return 1
 	}
 
 	packages_csv="$(ci_join_csv "$@")"
-	printf '触发 APK 软件包编译：分支：%s，软件包：%s\n' \
-		"$branch" "$(ci_format_csv "$packages_csv")"
+	printf '触发 APK 软件包编译：分支：%s，提交：%s，软件包：%s\n' \
+		"$branch" "$source_sha" "$(ci_format_csv "$packages_csv")"
 	gh workflow run Build-APK-Packages.yml \
 		--repo "$GITHUB_REPOSITORY" \
 		--ref "$branch" \
+		--field "source_sha=$source_sha" \
 		--field "packages=$packages_csv"
 }
 
