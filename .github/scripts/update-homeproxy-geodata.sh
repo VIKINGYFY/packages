@@ -79,6 +79,20 @@ download() {
 		test -s "$2"
 }
 
+normalize_dashboard_javascript() {
+	local dashboard_root="$1"
+	local file
+
+	while IFS= read -r -d '' file; do
+		# Preserve the JSON editor's two-space indent without trailing whitespace.
+		sed -i -E 's/^(`\+[^`]+\+`)  $/\1\\x20\\x20/' "$file" || return 1
+		if grep -nE '[[:blank:]]+$' "$file" >&2; then
+			echo "Unsupported trailing whitespace remains in dashboard JavaScript: $file" >&2
+			return 1
+		fi
+	done < <(find "$dashboard_root" -type f -name '*.js' -print0)
+}
+
 mkdir -p -- "$RESOURCES_DIR" "$DASHBOARD_DIR"
 update_failed=0
 ip_version=""
@@ -172,6 +186,7 @@ if [[ "$dashboard_ready" -eq 1 ]]; then
 	rm -rf -- "$DASHBOARD_STAGE"
 	if mkdir -p -- "$DASHBOARD_STAGE" && \
 		cp -a -- "$dashboard_source_dir/." "$DASHBOARD_STAGE/" && \
+		normalize_dashboard_javascript "$DASHBOARD_STAGE" && \
 		printf '%s\n' "$dashboard_version" > "$DASHBOARD_STAGE/dashboard.ver"; then
 		rm -f -- "$DASHBOARD_STAGE/.etag"
 		chmod -R a+rX "$DASHBOARD_STAGE"
