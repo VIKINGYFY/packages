@@ -18,13 +18,6 @@
 'require tools.firewall as fwtool';
 'require tools.widgets as widgets';
 
-const callServiceList = rpc.declare({
-	object: 'service',
-	method: 'list',
-	params: ['name'],
-	expect: { '': {} }
-});
-
 const callReadDomainList = rpc.declare({
 	object: 'luci.homeproxy',
 	method: 'acllist_read',
@@ -60,16 +53,6 @@ const callCurrentNode = rpc.declare({
 	method: 'current_node_get',
 	expect: { '': {} }
 });
-
-function getServiceStatus() {
-	return L.resolveDefault(callServiceList('homeproxy'), {}).then((res) => {
-		let isRunning = false;
-		try {
-			isRunning = res['homeproxy']['instances']['sing-box-c']['running'];
-		} catch (e) { }
-		return isRunning;
-	});
-}
 
 function renderStatus(isRunning, version, currentNode) {
 	let spanTemp = '<em><span style="color:%s"><strong>%s (sing-box v%s) %s</strong></span></em>';
@@ -134,7 +117,7 @@ return view.extend({
 		s.render = function () {
 			poll.add(function () {
 				return Promise.all([
-					L.resolveDefault(getServiceStatus(), false),
+					L.resolveDefault(hp.getServiceStatus('sing-box-c'), false),
 					L.resolveDefault(callCurrentNode(), null)
 				]).then((res) => {
 					let isRunning = res[0],
@@ -1459,15 +1442,19 @@ return view.extend({
 		/* LAN IP policy start */
 		ss.tab('lan_ip_policy', _('LAN IP Policy'));
 
-		so = fwtool.addMACOption(ss, 'lan_ip_policy', 'lan_direct_mac_addrs', _('Direct MAC addresses'), null, hosts);
+		so = fwtool.addMACOption(ss, 'lan_ip_policy', 'lan_direct_mac_addrs', _('Direct MAC addresses'),
+			_('MAC addresses in this option are forced to use global direct routing.'), hosts);
 
-		so = fwtool.addIPOption(ss, 'lan_ip_policy', 'lan_direct_ipv4_ips', _('Direct IPv4 addresses'), null, 'ipv4', hosts, true);
+		so = fwtool.addIPOption(ss, 'lan_ip_policy', 'lan_direct_ipv4_ips', _('Direct IPv4 addresses'),
+			_('IPv4 addresses in this option are forced to use global direct routing.'), 'ipv4', hosts, true);
 
-		so = fwtool.addMACOption(ss, 'lan_ip_policy', 'lan_proxy_mac_addrs', _('Proxy MAC addresses'), null, hosts);
+		so = fwtool.addMACOption(ss, 'lan_ip_policy', 'lan_proxy_mac_addrs', _('Proxy MAC addresses'),
+			_('MAC addresses in this option are forced to use global proxy routing.'), hosts);
 		so.depends('homeproxy.config.routing_mode', 'bypass_mainland_china');
 		so.retain = true;
 
-		so = fwtool.addIPOption(ss, 'lan_ip_policy', 'lan_proxy_ipv4_ips', _('Proxy IPv4 addresses'), null, 'ipv4', hosts, true);
+		so = fwtool.addIPOption(ss, 'lan_ip_policy', 'lan_proxy_ipv4_ips', _('Proxy IPv4 addresses'),
+			_('IPv4 addresses in this option are forced to use global proxy routing.'), 'ipv4', hosts, true);
 		so.depends('homeproxy.config.routing_mode', 'bypass_mainland_china');
 		so.retain = true;
 		/* LAN IP policy end */
@@ -1475,12 +1462,14 @@ return view.extend({
 		/* WAN IP policy start */
 		ss.tab('wan_ip_policy', _('WAN IP Policy'));
 
-		so = ss.taboption('wan_ip_policy', form.DynamicList, 'wan_proxy_ipv4_ips', _('Proxy IPv4 addresses'));
+		so = ss.taboption('wan_ip_policy', form.DynamicList, 'wan_proxy_ipv4_ips', _('Proxy IPv4 addresses'),
+			_('IPv4 addresses in this option are forced to use global proxy routing.'));
 		so.datatype = 'or(ip4addr, cidr4)';
 		so.depends('homeproxy.config.routing_mode', 'bypass_mainland_china');
 		so.retain = true;
 
-		so = ss.taboption('wan_ip_policy', form.DynamicList, 'wan_proxy_ipv6_ips', _('Proxy IPv6 addresses'));
+		so = ss.taboption('wan_ip_policy', form.DynamicList, 'wan_proxy_ipv6_ips', _('Proxy IPv6 addresses'),
+			_('IPv6 addresses in this option are forced to use global proxy routing.'));
 		so.datatype = 'or(ip6addr, cidr6)';
 		so.depends({
 			'homeproxy.config.routing_mode': 'bypass_mainland_china',
@@ -1488,10 +1477,12 @@ return view.extend({
 		});
 		so.retain = true;
 
-		so = ss.taboption('wan_ip_policy', form.DynamicList, 'wan_direct_ipv4_ips', _('Direct IPv4 addresses'));
+		so = ss.taboption('wan_ip_policy', form.DynamicList, 'wan_direct_ipv4_ips', _('Direct IPv4 addresses'),
+			_('IPv4 addresses in this option are forced to use global direct routing.'));
 		so.datatype = 'or(ip4addr, cidr4)';
 
-		so = ss.taboption('wan_ip_policy', form.DynamicList, 'wan_direct_ipv6_ips', _('Direct IPv6 addresses'));
+		so = ss.taboption('wan_ip_policy', form.DynamicList, 'wan_direct_ipv6_ips', _('Direct IPv6 addresses'),
+			_('IPv6 addresses in this option are forced to use global direct routing.'));
 		so.datatype = 'or(ip6addr, cidr6)';
 		so.depends('homeproxy.config.ipv6_support', '1');
 		so.retain = true;

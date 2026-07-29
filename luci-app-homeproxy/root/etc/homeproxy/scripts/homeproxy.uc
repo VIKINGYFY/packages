@@ -45,7 +45,7 @@ export function wGET(url, ua, proxyUrl) {
 		return null;
 
 	if (!ua)
-		ua = 'v2rayN/7.23.4';
+		ua = 'homeproxy';
 
 	const maxSize = 4 * 1024 * 1024;
 	const proxyArg = proxyUrl ? `--proxy ${shellQuote(proxyUrl)} ` : '';
@@ -89,6 +89,43 @@ export function normalizeList(value) {
 	if (isEmpty(value))
 		return [];
 	return (type(value) === 'array') ? value : [value];
+};
+
+export function reserveUniqueLabel(used, label, fallback) {
+	let base = trim(label || '') || fallback;
+	let candidate = base;
+	let suffix = 2;
+
+	while (used[candidate])
+		candidate = `${base} (${suffix++})`;
+	used[candidate] = true;
+
+	return candidate;
+};
+
+export function createNodeLabelRegistry() {
+	return {
+		'direct-out': true,
+		'main-out': true
+	};
+};
+
+export function synchronizeNodeLabels(uci, config, include) {
+	const used = createNodeLabelRegistry();
+	let changed = 0;
+
+	uci.foreach(config, 'node', (section) => {
+		if (type(include) === 'function' && !include(section))
+			return;
+
+		const label = reserveUniqueLabel(used, section.label, section['.name']);
+		if (section.label !== label) {
+			uci.set(config, section['.name'], 'label', label);
+			changed++;
+		}
+	});
+
+	return { changed, used };
 };
 
 export function filterExistingNodes(uci, config, value, onRemove) {

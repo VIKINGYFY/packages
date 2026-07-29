@@ -17,7 +17,8 @@ import { init_action } from 'luci.sys';
 
 import {
 	wGET, decodeBase64Str, getTime, isEmpty, parseURL,
-	reconcileUrltestNodes, shellQuote, validation, HP_DIR, RUN_DIR
+	reconcileUrltestNodes, reserveUniqueLabel, shellQuote, synchronizeNodeLabels,
+	validation, HP_DIR, RUN_DIR
 } from 'homeproxy';
 
 /* UCI config start */
@@ -47,6 +48,7 @@ const service_running = system('/etc/init.d/homeproxy running >/dev/null 2>&1') 
 
 /* Common var start */
 const node_cache = {},
+      node_config_cache = {},
       node_result = [],
       reconcile_group = {};
 
@@ -1026,6 +1028,7 @@ function main() {
 		seen_urls[url] = true;
 		const groupHash = md5(url);
 		node_cache[groupHash] = {};
+		node_config_cache[groupHash] = {};
 		reconcile_group[groupHash] = false;
 
 		try {
@@ -1071,7 +1074,7 @@ function main() {
 
 					if (filter_check(config.label))
 						log(sprintf('Skipping blacklist node: %s.', config.label));
-					else if (node_cache[groupHash][confHash])
+					else if (node_config_cache[groupHash][confHash])
 						log(sprintf('Skipping duplicate node: %s.', config.label));
 					else {
 						const occurrence = (label_occurrences[label] || 0) + 1;
@@ -1091,9 +1094,8 @@ function main() {
 
 						config.grouphash = groupHash;
 						config.__section_id = nameHash;
-						push(node_result, []);
-						push(node_result[length(node_result)-1], config);
-						node_cache[groupHash][confHash] = config;
+						push(node_result, config);
+						node_config_cache[groupHash][confHash] = true;
 						node_cache[groupHash][nameHash] = config;
 
 						count++;
@@ -1124,11 +1126,33 @@ function main() {
 		return false;
 	}
 
-	let added = 0, removed = 0, updated = 0;
+	const incoming_sections = {};
+	for (let node in node_result)
+		incoming_sections[node.__section_id] = true;
+	const label_state = synchronizeNodeLabels(uci, uciconfig, (cfg) => {
+		const cached_group = cfg.grouphash ? node_cache[cfg.grouphash] : null;
+		const preserving_node = !cfg.grouphash || (cached_group &&
+			(length(cached_group) === 0 || reconcile_group[cfg.grouphash] !== true));
+		const incoming_subscription_node = cfg.grouphash && incoming_sections[cfg['.name']];
+		return preserving_node && !incoming_subscription_node;
+	});
+	for (let node in node_result)
+		node.label = reserveUniqueLabel(label_state.used, node.label, node.__section_id);
+
+	let added = 0, removed = 0, updated = label_state.changed;
 	uci.foreach(uciconfig, ucinode, (cfg) => {
 		/* Nodes created by the user */
 		if (!cfg.grouphash)
 			return null;
+
+		/* Subscription URL was removed from the configuration. */
+		if (!(cfg.grouphash in node_cache)) {
+			uci.delete(uciconfig, cfg['.name']);
+			removed++;
+
+			log(sprintf('Removing node: %s.', cfg.label || cfg['.name']));
+			return null;
+		}
 
 		/* Empty object - failed to fetch nodes */
 		const cached_group = node_cache[cfg.grouphash];
@@ -1161,26 +1185,25 @@ function main() {
 		}
 	});
 
-	for (let nodes in node_result)
-		map(nodes, (node) => {
-			if (node.isExisting)
-				return null;
+	map(node_result, (node) => {
+		if (node.isExisting)
+			return null;
 
-			const nameHash = node.__section_id;
-			try {
-				uci.set(uciconfig, nameHash, 'node');
-				map(keys(node), (v) => {
-					if (!match(v, /^__/))
-						uci.set(uciconfig, nameHash, v, node[v]);
-				});
+		const nameHash = node.__section_id;
+		try {
+			uci.set(uciconfig, nameHash, 'node');
+			map(keys(node), (v) => {
+				if (!match(v, /^__/))
+					uci.set(uciconfig, nameHash, v, node[v]);
+			});
 
-				added++;
-				log(sprintf('Adding node: %s.', node.label));
-			} catch (e) {
-				uci.delete(uciconfig, nameHash);
-				log_error(sprintf('Skipping node %s because it could not be saved', node.label), e);
-			}
-		});
+			added++;
+			log(sprintf('Adding node: %s.', node.label));
+		} catch (e) {
+			uci.delete(uciconfig, nameHash);
+			log_error(sprintf('Skipping node %s because it could not be saved', node.label), e);
+		}
+	});
 
 	reconcileUrltestNodes(uci, uciconfig, (message) => log(message));
 

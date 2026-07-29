@@ -13,8 +13,9 @@ import { connect } from 'ubus';
 import { cursor } from 'uci';
 
 import {
-	filterExistingNodes, hasForceProxyRules, isEmpty, normalizeList, parseURL,
-	strToBool, strToInt, strToTime,
+	createNodeLabelRegistry, filterExistingNodes, hasForceProxyRules, isEmpty,
+	normalizeList, parseURL,
+	reserveUniqueLabel, strToBool, strToInt, strToTime,
 	removeBlankAttrs, renderEndpoint, renderOutbound, validation, HP_DIR, RUN_DIR
 } from 'homeproxy';
 
@@ -42,6 +43,31 @@ const ucinode = 'node';
 const uciruleset = 'ruleset';
 
 const routing_mode = uci.get(uciconfig, ucimain, 'routing_mode') || 'bypass_mainland_china';
+
+const outbound_tags = createNodeLabelRegistry();
+const node_outbound_tags = {};
+const routing_outbound_tags = {};
+
+uci.foreach(uciconfig, ucinode, (cfg) => {
+	node_outbound_tags[cfg['.name']] = reserveUniqueLabel(
+		outbound_tags,
+		cfg.label, `cfg-${cfg['.name']}-out`
+	);
+});
+uci.foreach(uciconfig, uciroutingnode, (cfg) => {
+	routing_outbound_tags[cfg['.name']] = reserveUniqueLabel(
+		outbound_tags,
+		cfg.label, `cfg-${cfg['.name']}-out`
+	);
+});
+
+function get_node_outbound_tag(section_id) {
+	return node_outbound_tags[section_id] || `cfg-${section_id}-out`;
+}
+
+function get_routing_outbound_tag(section_id) {
+	return routing_outbound_tags[section_id] || `cfg-${section_id}-out`;
+}
 
 function render_domain_rules(domains) {
 	let suffixes = [], keywords = [];
@@ -383,7 +409,17 @@ function render_dns_rule_match(cfg) {
 }
 
 function generate_outbound(node) {
-	return renderOutbound(node, self_mark);
+	const outbound = renderOutbound(node, self_mark);
+	if (outbound && node['.name'])
+		outbound.tag = get_node_outbound_tag(node['.name']);
+	return outbound;
+}
+
+function generate_endpoint(node) {
+	const endpoint = renderEndpoint(node);
+	if (endpoint && node['.name'])
+		endpoint.tag = get_node_outbound_tag(node['.name']);
+	return endpoint;
 }
 
 function get_outbound(cfg) {
@@ -407,9 +443,9 @@ function get_outbound(cfg) {
 			if (isEmpty(node))
 				die(sprintf("%s's node is missing, please check your configuration.", cfg));
 			else if (node === 'urltest')
-				return 'cfg-' + cfg + '-out';
+				return get_routing_outbound_tag(cfg);
 			else
-				return 'cfg-' + node + '-out';
+				return get_node_outbound_tag(node);
 		}
 	}
 }
@@ -709,7 +745,7 @@ if (!isEmpty(main_node)) {
 		push(config.outbounds, {
 			type: 'urltest',
 			tag: 'main-out',
-			outbounds: map(main_urltest_nodes, (k) => `cfg-${k}-out`),
+			outbounds: map(main_urltest_nodes, (k) => get_node_outbound_tag(k)),
 			interval: strToTime(main_urltest_interval),
 			tolerance: strToInt(main_urltest_tolerance),
 			idle_timeout: (strToInt(main_urltest_interval) > 1800) ? `${main_urltest_interval * 2}s` : null,
@@ -719,7 +755,7 @@ if (!isEmpty(main_node)) {
 	} else {
 		const main_node_cfg = uci.get_all(uciconfig, main_node) || {};
 		if (main_node_cfg.type === 'wireguard') {
-			const main_endpoint = renderEndpoint(main_node_cfg);
+			const main_endpoint = generate_endpoint(main_node_cfg);
 			if (main_endpoint) {
 				main_endpoint.tag = 'main-out';
 				push(config.endpoints, main_endpoint);
@@ -739,17 +775,13 @@ if (!isEmpty(main_node)) {
 			continue;
 
 		if (urltest_node.type === 'wireguard') {
-			const endpoint = renderEndpoint(urltest_node);
-			if (endpoint) {
-				endpoint.tag = 'cfg-' + i + '-out';
+			const endpoint = generate_endpoint(urltest_node);
+			if (endpoint)
 				push(config.endpoints, endpoint);
-			}
 		} else {
 			const outbound = generate_outbound(urltest_node);
-			if (outbound) {
-				outbound.tag = 'cfg-' + i + '-out';
+			if (outbound)
 				push(config.outbounds, outbound);
-			}
 		}
 	}
 } else if (!isEmpty(default_outbound)) {
@@ -766,8 +798,8 @@ if (!isEmpty(main_node)) {
 				die(sprintf('Routing URLTest group %s has no available nodes.', cfg['.name']));
 			push(config.outbounds, {
 				type: 'urltest',
-				tag: 'cfg-' + cfg['.name'] + '-out',
-				outbounds: map(urltest_list, (k) => `cfg-${k}-out`),
+				tag: get_routing_outbound_tag(cfg['.name']),
+				outbounds: map(urltest_list, (k) => get_node_outbound_tag(k)),
 				url: cfg.urltest_url,
 				interval: strToTime(cfg.urltest_interval),
 				tolerance: strToInt(cfg.urltest_tolerance),
@@ -781,7 +813,7 @@ if (!isEmpty(main_node)) {
 				return;
 
 			if (outbound.type === 'wireguard') {
-				const endpoint = renderEndpoint(outbound);
+				const endpoint = generate_endpoint(outbound);
 				if (!endpoint)
 					return;
 
@@ -817,7 +849,7 @@ if (!isEmpty(main_node)) {
 			continue;
 
 		if (urltest_node.type === 'wireguard') {
-			const endpoint = renderEndpoint(urltest_node);
+			const endpoint = generate_endpoint(urltest_node);
 			if (endpoint)
 				push(config.endpoints, endpoint);
 		} else {

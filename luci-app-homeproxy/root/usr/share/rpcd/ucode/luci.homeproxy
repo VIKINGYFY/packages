@@ -11,20 +11,13 @@ import { lstat, open, popen, readfile, writefile } from 'fs';
 import { cursor } from 'uci';
 
 import {
-	removeBlankAttrs, renderEndpoint, renderOutbound
+	HP_DIR, RUN_DIR, removeBlankAttrs, renderEndpoint, renderOutbound, shellQuote
 } from '/etc/homeproxy/scripts/homeproxy.uc';
 
-/* Kanged from ucode/luci */
-function shellquote(s) {
-	return `'${replace(s, "'", "'\\''")}'`;
-}
-
 function hasKernelModule(kmod) {
-	return (system(sprintf('[ -e "/lib/modules/$(uname -r)"/%s ]', shellquote(kmod))) === 0);
+	return (system(sprintf('[ -e "/lib/modules/$(uname -r)"/%s ]', shellQuote(kmod))) === 0);
 }
 
-const HP_DIR = '/etc/homeproxy';
-const RUN_DIR = '/var/run/homeproxy';
 const RESOURCES = {
 	china_ip4: {
 		source: 'https://cdn.jsdelivr.net/gh/Loyalsoldier/surge-rules@release/cncidr.txt',
@@ -96,13 +89,13 @@ const methods = {
 				const filestat = lstat(tmpcert);
 
 				if (!filestat || filestat.type !== 'file' || filestat.size <= 0) {
-					system(`/bin/rm -f ${shellquote(tmpcert)}`);
+					system(`/bin/rm -f ${shellQuote(tmpcert)}`);
 					return { result: false, error: 'empty certificate file' };
 				}
 
 				let filecontent = readfile(tmpcert);
 				if (is_binary(filecontent)) {
-					system(`/bin/rm -f ${shellquote(tmpcert)}`);
+					system(`/bin/rm -f ${shellQuote(tmpcert)}`);
 					return { result: false, error: 'illegal file type: binary' };
 				}
 
@@ -157,7 +150,7 @@ const methods = {
 				}
 
 				if (!valid || current || blocks === 0 || (!multiple && blocks !== 1)) {
-					system(`/bin/rm -f ${shellquote(tmpcert)}`);
+					system(`/bin/rm -f ${shellQuote(tmpcert)}`);
 					return { result: false, error: 'this does not look like a correct PEM file' };
 				}
 
@@ -168,16 +161,16 @@ const methods = {
 					filecontent += '\n';
 
 				const certfile = `${HP_DIR}/certs/${filename}.pem`;
-				system(`/bin/mkdir -p ${shellquote(HP_DIR + '/certs')}`);
+				system(`/bin/mkdir -p ${shellQuote(HP_DIR + '/certs')}`);
 				if (writefile(certfile, filecontent) === null) {
-					system(`/bin/rm -f ${shellquote(tmpcert)}`);
+					system(`/bin/rm -f ${shellQuote(tmpcert)}`);
 					return { result: false, error: 'failed to write certificate file' };
 				}
-				if (kind === 'private' && system(`/bin/chmod 600 ${shellquote(certfile)}`) !== 0) {
-					system(`/bin/rm -f ${shellquote(tmpcert)} ${shellquote(certfile)}`);
+				if (kind === 'private' && system(`/bin/chmod 600 ${shellQuote(certfile)}`) !== 0) {
+					system(`/bin/rm -f ${shellQuote(tmpcert)} ${shellQuote(certfile)}`);
 					return { result: false, error: 'failed to protect private key file' };
 				}
-				system(`/bin/rm -f ${shellquote(tmpcert)}`);
+				system(`/bin/rm -f ${shellQuote(tmpcert)}`);
 
 				return { result: true };
 			};
@@ -209,9 +202,9 @@ const methods = {
 			for (let site in sites) {
 				push(commands, sprintf(
 					'/usr/bin/curl --location --silent --output /dev/null --user-agent %s --connect-timeout 5 --max-time 9 --write-out %s %s',
-					shellquote('Mozilla/5.0'),
-					shellquote(sprintf('%s\\t%%{http_code}\\t%%{time_appconnect}\\t%%{time_total}\\n', site)),
-					shellquote(CONNECTION_SITES[site])
+					shellQuote('Mozilla/5.0'),
+					shellQuote(sprintf('%s\\t%%{http_code}\\t%%{time_appconnect}\\t%%{time_total}\\n', site)),
+					shellQuote(CONNECTION_SITES[site])
 				));
 			}
 
@@ -401,7 +394,7 @@ const methods = {
 				const pid_path = `${session_dir}/sing-box.pid`;
 				const port_output = readCommand(sprintf(
 					'/usr/libexec/homeproxy-random-port %s 2>"/dev/null"',
-					shellquote(reserved_controller_port)
+					shellQuote(reserved_controller_port)
 				));
 				const controller_port = int(trim(port_output || ''));
 				if (controller_port <= 0 || controller_port > 65535)
@@ -429,11 +422,11 @@ const methods = {
 				for (let entry in entries)
 					push(entry.endpoint ? config.endpoints : config.outbounds, entry.outbound);
 
-				if (system(`/bin/mkdir -p ${shellquote(session_dir)}`) !== 0)
+				if (system(`/bin/mkdir -p ${shellQuote(session_dir)}`) !== 0)
 					return { error: 'failed to prepare temporary runtime directory' };
 
 				if (!writefile(config_path, sprintf('%.J\n', removeBlankAttrs(config)))) {
-					system(`/bin/rm -rf ${shellquote(session_dir)}`);
+					system(`/bin/rm -rf ${shellQuote(session_dir)}`);
 					return { error: 'failed to write temporary sing-box config' };
 				}
 
@@ -449,17 +442,17 @@ const methods = {
 			const launchProbeRuntime = (runtime_meta) => {
 				const launch_cmd = sprintf(
 					'/usr/bin/sing-box run --config %s >/dev/null 2>&1 & pid=$!; printf "%%s\\n" "$pid" > %s; /bin/kill -0 "$pid" >/dev/null 2>&1',
-					shellquote(runtime_meta.config_path),
-					shellquote(runtime_meta.pid_path)
+					shellQuote(runtime_meta.config_path),
+					shellQuote(runtime_meta.pid_path)
 				);
 
-				return system(`/bin/sh -c ${shellquote(launch_cmd)}`) === 0;
+				return system(`/bin/sh -c ${shellQuote(launch_cmd)}`) === 0;
 			};
 
 			const waitControllerReady = (runtime_meta) => {
 				for (let i = 0; i < 10; i++) {
 					if (getRuntimePid(runtime_meta)) {
-						const payload = readCommand(`/usr/bin/curl -fsS --connect-timeout 1 --max-time 1 ${shellquote(runtime_meta.controller_url + '/version')} 2>"/dev/null"`);
+						const payload = readCommand(`/usr/bin/curl -fsS --connect-timeout 1 --max-time 1 ${shellQuote(runtime_meta.controller_url + '/version')} 2>"/dev/null"`);
 						if (trim(payload || ''))
 							return true;
 					}
@@ -474,9 +467,9 @@ const methods = {
 			const cleanupProbeRuntime = (runtime_meta) => {
 				const pid = getRuntimePid(runtime_meta);
 				if (pid)
-					system(`/bin/kill ${shellquote(pid)} >/dev/null 2>&1`);
+					system(`/bin/kill ${shellQuote(pid)} >/dev/null 2>&1`);
 
-				system(`/bin/rm -rf ${shellquote(runtime_meta.session_dir)}`);
+				system(`/bin/rm -rf ${shellQuote(runtime_meta.session_dir)}`);
 			};
 
 			const parseDelayResponse = (entry) => {
@@ -524,12 +517,12 @@ const methods = {
 					push(commands, sprintf(
 						'/usr/bin/curl -fsS --connect-timeout 1 --max-time %d -o %s %s 2>"/dev/null" &',
 						int((delay_timeout_ms + 999) / 1000),
-						shellquote(entry.response_path),
-						shellquote(delay_endpoint)
+						shellQuote(entry.response_path),
+						shellQuote(delay_endpoint)
 					));
 
 					if (length(commands) === probe_parallelism || i + 1 === length(entries)) {
-						system(`/bin/sh -c ${shellquote(join(' ', commands) + ' wait')}`);
+						system(`/bin/sh -c ${shellQuote(join(' ', commands) + ' wait')}`);
 						commands = [];
 					}
 				}
@@ -582,7 +575,7 @@ const methods = {
 			if (!length(entries))
 				return { results: map(slots, (slot) => slot.result) };
 
-			system(`/bin/mkdir -p ${shellquote(RUN_DIR)}`);
+			system(`/bin/mkdir -p ${shellQuote(RUN_DIR)}`);
 			let lockfd = open(`${RUN_DIR}/latency-test.lock`, 'w', 0600);
 			if (!lockfd || lockfd.lock('x') !== true) {
 				lockfd?.close();
@@ -656,7 +649,7 @@ const methods = {
 			const params = trim(req.args?.params || '');
 			let result = {};
 
-			const fd = popen(`/usr/bin/sing-box generate ${type}${params ? ' ' + shellquote(params) : ''}`);
+			const fd = popen(`/usr/bin/sing-box generate ${type}${params ? ' ' + shellQuote(params) : ''}`);
 			if (fd) {
 				let ech_cfg_set = false;
 				let ech_key_set = false;
@@ -742,7 +735,7 @@ const methods = {
 			hpuci.load('homeproxy');
 			const mixed_port = int(hpuci.get('homeproxy', 'infra', 'mixed_port')) || 5330;
 			const update_proxy = (hpuci.get('homeproxy', 'subscription', 'update_via_proxy') === '1') ?
-				`HOMEPROXY_UPDATE_PROXY=${shellquote(`http://127.0.0.1:${mixed_port}`)} ` : '';
+				`HOMEPROXY_UPDATE_PROXY=${shellQuote(`http://127.0.0.1:${mixed_port}`)} ` : '';
 			const status = system(`${update_proxy}${HP_DIR}/scripts/update_resources.sh`);
 			let update_result = {};
 			if (status !== 2) {

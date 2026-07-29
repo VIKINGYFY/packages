@@ -817,6 +817,7 @@ function renderNodeSettings(section, data, features, main_node, routing_mode, no
 
 	o = s.option(form.Value, 'label', _('Label'));
 	o.load = L.bind(hp.loadDefaultLabel, this, data[0]);
+	o.validate = L.bind(hp.validateUniqueValue, this, data[0], 'node', 'label');
 	o.rmempty = false;
 	o.modalonly = true;
 
@@ -1616,6 +1617,12 @@ return view.extend({
 		}
 
 		m = new form.Map('homeproxy', _('Edit Nodes'));
+		const saveMap = m.save;
+		m.save = function(cb, silent) {
+			return saveMap.call(this, () => Promise.resolve(
+				typeof cb === 'function' ? cb() : null
+			).then(() => hp.reconcileUrltestNodes(data[0])), silent);
+		};
 
 		s = m.section(form.NamedSection, 'subscription', 'homeproxy');
 
@@ -1626,11 +1633,7 @@ return view.extend({
 		ss = renderNodeSettings(o.subsection, data, features, main_node, routing_mode, node_latency_row_state);
 		ss.addremove = true;
 		ss.filter = function(section_id) {
-			for (let info of subinfo)
-				if (info.hash === uci.get(data[0], section_id, 'grouphash'))
-					return false;
-
-			return true;
+			return !uci.get(data[0], section_id, 'grouphash');
 		}
 		/* Import subscription links start */
 		/* Thanks to luci-app-shadowsocks-libev */
@@ -1794,8 +1797,8 @@ return view.extend({
 		o.rmempty = false;
 
 		o = s.taboption('subscription', form.Value, 'user_agent', _('User-Agent'));
-		o.default = 'v2rayN/7.23.4';
-		o.placeholder = 'v2rayN/7.23.4';
+		o.default = 'homeproxy';
+		o.placeholder = 'homeproxy';
 		o.rmempty = false;
 
 		o = s.taboption('subscription', form.Flag, 'allow_insecure', _('Allow insecure'),

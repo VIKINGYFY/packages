@@ -407,14 +407,14 @@ start_service() {
 	local sing_box_version
 	sing_box_version="$(sing-box version -n)"
 	if [ "$client_ready" -eq 1 ]; then
-		log "sing-box $sing_box_version client started"
+		log "sing-box $sing_box_version client started."
 	elif [ "$outbound_node" != "nil" ]; then
-		log "sing-box $sing_box_version client failed to start"
+		log "sing-box $sing_box_version client failed to start."
 	fi
 	if [ "$server_ready" -eq 1 ]; then
-		log "sing-box $sing_box_version server started"
+		log "sing-box $sing_box_version server started."
 	elif [ "$server_enabled" = "1" ]; then
-		log "sing-box $sing_box_version server failed to start"
+		log "sing-box $sing_box_version server failed to start."
 	fi
 }
 
@@ -458,11 +458,11 @@ stop_service() {
 
 	if [ "$client_was_running" -eq 1 ]; then
 		rm -f "$RUN_DIR/sing-box-c.log"
-		log "sing-box client stopped"
+		log "sing-box client stopped."
 	fi
 	if [ "$server_was_running" -eq 1 ]; then
 		rm -f "$RUN_DIR/sing-box-s.log"
-		log "sing-box server stopped"
+		log "sing-box server stopped."
 	fi
 }
 

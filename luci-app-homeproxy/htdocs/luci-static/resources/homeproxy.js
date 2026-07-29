@@ -12,6 +12,13 @@
 'require uci';
 'require ui';
 
+const callServiceList = rpc.declare({
+	object: 'service',
+	method: 'list',
+	params: ['name'],
+	expect: { '': {} }
+});
+
 return baseclass.extend({
 	dns_strategy: {
 		'': _('Default'),
@@ -85,6 +92,94 @@ return baseclass.extend({
 			return dl;
 		}
 	}),
+
+	getServiceStatus(instance) {
+		return L.resolveDefault(callServiceList('homeproxy'), {}).then((res) => {
+			try {
+				return res.homeproxy.instances[instance].running === true;
+			} catch (e) {
+				return false;
+			}
+		});
+	},
+
+	reconcileUrltestNodes(uciconfig) {
+		const subscriptionGroups = Object.create(null);
+		const available = Object.create(null);
+		const orphanedNodes = [];
+		let firstNode = null;
+		let changed = false, removed = 0, removedNodes = 0, disabled = 0;
+
+		const subscriptionUrls = uci.get(uciconfig, 'subscription', 'subscription_url');
+		for (const configuredUrl of (Array.isArray(subscriptionUrls) ? subscriptionUrls :
+			(subscriptionUrls ? [ subscriptionUrls ] : []))) {
+			const url = configuredUrl.replace(/#.*$/, '');
+			if (url)
+				subscriptionGroups[this.calcStringMD5(url)] = true;
+		}
+
+		uci.sections(uciconfig, 'node', (section) => {
+			if (section.grouphash && !subscriptionGroups[section.grouphash]) {
+				orphanedNodes.push(section['.name']);
+				return;
+			}
+
+			available[section['.name']] = true;
+			firstNode ??= section['.name'];
+		});
+		for (const node of orphanedNodes) {
+			uci.remove(uciconfig, node);
+			changed = true;
+			removedNodes++;
+		}
+
+		function reconcileList(section, option) {
+			const current = uci.get(uciconfig, section, option);
+			const normalized = Array.isArray(current) ? current : (current ? [ current ] : []);
+			const seen = Object.create(null);
+			const filtered = normalized.filter((node) => {
+				if (!node || seen[node] || !available[node]) {
+					if (node && !seen[node] && !available[node])
+						removed++;
+					return false;
+				}
+				seen[node] = true;
+				return true;
+			});
+
+			if (JSON.stringify(normalized) !== JSON.stringify(filtered)) {
+				uci.set(uciconfig, section, option, filtered.length ? filtered : null);
+				changed = true;
+			}
+
+			return filtered;
+		}
+
+		const mainNodes = reconcileList('config', 'main_urltest_nodes');
+		const mainNode = uci.get(uciconfig, 'config', 'main_node');
+		if (mainNode === 'urltest' && !mainNodes.length) {
+			uci.set(uciconfig, 'config', 'main_node', firstNode || 'nil');
+			changed = true;
+		}
+		else if (mainNode && mainNode !== 'nil' && !available[mainNode]) {
+			uci.set(uciconfig, 'config', 'main_node', firstNode || 'nil');
+			changed = true;
+		}
+
+		uci.sections(uciconfig, 'routing_node', (section) => {
+			if (section.node !== 'urltest')
+				return;
+
+			const nodes = reconcileList(section['.name'], 'urltest_nodes');
+			if (section.enabled === '1' && !nodes.length) {
+				uci.set(uciconfig, section['.name'], 'enabled', '0');
+				changed = true;
+				disabled++;
+			}
+		});
+
+		return { changed, removed, removedNodes, disabled };
+	},
 
 	calcStringMD5(e) {
 		/* Thanks to https://stackoverflow.com/a/41602636 */
@@ -306,6 +401,9 @@ return baseclass.extend({
 				return _('Expecting: %s').format(_('non-empty value'));
 			if (ucioption === 'node' && value === 'urltest')
 				return true;
+			if (ucisection === 'node' && ucioption === 'label' &&
+			    ['direct-out', 'main-out'].includes(value))
+				return _('Expecting: %s').format(_('unique value'));
 
 			let duplicate = false;
 			uci.sections(uciconfig, ucisection, (res) => {

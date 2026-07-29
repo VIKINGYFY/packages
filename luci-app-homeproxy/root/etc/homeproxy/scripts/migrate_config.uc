@@ -8,7 +8,9 @@
 'use strict';
 
 import { cursor } from 'uci';
-import { isEmpty, normalizeList } from 'homeproxy';
+import {
+	isEmpty, normalizeList, reconcileUrltestNodes, synchronizeNodeLabels
+} from 'homeproxy';
 
 const uci = cursor();
 const uciconfig = 'homeproxy';
@@ -50,6 +52,32 @@ function mergeListOption(section, sourceOption, targetOption) {
 	if (uci.get(uciconfig, section, sourceOption) !== null)
 		uci.delete(uciconfig, section, sourceOption);
 }
+
+/* The current updater cannot persist identical configurations in one group. */
+const subscriptionNodes = [];
+const seenSubscriptionConfigs = {};
+let hasObsoleteSubscriptionState = false;
+uci.foreach(uciconfig, 'node', (section) => {
+	if (!section.grouphash)
+		return;
+
+	const config = {};
+	for (let option in sort(keys(section)))
+		if (!match(option, /^\./) && !(option in ['label', 'grouphash']))
+			config[option] = section[option];
+
+	const signature = section.grouphash + ':' + sprintf('%J', config);
+	if (seenSubscriptionConfigs[signature])
+		hasObsoleteSubscriptionState = true;
+	else
+		seenSubscriptionConfigs[signature] = true;
+	push(subscriptionNodes, section['.name']);
+});
+if (hasObsoleteSubscriptionState)
+	for (let node in subscriptionNodes)
+		uci.delete(uciconfig, node);
+
+synchronizeNodeLabels(uci, uciconfig);
 
 /* Keep only the modes implemented by the 1.14 configuration generator. */
 if (!(uci.get(uciconfig, 'config', 'routing_mode') in ['bypass_mainland_china', 'custom', 'global']))
@@ -133,6 +161,11 @@ if (onlyContains(uci.get(uciconfig, 'control', 'wan_proxy_ipv6_ips'), stockWanPr
 if (uci.get(uciconfig, 'subscription', 'latency_test_mode') !== null)
 	uci.delete(uciconfig, 'subscription', 'latency_test_mode');
 
+const subscriptionUserAgent = uci.get(uciconfig, 'subscription', 'user_agent');
+if (subscriptionUserAgent === 'v2rayN/7.23.4' ||
+	subscriptionUserAgent === 'sing-box/1.14.0-beta.2')
+	uci.set(uciconfig, 'subscription', 'user_agent', 'homeproxy');
+
 setDefault('infra', 'ntp_server', 'nil');
 if (isEmpty(uci.get(uciconfig, 'infra', 'udp_timeout')))
 	uci.set(uciconfig, 'infra', 'udp_timeout', '300');
@@ -152,6 +185,13 @@ setDefault('dns', 'disable_cache', '0');
 setDefault('dns', 'disable_cache_expire', '0');
 setDefault('dns', 'cache_file_store_dns', '0');
 setDefault('server', 'log_level', 'warn');
+
+reconcileUrltestNodes(uci, uciconfig);
+
+const mainNode = uci.get(uciconfig, 'config', 'main_node') || 'nil';
+if (mainNode !== 'nil' && mainNode !== 'urltest' &&
+	uci.get(uciconfig, mainNode) !== 'node')
+	uci.set(uciconfig, 'config', 'main_node', uci.get_first(uciconfig, 'node') || 'nil');
 
 if (uci.get(uciconfig, 'migration'))
 	uci.delete(uciconfig, 'migration');

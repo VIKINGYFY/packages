@@ -15,13 +15,6 @@
 'require homeproxy as hp';
 'require tools.widgets as widgets';
 
-const callServiceList = rpc.declare({
-	object: 'service',
-	method: 'list',
-	params: ['name'],
-	expect: { '': {} }
-});
-
 const CBIGenValue = form.Value.extend({
 	__name__: 'CBI.GenValue',
 
@@ -40,16 +33,6 @@ const CBIGenValue = form.Value.extend({
 		return node;
 	}
 });
-
-function getServiceStatus() {
-	return L.resolveDefault(callServiceList('homeproxy'), {}).then((res) => {
-		let isRunning = false;
-		try {
-			isRunning = res['homeproxy']['instances']['sing-box-s']['running'];
-		} catch (e) { }
-		return isRunning;
-	});
-}
 
 function renderStatus(isRunning, version) {
 	let spanTemp = '<em><span style="color:%s"><strong>%s (sing-box v%s) %s</strong></span></em>';
@@ -132,7 +115,7 @@ return view.extend({
 		s = m.section(form.TypedSection);
 		s.render = function() {
 			poll.add(() => {
-				return L.resolveDefault(getServiceStatus()).then((res) => {
+				return L.resolveDefault(hp.getServiceStatus('sing-box-s')).then((res) => {
 					let view = document.getElementById('service_status');
 					view.innerHTML = renderStatus(res, features.version);
 				});
