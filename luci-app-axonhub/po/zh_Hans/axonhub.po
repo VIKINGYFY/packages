@@ -9,44 +9,44 @@ msgstr ""
 "Content-Type: text/plain; charset=UTF-8\n"
 "Content-Transfer-Encoding: 8bit\n"
 
-#: luci-app-axonhub/htdocs/luci-static/resources/view/axonhub.js:273
+#: luci-app-axonhub/htdocs/luci-static/resources/view/axonhub.js:279
 msgid "%s (%s total, %s free, %s)"
 msgstr "%s（总计 %s，可用 %s，%s）"
 
-#: luci-app-axonhub/htdocs/luci-static/resources/view/axonhub.js:257
+#: luci-app-axonhub/htdocs/luci-static/resources/view/axonhub.js:263
 msgid ""
 "A free port is selected randomly on first installation. The saved value "
 "remains unchanged after restarts."
 msgstr "首次安装时会随机选择一个空闲端口。保存后重启不会改变该端口。"
 
-#: luci-app-axonhub/htdocs/luci-static/resources/view/axonhub.js:287
+#: luci-app-axonhub/htdocs/luci-static/resources/view/axonhub.js:293
 msgid ""
 "A soft runtime limit that leaves memory available for routing and other "
 "services."
 msgstr "为 Go 运行时设置软限制，给路由和其他服务保留内存。"
 
-#: luci-app-axonhub/htdocs/luci-static/resources/view/axonhub.js:251
+#: luci-app-axonhub/htdocs/luci-static/resources/view/axonhub.js:257
 msgid "Advanced"
 msgstr "高级设置"
 
-#: luci-app-axonhub/htdocs/luci-static/resources/view/axonhub.js:238
+#: luci-app-axonhub/htdocs/luci-static/resources/view/axonhub.js:244
 #: luci-app-axonhub/root/usr/share/luci/menu.d/luci-app-axonhub.json:14
 msgid "AxonHub"
 msgstr "AxonHub"
 
-#: luci-app-axonhub/htdocs/luci-static/resources/view/axonhub.js:114
+#: luci-app-axonhub/htdocs/luci-static/resources/view/axonhub.js:121
 msgid "AxonHub Log"
 msgstr "AxonHub 日志"
 
-#: luci-app-axonhub/htdocs/luci-static/resources/view/axonhub.js:143
+#: luci-app-axonhub/htdocs/luci-static/resources/view/axonhub.js:149
 msgid "CPU %s"
 msgstr "CPU %s"
 
-#: luci-app-axonhub/htdocs/luci-static/resources/view/axonhub.js:296
+#: luci-app-axonhub/htdocs/luci-static/resources/view/axonhub.js:302
 msgid "CPU threads"
 msgstr "CPU 线程数"
 
-#: luci-app-axonhub/htdocs/luci-static/resources/view/axonhub.js:264
+#: luci-app-axonhub/htdocs/luci-static/resources/view/axonhub.js:270
 msgid ""
 "Changing this path starts a separate instance unless the existing database "
 "is moved while AxonHub is stopped."
@@ -54,17 +54,17 @@ msgstr ""
 "修改此路径会创建一个全新实例；如需保留数据，请先停止 AxonHub，再移动现有数据"
 "库。"
 
-#: luci-app-axonhub/htdocs/luci-static/resources/view/axonhub.js:328
+#: luci-app-axonhub/htdocs/luci-static/resources/view/axonhub.js:334
 msgid ""
 "Clear the dedicated AxonHub log at 03:00 on the selected calendar schedule. "
 "System log entries are never cleared."
 msgstr "按所选日历计划在 03:00 清理 AxonHub 独立日志，不会清理系统日志。"
 
-#: luci-app-axonhub/htdocs/luci-static/resources/view/axonhub.js:123
+#: luci-app-axonhub/htdocs/luci-static/resources/view/axonhub.js:128
 msgid "Close"
 msgstr "关闭"
 
-#: luci-app-axonhub/htdocs/luci-static/resources/view/axonhub.js:215
+#: luci-app-axonhub/htdocs/luci-static/resources/view/axonhub.js:221
 msgid "Collecting data..."
 msgstr "正在获取状态..."
 
@@ -72,55 +72,55 @@ msgstr "正在获取状态..."
 msgid "Control"
 msgstr "管控"
 
-#: luci-app-axonhub/htdocs/luci-static/resources/view/axonhub.js:263
+#: luci-app-axonhub/htdocs/luci-static/resources/view/axonhub.js:269
 msgid "Database and settings directory"
 msgstr "数据库和设置保存目录"
 
-#: luci-app-axonhub/htdocs/luci-static/resources/view/axonhub.js:315
+#: luci-app-axonhub/htdocs/luci-static/resources/view/axonhub.js:321
 msgid "Debug"
 msgstr "调试"
 
-#: luci-app-axonhub/htdocs/luci-static/resources/view/axonhub.js:329
+#: luci-app-axonhub/htdocs/luci-static/resources/view/axonhub.js:335
 msgid "Disabled"
 msgstr "已禁用"
 
-#: luci-app-axonhub/htdocs/luci-static/resources/view/axonhub.js:323
+#: luci-app-axonhub/htdocs/luci-static/resources/view/axonhub.js:329
 msgid "Disabled by default because AxonHub can produce a large volume of logs."
 msgstr "默认关闭，因为 AxonHub 可能产生大量日志。"
 
-#: luci-app-axonhub/htdocs/luci-static/resources/view/axonhub.js:253
+#: luci-app-axonhub/htdocs/luci-static/resources/view/axonhub.js:259
 msgid "Enable"
 msgstr "启用"
 
-#: luci-app-axonhub/htdocs/luci-static/resources/view/axonhub.js:178
+#: luci-app-axonhub/htdocs/luci-static/resources/view/axonhub.js:184
 msgid "Enable the service and save the configuration to start it."
 msgstr "启用服务并保存应用配置后即可启动。"
 
-#: luci-app-axonhub/htdocs/luci-static/resources/view/axonhub.js:318
+#: luci-app-axonhub/htdocs/luci-static/resources/view/axonhub.js:324
 msgid "Error"
 msgstr "错误"
 
-#: luci-app-axonhub/htdocs/luci-static/resources/view/axonhub.js:330
+#: luci-app-axonhub/htdocs/luci-static/resources/view/axonhub.js:336
 msgid "Every day"
 msgstr "每天"
 
-#: luci-app-axonhub/htdocs/luci-static/resources/view/axonhub.js:332
+#: luci-app-axonhub/htdocs/luci-static/resources/view/axonhub.js:338
 msgid "Every month"
 msgstr "每月"
 
-#: luci-app-axonhub/htdocs/luci-static/resources/view/axonhub.js:331
+#: luci-app-axonhub/htdocs/luci-static/resources/view/axonhub.js:337
 msgid "Every week"
 msgstr "每周"
 
-#: luci-app-axonhub/htdocs/luci-static/resources/view/axonhub.js:346
+#: luci-app-axonhub/htdocs/luci-static/resources/view/axonhub.js:352
 msgid "Failed to update the log cleanup schedule."
 msgstr "更新日志清理计划失败。"
 
-#: luci-app-axonhub/htdocs/luci-static/resources/view/axonhub.js:249
+#: luci-app-axonhub/htdocs/luci-static/resources/view/axonhub.js:255
 msgid "General"
 msgstr "常规设置"
 
-#: luci-app-axonhub/htdocs/luci-static/resources/view/axonhub.js:286
+#: luci-app-axonhub/htdocs/luci-static/resources/view/axonhub.js:292
 msgid "Go memory limit"
 msgstr "Go 内存限制"
 
@@ -128,39 +128,39 @@ msgstr "Go 内存限制"
 msgid "Grant access to luci-app-axonhub"
 msgstr "授予访问 luci-app-axonhub 的权限"
 
-#: luci-app-axonhub/htdocs/luci-static/resources/view/axonhub.js:316
+#: luci-app-axonhub/htdocs/luci-static/resources/view/axonhub.js:322
 msgid "Info"
 msgstr "信息"
 
-#: luci-app-axonhub/htdocs/luci-static/resources/view/axonhub.js:240
+#: luci-app-axonhub/htdocs/luci-static/resources/view/axonhub.js:246
 msgid "Installed version: %s"
 msgstr "已安装版本：%s"
 
-#: luci-app-axonhub/htdocs/luci-static/resources/view/axonhub.js:256
+#: luci-app-axonhub/htdocs/luci-static/resources/view/axonhub.js:262
 msgid "Listen port"
 msgstr "监听端口"
 
-#: luci-app-axonhub/htdocs/luci-static/resources/view/axonhub.js:327
+#: luci-app-axonhub/htdocs/luci-static/resources/view/axonhub.js:333
 msgid "Log cleanup schedule"
 msgstr "日志清理计划"
 
-#: luci-app-axonhub/htdocs/luci-static/resources/view/axonhub.js:314
+#: luci-app-axonhub/htdocs/luci-static/resources/view/axonhub.js:320
 msgid "Log level"
 msgstr "日志等级"
 
-#: luci-app-axonhub/htdocs/luci-static/resources/view/axonhub.js:145
+#: luci-app-axonhub/htdocs/luci-static/resources/view/axonhub.js:151
 msgid "MEM %s"
 msgstr "MEM %s"
 
-#: luci-app-axonhub/htdocs/luci-static/resources/view/axonhub.js:304
+#: luci-app-axonhub/htdocs/luci-static/resources/view/axonhub.js:310
 msgid "Maximum database connections"
 msgstr "数据库最大连接数"
 
-#: luci-app-axonhub/htdocs/luci-static/resources/view/axonhub.js:309
+#: luci-app-axonhub/htdocs/luci-static/resources/view/axonhub.js:315
 msgid "Maximum idle database connections"
 msgstr "数据库最大空闲连接数"
 
-#: luci-app-axonhub/htdocs/luci-static/resources/view/axonhub.js:239
+#: luci-app-axonhub/htdocs/luci-static/resources/view/axonhub.js:245
 msgid "Native AxonHub service and management interface. — AI Edition"
 msgstr "AxonHub（AI 网关）原生服务和管理入口。—— AI Edition"
 
@@ -168,43 +168,43 @@ msgstr "AxonHub（AI 网关）原生服务和管理入口。—— AI Edition"
 msgid "No AxonHub log entries were found."
 msgstr "未找到 AxonHub 日志。"
 
-#: luci-app-axonhub/htdocs/luci-static/resources/view/axonhub.js:175
+#: luci-app-axonhub/htdocs/luci-static/resources/view/axonhub.js:181
 msgid "Not running"
 msgstr "未运行"
 
-#: luci-app-axonhub/htdocs/luci-static/resources/view/axonhub.js:154
+#: luci-app-axonhub/htdocs/luci-static/resources/view/axonhub.js:160
 msgid "Open AxonHub"
 msgstr "打开 AxonHub"
 
-#: luci-app-axonhub/htdocs/luci-static/resources/view/axonhub.js:141
+#: luci-app-axonhub/htdocs/luci-static/resources/view/axonhub.js:147
 msgid "PID %s"
 msgstr "PID %s"
 
-#: luci-app-axonhub/htdocs/luci-static/resources/view/axonhub.js:280
+#: luci-app-axonhub/htdocs/luci-static/resources/view/axonhub.js:286
 msgid "Refresh"
 msgstr "刷新"
 
-#: luci-app-axonhub/htdocs/luci-static/resources/view/axonhub.js:279
+#: luci-app-axonhub/htdocs/luci-static/resources/view/axonhub.js:285
 msgid "Refresh storage locations"
 msgstr "刷新存储位置"
 
-#: luci-app-axonhub/htdocs/luci-static/resources/view/axonhub.js:250
+#: luci-app-axonhub/htdocs/luci-static/resources/view/axonhub.js:256
 msgid "Resources"
 msgstr "资源限制"
 
-#: luci-app-axonhub/htdocs/luci-static/resources/view/axonhub.js:156
+#: luci-app-axonhub/htdocs/luci-static/resources/view/axonhub.js:162
 msgid "Restart"
 msgstr "重启"
 
-#: luci-app-axonhub/htdocs/luci-static/resources/view/axonhub.js:175
+#: luci-app-axonhub/htdocs/luci-static/resources/view/axonhub.js:181
 msgid "Running"
 msgstr "运行中"
 
-#: luci-app-axonhub/htdocs/luci-static/resources/view/axonhub.js:175
+#: luci-app-axonhub/htdocs/luci-static/resources/view/axonhub.js:181
 msgid "Running (unmanaged)"
 msgstr "运行中（未托管）"
 
-#: luci-app-axonhub/htdocs/luci-static/resources/view/axonhub.js:246
+#: luci-app-axonhub/htdocs/luci-static/resources/view/axonhub.js:252
 msgid "Service Settings"
 msgstr "服务设置"
 
@@ -216,26 +216,26 @@ msgstr "服务操作失败，返回代码 %s。"
 msgid "Service action failed: %s."
 msgstr "服务操作失败：%s。"
 
-#: luci-app-axonhub/htdocs/luci-static/resources/view/axonhub.js:159
+#: luci-app-axonhub/htdocs/luci-static/resources/view/axonhub.js:165
 msgid "Start"
 msgstr "启动"
 
-#: luci-app-axonhub/htdocs/luci-static/resources/view/axonhub.js:177
+#: luci-app-axonhub/htdocs/luci-static/resources/view/axonhub.js:183
 msgid "The AxonHub binary is missing."
 msgstr "未找到 AxonHub 可执行文件。"
 
-#: luci-app-axonhub/htdocs/luci-static/resources/view/axonhub.js:127
+#: luci-app-axonhub/htdocs/luci-static/resources/view/axonhub.js:133
 msgid "Unable to read logs: %s."
 msgstr "无法读取日志：%s。"
 
-#: luci-app-axonhub/htdocs/luci-static/resources/view/axonhub.js:169
+#: luci-app-axonhub/htdocs/luci-static/resources/view/axonhub.js:175
 msgid "View Log"
 msgstr "查看日志"
 
-#: luci-app-axonhub/htdocs/luci-static/resources/view/axonhub.js:317
+#: luci-app-axonhub/htdocs/luci-static/resources/view/axonhub.js:323
 msgid "Warning"
 msgstr "警告"
 
-#: luci-app-axonhub/htdocs/luci-static/resources/view/axonhub.js:322
+#: luci-app-axonhub/htdocs/luci-static/resources/view/axonhub.js:328
 msgid "Write logs to system log"
 msgstr "写入系统日志"

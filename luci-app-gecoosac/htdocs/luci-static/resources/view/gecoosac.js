@@ -95,11 +95,16 @@ function actionButton(label, style, action) {
 function showLogs() {
 	return callLog().then(function(result) {
 		var content = result && result.log || _('No Gecoos AC log entries were found.');
+		var logNode = E('textarea', {
+			'class': 'cbi-input-textarea',
+			'readonly': 'readonly',
+			'wrap': 'off',
+			'spellcheck': 'false',
+			'style': 'display:block;width:100%;height:60vh;box-sizing:border-box;resize:none;overflow:auto;white-space:pre;font-family:monospace'
+		}, [ content ]);
 
 		ui.showModal(_('Gecoos AC Log'), [
-			E('pre', {
-				'style': 'max-height:60vh;overflow:auto;white-space:pre;word-break:normal;overflow-wrap:normal'
-			}, [ content ]),
+			logNode,
 			E('div', { 'class': 'right' }, [
 				E('button', {
 					'type': 'button',
@@ -108,6 +113,7 @@ function showLogs() {
 				}, [ _('Close') ])
 			])
 		]);
+		logNode.focus();
 	}).catch(function(err) {
 		notifyError(_('Unable to read logs: %s.').format(err.message || err));
 	});

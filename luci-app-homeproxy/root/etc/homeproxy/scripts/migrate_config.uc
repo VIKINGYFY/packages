@@ -53,29 +53,28 @@ function mergeListOption(section, sourceOption, targetOption) {
 		uci.delete(uciconfig, section, sourceOption);
 }
 
-/* The current updater cannot persist identical configurations in one group. */
-const subscriptionNodes = [];
-const seenSubscriptionConfigs = {};
-let hasObsoleteSubscriptionState = false;
-uci.foreach(uciconfig, 'node', (section) => {
-	if (!section.grouphash)
-		return;
-
-	const config = {};
-	for (let option in sort(keys(section)))
-		if (!match(option, /^\./) && !(option in ['label', 'grouphash']))
-			config[option] = section[option];
-
-	const signature = section.grouphash + ':' + sprintf('%J', config);
-	if (seenSubscriptionConfigs[signature])
-		hasObsoleteSubscriptionState = true;
-	else
-		seenSubscriptionConfigs[signature] = true;
-	push(subscriptionNodes, section['.name']);
-});
-if (hasObsoleteSubscriptionState)
+/* Only migrate nodes written before this schema marker was recorded. */
+const subscriptionNodeMigration = '1';
+const subscriptionNodeMigrationOption = 'subscription_node_migration';
+const subscriptionNodeMigrationState = uci.get(
+	uciconfig, 'migration', subscriptionNodeMigrationOption
+);
+if (subscriptionNodeMigrationState !== subscriptionNodeMigration) {
+	const subscriptionNodes = [];
+	uci.foreach(uciconfig, 'node', (section) => {
+		if (section.grouphash)
+			push(subscriptionNodes, section['.name']);
+	});
 	for (let node in subscriptionNodes)
 		uci.delete(uciconfig, node);
+
+	if (uci.get(uciconfig, 'migration') === null)
+		uci.set(uciconfig, 'migration', 'homeproxy');
+	uci.set(
+		uciconfig, 'migration', subscriptionNodeMigrationOption,
+		subscriptionNodeMigration
+	);
+}
 
 synchronizeNodeLabels(uci, uciconfig);
 
@@ -192,9 +191,6 @@ const mainNode = uci.get(uciconfig, 'config', 'main_node') || 'nil';
 if (mainNode !== 'nil' && mainNode !== 'urltest' &&
 	uci.get(uciconfig, mainNode) !== 'node')
 	uci.set(uciconfig, 'config', 'main_node', uci.get_first(uciconfig, 'node') || 'nil');
-
-if (uci.get(uciconfig, 'migration'))
-	uci.delete(uciconfig, 'migration');
 
 system('rm -f "/etc/homeproxy/resources/china_list.txt" "/etc/homeproxy/resources/china_list.ver" "/etc/homeproxy/resources/gfw_list.txt" "/etc/homeproxy/resources/gfw_list.ver"');
 

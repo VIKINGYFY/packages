@@ -9,29 +9,29 @@ msgstr ""
 "Content-Type: text/plain; charset=UTF-8\n"
 "Content-Transfer-Encoding: 8bit\n"
 
-#: luci-app-gecoosac/htdocs/luci-static/resources/view/gecoosac.js:248
+#: luci-app-gecoosac/htdocs/luci-static/resources/view/gecoosac.js:254
 msgid "Advanced"
 msgstr "高级设置"
 
-#: luci-app-gecoosac/htdocs/luci-static/resources/view/gecoosac.js:128
+#: luci-app-gecoosac/htdocs/luci-static/resources/view/gecoosac.js:134
 msgid "CPU %s"
 msgstr "CPU %s"
 
-#: luci-app-gecoosac/htdocs/luci-static/resources/view/gecoosac.js:267
+#: luci-app-gecoosac/htdocs/luci-static/resources/view/gecoosac.js:273
 msgid "Clear firmware directory"
 msgstr "清理固件目录"
 
-#: luci-app-gecoosac/htdocs/luci-static/resources/view/gecoosac.js:304
+#: luci-app-gecoosac/htdocs/luci-static/resources/view/gecoosac.js:310
 msgid ""
 "Clear the dedicated Gecoos AC log at 03:00 on the selected calendar "
 "schedule. System log entries are never cleared."
 msgstr "按所选周期在 03:00 清理 Gecoos AC 专用日志；系统日志不会被清理。"
 
-#: luci-app-gecoosac/htdocs/luci-static/resources/view/gecoosac.js:108
+#: luci-app-gecoosac/htdocs/luci-static/resources/view/gecoosac.js:113
 msgid "Close"
 msgstr "关闭"
 
-#: luci-app-gecoosac/htdocs/luci-static/resources/view/gecoosac.js:200
+#: luci-app-gecoosac/htdocs/luci-static/resources/view/gecoosac.js:206
 msgid "Collecting data..."
 msgstr "正在获取状态..."
 
@@ -39,74 +39,74 @@ msgstr "正在获取状态..."
 msgid "Control"
 msgstr "管控"
 
-#: luci-app-gecoosac/htdocs/luci-static/resources/view/gecoosac.js:260
+#: luci-app-gecoosac/htdocs/luci-static/resources/view/gecoosac.js:266
 msgid "Database directory"
 msgstr "数据库目录"
 
-#: luci-app-gecoosac/htdocs/luci-static/resources/view/gecoosac.js:293
+#: luci-app-gecoosac/htdocs/luci-static/resources/view/gecoosac.js:299
 msgid "Debug"
 msgstr "调试"
 
-#: luci-app-gecoosac/htdocs/luci-static/resources/view/gecoosac.js:254
+#: luci-app-gecoosac/htdocs/luci-static/resources/view/gecoosac.js:260
 msgid "Directory used to store AP firmware uploaded for upgrades."
 msgstr "用于保存 AP 升级固件的目录。"
 
-#: luci-app-gecoosac/htdocs/luci-static/resources/view/gecoosac.js:305
+#: luci-app-gecoosac/htdocs/luci-static/resources/view/gecoosac.js:311
 msgid "Disabled"
 msgstr "已禁用"
 
-#: luci-app-gecoosac/htdocs/luci-static/resources/view/gecoosac.js:299
+#: luci-app-gecoosac/htdocs/luci-static/resources/view/gecoosac.js:305
 msgid ""
 "Disabled by default because Gecoos AC can produce a large volume of logs."
 msgstr "默认关闭，因为 Gecoos AC 可能产生大量日志。"
 
-#: luci-app-gecoosac/htdocs/luci-static/resources/view/gecoosac.js:250
+#: luci-app-gecoosac/htdocs/luci-static/resources/view/gecoosac.js:256
 msgid "Enable"
 msgstr "启用"
 
-#: luci-app-gecoosac/htdocs/luci-static/resources/view/gecoosac.js:163
+#: luci-app-gecoosac/htdocs/luci-static/resources/view/gecoosac.js:169
 msgid "Enable the service and save the configuration to start it."
 msgstr "启用服务并保存应用配置后即可启动。"
 
-#: luci-app-gecoosac/htdocs/luci-static/resources/view/gecoosac.js:306
+#: luci-app-gecoosac/htdocs/luci-static/resources/view/gecoosac.js:312
 msgid "Every day"
 msgstr "每天"
 
-#: luci-app-gecoosac/htdocs/luci-static/resources/view/gecoosac.js:308
+#: luci-app-gecoosac/htdocs/luci-static/resources/view/gecoosac.js:314
 msgid "Every month"
 msgstr "每月"
 
-#: luci-app-gecoosac/htdocs/luci-static/resources/view/gecoosac.js:307
+#: luci-app-gecoosac/htdocs/luci-static/resources/view/gecoosac.js:313
 msgid "Every week"
 msgstr "每周"
 
-#: luci-app-gecoosac/htdocs/luci-static/resources/view/gecoosac.js:285
-#: luci-app-gecoosac/htdocs/luci-static/resources/view/gecoosac.js:288
+#: luci-app-gecoosac/htdocs/luci-static/resources/view/gecoosac.js:291
+#: luci-app-gecoosac/htdocs/luci-static/resources/view/gecoosac.js:294
 msgid "Failed to clear firmware directory: %s."
 msgstr "清理固件目录失败：%s。"
 
-#: luci-app-gecoosac/htdocs/luci-static/resources/view/gecoosac.js:322
+#: luci-app-gecoosac/htdocs/luci-static/resources/view/gecoosac.js:328
 msgid "Failed to update the log cleanup schedule."
 msgstr "更新日志清理计划失败。"
 
-#: luci-app-gecoosac/htdocs/luci-static/resources/view/gecoosac.js:253
+#: luci-app-gecoosac/htdocs/luci-static/resources/view/gecoosac.js:259
 msgid "Firmware directory"
 msgstr "固件目录"
 
-#: luci-app-gecoosac/htdocs/luci-static/resources/view/gecoosac.js:281
+#: luci-app-gecoosac/htdocs/luci-static/resources/view/gecoosac.js:287
 msgid "Firmware directory cleaned. Removed %d entries."
 msgstr "固件目录已清理，共删除 %d 项内容。"
 
-#: luci-app-gecoosac/htdocs/luci-static/resources/view/gecoosac.js:237
+#: luci-app-gecoosac/htdocs/luci-static/resources/view/gecoosac.js:243
 #: luci-app-gecoosac/root/usr/share/luci/menu.d/luci-app-gecoosac.json:14
 msgid "Gecoos AC"
 msgstr "Gecoos AC"
 
-#: luci-app-gecoosac/htdocs/luci-static/resources/view/gecoosac.js:99
+#: luci-app-gecoosac/htdocs/luci-static/resources/view/gecoosac.js:106
 msgid "Gecoos AC Log"
 msgstr "Gecoos AC 日志"
 
-#: luci-app-gecoosac/htdocs/luci-static/resources/view/gecoosac.js:247
+#: luci-app-gecoosac/htdocs/luci-static/resources/view/gecoosac.js:253
 msgid "General"
 msgstr "常规设置"
 
@@ -114,23 +114,23 @@ msgstr "常规设置"
 msgid "Grant access to luci-app-gecoosac"
 msgstr "授予 luci-app-gecoosac 访问权限"
 
-#: luci-app-gecoosac/htdocs/luci-static/resources/view/gecoosac.js:294
+#: luci-app-gecoosac/htdocs/luci-static/resources/view/gecoosac.js:300
 msgid "Info"
 msgstr "信息"
 
-#: luci-app-gecoosac/htdocs/luci-static/resources/view/gecoosac.js:303
+#: luci-app-gecoosac/htdocs/luci-static/resources/view/gecoosac.js:309
 msgid "Log cleanup schedule"
 msgstr "日志清理计划"
 
-#: luci-app-gecoosac/htdocs/luci-static/resources/view/gecoosac.js:292
+#: luci-app-gecoosac/htdocs/luci-static/resources/view/gecoosac.js:298
 msgid "Log level"
 msgstr "日志级别"
 
-#: luci-app-gecoosac/htdocs/luci-static/resources/view/gecoosac.js:130
+#: luci-app-gecoosac/htdocs/luci-static/resources/view/gecoosac.js:136
 msgid "MEM %s"
 msgstr "MEM %s"
 
-#: luci-app-gecoosac/htdocs/luci-static/resources/view/gecoosac.js:238
+#: luci-app-gecoosac/htdocs/luci-static/resources/view/gecoosac.js:244
 msgid ""
 "Native Gecoos AC service and management interface. Default web password: "
 "admin. — AI Edition"
@@ -140,46 +140,46 @@ msgstr "Gecoos AC 原生服务和管理入口。默认 Web 密码：admin。—�
 msgid "No Gecoos AC log entries were found."
 msgstr "未找到 Gecoos AC 日志。"
 
-#: luci-app-gecoosac/htdocs/luci-static/resources/view/gecoosac.js:160
+#: luci-app-gecoosac/htdocs/luci-static/resources/view/gecoosac.js:166
 msgid "Not running"
 msgstr "未运行"
 
-#: luci-app-gecoosac/htdocs/luci-static/resources/view/gecoosac.js:139
+#: luci-app-gecoosac/htdocs/luci-static/resources/view/gecoosac.js:145
 msgid "Open Gecoos AC"
 msgstr "打开 Gecoos AC"
 
-#: luci-app-gecoosac/htdocs/luci-static/resources/view/gecoosac.js:126
+#: luci-app-gecoosac/htdocs/luci-static/resources/view/gecoosac.js:132
 msgid "PID %s"
 msgstr "PID %s"
 
-#: luci-app-gecoosac/htdocs/luci-static/resources/view/gecoosac.js:261
+#: luci-app-gecoosac/htdocs/luci-static/resources/view/gecoosac.js:267
 msgid ""
 "Persistent directory used to store the controller configuration database."
 msgstr "用于保存控制器配置数据库的持久目录。"
 
-#: luci-app-gecoosac/htdocs/luci-static/resources/view/gecoosac.js:141
+#: luci-app-gecoosac/htdocs/luci-static/resources/view/gecoosac.js:147
 msgid "Restart"
 msgstr "重启"
 
-#: luci-app-gecoosac/htdocs/luci-static/resources/view/gecoosac.js:160
+#: luci-app-gecoosac/htdocs/luci-static/resources/view/gecoosac.js:166
 msgid "Running"
 msgstr "运行中"
 
-#: luci-app-gecoosac/htdocs/luci-static/resources/view/gecoosac.js:160
+#: luci-app-gecoosac/htdocs/luci-static/resources/view/gecoosac.js:166
 msgid "Running (unmanaged)"
 msgstr "运行中（未托管）"
 
-#: luci-app-gecoosac/htdocs/luci-static/resources/view/gecoosac.js:275
+#: luci-app-gecoosac/htdocs/luci-static/resources/view/gecoosac.js:281
 msgid "Save and apply the firmware directory before clearing it."
 msgstr "清理前，请先保存并应用固件目录设置。"
 
-#: luci-app-gecoosac/htdocs/luci-static/resources/view/gecoosac.js:224
+#: luci-app-gecoosac/htdocs/luci-static/resources/view/gecoosac.js:230
 msgid ""
 "Select a persistent writable database directory outside volatile or system "
 "paths."
 msgstr "请选择持久、可写且不属于临时或系统路径的数据库目录。"
 
-#: luci-app-gecoosac/htdocs/luci-static/resources/view/gecoosac.js:244
+#: luci-app-gecoosac/htdocs/luci-static/resources/view/gecoosac.js:250
 msgid "Service Settings"
 msgstr "服务设置"
 
@@ -191,32 +191,32 @@ msgstr "服务操作失败，返回代码 %s。"
 msgid "Service action failed: %s."
 msgstr "服务操作失败：%s。"
 
-#: luci-app-gecoosac/htdocs/luci-static/resources/view/gecoosac.js:144
+#: luci-app-gecoosac/htdocs/luci-static/resources/view/gecoosac.js:150
 msgid "Start"
 msgstr "启动"
 
-#: luci-app-gecoosac/htdocs/luci-static/resources/view/gecoosac.js:162
+#: luci-app-gecoosac/htdocs/luci-static/resources/view/gecoosac.js:168
 msgid "The Gecoos AC binary is missing."
 msgstr "未找到 Gecoos AC 可执行文件。"
 
-#: luci-app-gecoosac/htdocs/luci-static/resources/view/gecoosac.js:212
+#: luci-app-gecoosac/htdocs/luci-static/resources/view/gecoosac.js:218
 msgid ""
 "The directory must not be the root directory or contain parent-directory "
 "components."
 msgstr "目录不能是根目录，也不能包含上级目录组件。"
 
-#: luci-app-gecoosac/htdocs/luci-static/resources/view/gecoosac.js:112
+#: luci-app-gecoosac/htdocs/luci-static/resources/view/gecoosac.js:118
 msgid "Unable to read logs: %s."
 msgstr "无法读取日志：%s。"
 
-#: luci-app-gecoosac/htdocs/luci-static/resources/view/gecoosac.js:284
+#: luci-app-gecoosac/htdocs/luci-static/resources/view/gecoosac.js:290
 msgid "Unknown error"
 msgstr "未知错误"
 
-#: luci-app-gecoosac/htdocs/luci-static/resources/view/gecoosac.js:154
+#: luci-app-gecoosac/htdocs/luci-static/resources/view/gecoosac.js:160
 msgid "View Log"
 msgstr "查看日志"
 
-#: luci-app-gecoosac/htdocs/luci-static/resources/view/gecoosac.js:298
+#: luci-app-gecoosac/htdocs/luci-static/resources/view/gecoosac.js:304
 msgid "Write logs to system log"
 msgstr "将日志写入系统日志"
