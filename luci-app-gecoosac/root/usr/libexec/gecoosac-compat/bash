@@ -1,0 +1,4 @@
+#!/bin/sh
+
+[ "$1" = '-c' ] || exit 127
+exec /bin/sh "$@"

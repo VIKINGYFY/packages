@@ -140,7 +140,8 @@ start_service() {
 	procd_append_param command -lang 'zh'
 	procd_append_param command -isonlyoneprot '1'
 	procd_append_param command -showtip '0'
-	procd_set_param env GIN_MODE=release
+	procd_set_param env GIN_MODE=release \
+		PATH=/usr/libexec/gecoosac-compat:/usr/sbin:/usr/bin:/sbin:/bin
 	procd_set_param stdout "$log_to_syslog"
 	procd_set_param stderr "$log_to_syslog"
 	procd_set_param respawn 3600 5 5

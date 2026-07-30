@@ -1223,7 +1223,7 @@ function main() {
 	if ((config_changed || resources_updated) && !restart_service())
 		return false;
 
-	log(sprintf('%s nodes added, %s updated, %s removed.', added, updated, removed));
+	log(sprintf('%s added, %s updated, %s removed.', added, updated, removed));
 	log('Successfully updated subscriptions.');
 }
 
