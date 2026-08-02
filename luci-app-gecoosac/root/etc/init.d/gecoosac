@@ -37,7 +37,10 @@ configure_log_cleanup() {
 	}
 
 	if [ -f "$CRON_FILE" ]; then
-		sed '/[[:space:]]#gecoosac[[:space:]]*$/d' "$CRON_FILE" > "$tmp" || {
+		sed \
+			-e '/[[:space:]]#gecoosac[[:space:]]*$/d' \
+			-e '/[[:space:]]#gecoosac-size[[:space:]]*$/d' \
+			"$CRON_FILE" > "$tmp" || {
 			rm -f "$tmp"
 			lock -u "$CRON_LOCK"
 			return 1

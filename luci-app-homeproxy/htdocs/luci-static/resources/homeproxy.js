@@ -161,7 +161,7 @@ return baseclass.extend({
 			uci.set(uciconfig, 'config', 'main_node', firstNode || 'nil');
 			changed = true;
 		}
-		else if (mainNode && mainNode !== 'nil' && !available[mainNode]) {
+		else if (mainNode && mainNode !== 'nil' && mainNode !== 'urltest' && !available[mainNode]) {
 			uci.set(uciconfig, 'config', 'main_node', firstNode || 'nil');
 			changed = true;
 		}

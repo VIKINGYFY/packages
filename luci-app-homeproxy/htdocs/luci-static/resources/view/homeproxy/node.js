@@ -39,6 +39,42 @@ function normalizeHysteriaHoppingPort(mport) {
 	return ports.length ? ports : null;
 }
 
+function validateCronField(field, minimum, maximum) {
+	return field.split(',').every((item) => {
+		const parts = item.split('/');
+		if (parts.length > 2 || !parts[0])
+			return false;
+
+		if (parts.length === 2) {
+			const step = Number(parts[1]);
+			if (!/^\d+$/.test(parts[1]) || step < 1 || step > maximum - minimum + 1)
+				return false;
+		}
+
+		if (parts[0] === '*')
+			return true;
+
+		const range = parts[0].split('-');
+		if (range.length > 2 || range.some((value) => !/^\d+$/.test(value)))
+			return false;
+
+		const start = Number(range[0]);
+		const end = Number(range[range.length - 1]);
+		return start >= minimum && end <= maximum && start <= end;
+	});
+}
+
+function validateCronExpression(_section_id, value) {
+	const fields = String(value || '').trim().replace(/\s+/g, ' ').split(' ');
+	const limits = [ [ 0, 59 ], [ 0, 23 ], [ 1, 31 ], [ 1, 12 ], [ 0, 6 ] ];
+
+	if (fields.length === limits.length && fields.every((field, index) =>
+		validateCronField(field, limits[index][0], limits[index][1])))
+		return true;
+
+	return _('Minutes (0-59), hours (0-23), days (1-31), months (1-12), weekdays (0-6).');
+}
+
 function parseShareLink(uri, features) {
 	let config, url, params;
 
@@ -1753,14 +1789,15 @@ return view.extend({
 			_('Auto update subscriptions and resources.'));
 		o.rmempty = false;
 
-		o = s.taboption('subscription', form.Value, 'auto_update_time', _('Cron expression'),
-			_('Minutes (0-59), hours (0-23), days (1-31), months (1-12), weekdays (0-6).') +
-			'<br/>' +
-			'<a target="_blank" rel="noreferrer noopener" href="https://cron.ren/cron-studio.html">' +
-			_('Cron expression online generator') + '</a>');
-		o.default = '0 */6 * * *';
-		o.placeholder = '0 */6 * * *';
-		o.rmempty = false;
+			o = s.taboption('subscription', form.Value, 'auto_update_time', _('Cron expression'),
+				_('Minutes (0-59), hours (0-23), days (1-31), months (1-12), weekdays (0-6).') +
+				'<br/>' +
+				'<a target="_blank" rel="noreferrer noopener" href="https://cron.ren/cron-studio.html">' +
+				_('Cron expression online generator') + '</a>');
+			o.default = '0 */6 * * *';
+			o.placeholder = '0 */6 * * *';
+			o.rmempty = false;
+			o.validate = validateCronExpression;
 
 		o = s.taboption('subscription', form.Flag, 'update_via_proxy', _('Update via proxy'),
 			_('Update resources and subscriptions via proxy.'));

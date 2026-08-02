@@ -54,10 +54,38 @@ function cronExpression(section_id) {
 		uci.get('wolultra', section_id, 'weeks') || '*');
 }
 
-function validateCronExpression(section_id, value) {
-	var expression = normalizeCronExpression(value);
+function validateCronField(field, minimum, maximum) {
+	return field.split(',').every(function(item) {
+		var parts = item.split('/');
+		if (parts.length > 2 || !parts[0])
+			return false;
 
-	if (/^[0-9*\/?, -]+$/.test(expression) && expression.split(' ').length === 5)
+		if (parts.length === 2) {
+			var step = Number(parts[1]);
+			if (!/^\d+$/.test(parts[1]) || step < 1 || step > maximum - minimum + 1)
+				return false;
+		}
+
+		if (parts[0] === '*')
+			return true;
+
+		var range = parts[0].split('-');
+		if (range.length > 2 || range.some(function(value) { return !/^\d+$/.test(value); }))
+			return false;
+
+		var start = Number(range[0]);
+		var end = Number(range[range.length - 1]);
+		return start >= minimum && end <= maximum && start <= end;
+	});
+}
+
+function validateCronExpression(section_id, value) {
+	var fields = normalizeCronExpression(value).split(' ');
+	var limits = [ [ 0, 59 ], [ 0, 23 ], [ 1, 31 ], [ 1, 12 ], [ 0, 6 ] ];
+
+	if (fields.length === limits.length && fields.every(function(field, index) {
+		return validateCronField(field, limits[index][0], limits[index][1]);
+	}))
 		return true;
 
 	return _('Expecting: %s').format(_('valid cron expression'));

@@ -29,11 +29,61 @@ valid_iface() {
 	esac
 }
 
+validate_cron_number() {
+	case "$1" in
+	''|*[!0-9]*) return 1 ;;
+	esac
+
+	[ "$1" -ge "$2" ] 2>"/dev/null" && [ "$1" -le "$3" ] 2>"/dev/null"
+}
+
+validate_cron_field() {
+	local field="$1" minimum="$2" maximum="$3"
+	local item base step start end old_ifs
+
+	case "$field" in
+	''|,*|*,|*,,*|*[!0-9*/,-]*) return 1 ;;
+	esac
+
+	old_ifs="$IFS"
+	IFS=','
+	set -f
+	# shellcheck disable=SC2086
+	set -- $field
+	set +f
+	IFS="$old_ifs"
+
+	for item in "$@"; do
+		base="${item%%/*}"
+		step=''
+		if [ "$base" != "$item" ]; then
+			step="${item#*/}"
+			[ "${step#*/}" = "$step" ] || return 1
+			validate_cron_number "$step" 1 "$((maximum - minimum + 1))" || return 1
+		fi
+
+		if [ "$base" = '*' ]; then
+			continue
+		fi
+
+		start="${base%%-*}"
+		if [ "$start" != "$base" ]; then
+			end="${base#*-}"
+			[ -n "$start" ] && [ -n "$end" ] && [ "${end#*-}" = "$end" ] || return 1
+			validate_cron_number "$start" "$minimum" "$maximum" || return 1
+			validate_cron_number "$end" "$minimum" "$maximum" || return 1
+			[ "$start" -le "$end" ] || return 1
+		else
+			validate_cron_number "$base" "$minimum" "$maximum" || return 1
+		fi
+	done
+}
+
 validate_cron() {
-	local expression="$1" field
+	local expression="$1"
 
 	case "$expression" in
-		''|*[!0-9*/?,\ -]*) return 1 ;;
+		''|*[!0-9*/,\ -]*) return 1 ;;
 	esac
 
 	set -f
@@ -42,9 +92,11 @@ validate_cron() {
 	set +f
 	[ "$#" -eq 5 ] || return 1
 
-	for field in "$@"; do
-		[ -n "$field" ] || return 1
-	done
+	validate_cron_field "$1" 0 59 &&
+		validate_cron_field "$2" 0 23 &&
+		validate_cron_field "$3" 1 31 &&
+		validate_cron_field "$4" 1 12 &&
+		validate_cron_field "$5" 0 6
 }
 
 append_rule() {

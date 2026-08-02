@@ -17,6 +17,9 @@ LOG_PATH="$RUN_DIR/homeproxy.log"
 CACHE_DIR="$HP_DIR/cache"
 CACHE_PATH="$CACHE_DIR/cache.db"
 DASHBOARD_DIR="$HP_DIR/dashboard"
+CRON_FILE="/etc/crontabs/root"
+CRON_LOCK="/var/lock/root-crontab"
+CRON_TAG="#${CONF}_autosetup"
 
 # we don't know which is the default server, just take the first one
 DNSMASQ_UCI_CONFIG="$(uci -q show "dhcp.@dnsmasq[0]" | awk 'NR==1 {split($0, conf, /[.=]/); print conf[2]}')"
@@ -54,11 +57,61 @@ clear_dnsmasq() {
 	fi
 }
 
+validate_cron_number() {
+	case "$1" in
+	''|*[!0-9]*) return 1 ;;
+	esac
+
+	[ "$1" -ge "$2" ] 2>"/dev/null" && [ "$1" -le "$3" ] 2>"/dev/null"
+}
+
+validate_cron_field() {
+	local field="$1" minimum="$2" maximum="$3"
+	local item base step start end old_ifs
+
+	case "$field" in
+	''|,*|*,|*,,*|*[!0-9*/,-]*) return 1 ;;
+	esac
+
+	old_ifs="$IFS"
+	IFS=','
+	set -f
+	# shellcheck disable=SC2086
+	set -- $field
+	set +f
+	IFS="$old_ifs"
+
+	for item in "$@"; do
+		base="${item%%/*}"
+		step=''
+		if [ "$base" != "$item" ]; then
+			step="${item#*/}"
+			[ "${step#*/}" = "$step" ] || return 1
+			validate_cron_number "$step" 1 "$((maximum - minimum + 1))" || return 1
+		fi
+
+		if [ "$base" = '*' ]; then
+			continue
+		fi
+
+		start="${base%%-*}"
+		if [ "$start" != "$base" ]; then
+			end="${base#*-}"
+			[ -n "$start" ] && [ -n "$end" ] && [ "${end#*-}" = "$end" ] || return 1
+			validate_cron_number "$start" "$minimum" "$maximum" || return 1
+			validate_cron_number "$end" "$minimum" "$maximum" || return 1
+			[ "$start" -le "$end" ] || return 1
+		else
+			validate_cron_number "$base" "$minimum" "$maximum" || return 1
+		fi
+	done
+}
+
 validate_cron() {
-	local expression="$1" field
+	local expression="$1"
 
 	case "$expression" in
-	""|*[!0-9*/?,\ -]*) return 1 ;;
+	""|*[!0-9*/,\ -]*) return 1 ;;
 	esac
 
 	set -f
@@ -68,9 +121,81 @@ validate_cron() {
 	set +f
 	[ "$#" -eq 5 ] || return 1
 
-	for field in "$@"; do
-		[ -n "$field" ] || return 1
-	done
+	validate_cron_field "$1" 0 59 &&
+		validate_cron_field "$2" 0 23 &&
+		validate_cron_field "$3" 1 31 &&
+		validate_cron_field "$4" 1 12 &&
+		validate_cron_field "$5" 0 6
+}
+
+reload_cron() {
+	/etc/init.d/cron reload >"/dev/null" 2>&1 ||
+		/etc/init.d/cron restart >"/dev/null" 2>&1
+}
+
+configure_subscription_cron() {
+	local enabled="$1" schedule="$2"
+	local tmp changed=0
+
+	mkdir -p "$(dirname "$CRON_FILE")" "$(dirname "$CRON_LOCK")" || return 1
+	lock "$CRON_LOCK" || return 1
+	tmp="$(mktemp "$(dirname "$CRON_FILE")/.homeproxy-cron.XXXXXX")" || {
+		lock -u "$CRON_LOCK"
+		return 1
+	}
+
+	if [ -f "$CRON_FILE" ]; then
+		sed "/[[:space:]]${CRON_TAG}[[:space:]]*$/d" "$CRON_FILE" > "$tmp" || {
+			rm -f "$tmp"
+			lock -u "$CRON_LOCK"
+			return 1
+		}
+	fi
+
+	if [ "$enabled" -eq 1 ]; then
+		if validate_cron "$schedule"; then
+			printf '%s %s %s\n' "$schedule" "$HP_DIR/scripts/update_crond.sh" "$CRON_TAG" >> "$tmp"
+		else
+			log "Error: invalid client subscription update schedule."
+		fi
+	fi
+
+	chmod 600 "$tmp" || {
+		rm -f "$tmp"
+		lock -u "$CRON_LOCK"
+		return 1
+	}
+	if [ -f "$CRON_FILE" ] && cmp -s "$tmp" "$CRON_FILE"; then
+		chmod 600 "$CRON_FILE" || {
+			rm -f "$tmp"
+			lock -u "$CRON_LOCK"
+			return 1
+		}
+		rm -f "$tmp"
+	else
+		mv -f "$tmp" "$CRON_FILE" || {
+			rm -f "$tmp"
+			lock -u "$CRON_LOCK"
+			return 1
+		}
+		changed=1
+	fi
+	lock -u "$CRON_LOCK"
+
+	[ "$changed" -eq 0 ] || reload_cron
+}
+
+sync_subscription_cron() {
+	local client_ready="$1"
+	local auto_update auto_update_time enabled=0
+
+	config_get_bool auto_update "subscription" "auto_update" "0"
+	config_get auto_update_time "subscription" "auto_update_time" "0 */6 * * *"
+	if [ "$client_ready" -eq 1 ] && [ "$auto_update" -eq 1 ]; then
+		enabled=1
+	fi
+
+	configure_subscription_cron "$enabled" "$auto_update_time"
 }
 
 start_service() {
@@ -113,6 +238,7 @@ start_service() {
 	fi
 
 	if [ "$outbound_node" = "nil" ] && [ "$server_enabled" = "0" ]; then
+		sync_subscription_cron 0 || log "Error: failed to clear the subscription update schedule."
 		return 1
 	fi
 
@@ -155,7 +281,10 @@ start_service() {
 	else
 		rm -f "$RUN_DIR/sing-box-s.json.new" "$RUN_DIR/sing-box-s.json"
 	fi
-	[ "$client_ready" -eq 1 ] || [ "$server_ready" -eq 1 ] || return 1
+	if [ "$client_ready" -ne 1 ] && [ "$server_ready" -ne 1 ]; then
+		sync_subscription_cron 0 || log "Error: failed to clear the subscription update schedule."
+		return 1
+	fi
 
 	case "$client_ready:$routing_mode" in
 	"1:bypass_mainland_china"|"1:custom")
@@ -243,22 +372,6 @@ start_service() {
 	fi
 
 	if [ "$client_ready" -eq 1 ]; then
-		# Auto update
-		local auto_update auto_update_time
-		config_get_bool auto_update "subscription" "auto_update" "0"
-		if [ "$auto_update" = "1" ]; then
-			config_get auto_update_time "subscription" "auto_update_time" "0 */6 * * *"
-			sed -i "/#${CONF}_autosetup/d" "/etc/crontabs/root" 2>"/dev/null"
-			if validate_cron "$auto_update_time"; then
-				printf '%s %s #%s_autosetup\n' "$auto_update_time" "$HP_DIR/scripts/update_crond.sh" "$CONF" >> "/etc/crontabs/root"
-			else
-				log "Error: invalid client subscription update schedule."
-			fi
-			/etc/init.d/cron restart
-		fi
-	fi
-
-	if [ "$client_ready" -eq 1 ]; then
 		# DNSMasq rules
 		local dns_port dns_ready=1
 		config_get dns_port "infra" "dns_port" "5333"
@@ -298,6 +411,9 @@ start_service() {
 			rm -f "$RUN_DIR/sing-box-c.json"
 		fi
 	fi
+
+	sync_subscription_cron "$client_ready" ||
+		log "Error: failed to update the subscription update schedule."
 
 	if [ "$client_ready" -eq 1 ]; then
 		# sing-box (client)
@@ -423,14 +539,10 @@ stop_service() {
 	[ ! -s "$RUN_DIR/sing-box-c.json" ] || client_was_running=1
 	[ ! -s "$RUN_DIR/sing-box-s.json" ] || server_was_running=1
 
-	if grep -q "#${CONF}_autosetup" "/etc/crontabs/root" 2>"/dev/null"; then
-		sed -i "/#${CONF}_autosetup/d" "/etc/crontabs/root"
-		/etc/init.d/cron restart >"/dev/null" 2>&1
-	fi
-
 	# Setup firewall
 	# Load config
 	config_load "$CONF"
+	sync_subscription_cron 0 || log "Error: failed to clear the subscription update schedule."
 	# Tproxy
 	remove_policy_routing
 
