@@ -297,12 +297,12 @@ function tun_match(match_rule) {
 
 function get_control_matches() {
 	const included_ports = routing_port_match();
-	const mainland_mode = routing_mode === 'bypass_mainland_china';
+	const proxy_policy_mode = routing_mode in ['bypass_mainland_china', 'custom'];
 
 	return {
 		direct_source: source_match('lan_direct_ipv4_ips', null, 'lan_direct_mac_addrs'),
-		proxy_source: mainland_mode ? source_match('lan_proxy_ipv4_ips', null, 'lan_proxy_mac_addrs') : null,
-		wan_proxy: mainland_mode ? destination_match('wan_proxy_ipv4_ips', 'wan_proxy_ipv6_ips') : null,
+		proxy_source: proxy_policy_mode ? source_match('lan_proxy_ipv4_ips', null, 'lan_proxy_mac_addrs') : null,
+		wan_proxy: proxy_policy_mode ? destination_match('wan_proxy_ipv4_ips', 'wan_proxy_ipv6_ips') : null,
 		wan_direct: destination_match('wan_direct_ipv4_ips', 'wan_direct_ipv6_ips'),
 		bypass_ports: included_ports ? { ...included_ports, invert: true } : null
 	};
@@ -339,7 +339,7 @@ function add_control_rules(rules, proxy_outbound) {
 function has_mac_control() {
 	return length(merge_control_options([
 		'lan_direct_mac_addrs',
-		(routing_mode === 'bypass_mainland_china') ? 'lan_proxy_mac_addrs' : null
+		(routing_mode in ['bypass_mainland_china', 'custom']) ? 'lan_proxy_mac_addrs' : null
 	])) > 0;
 }
 
@@ -972,10 +972,11 @@ if (!isEmpty(main_node)) {
 	config.route.default_domain_resolver = {
 		server: get_resolver(default_outbound_dns)
 	};
+	const control_proxy_outbound = default_outbound === 'reject' ? null : get_outbound(default_outbound);
 	if (tun_enabled)
-		add_control_pre_match_rules(config.route.rules, null);
+		add_control_pre_match_rules(config.route.rules, control_proxy_outbound);
 	push(config.route.rules, { action: 'sniff' });
-	add_control_rules(config.route.rules, null);
+	add_control_rules(config.route.rules, control_proxy_outbound);
 
 	const bypass_cn_traffic = uci.get(uciconfig, uciroutingsetting, 'bypass_cn_traffic') === '1';
 	if (bypass_cn_traffic) {

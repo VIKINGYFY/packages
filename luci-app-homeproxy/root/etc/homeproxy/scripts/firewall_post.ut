@@ -41,6 +41,7 @@ uci.load(cfgname);
 
 const routing_mode = uci.get(cfgname, 'config', 'routing_mode') || 'bypass_mainland_china',
       mainland_mode = routing_mode === 'bypass_mainland_china',
+      proxy_policy_mode = routing_mode in ['bypass_mainland_china', 'custom'],
       ipv6_support = uci.get(cfgname, 'config', 'ipv6_support') || '0',
       listen_interfaces = normalizeList(uci.get(cfgname, 'control', 'listen_interfaces')),
       self_mark = uci.get(cfgname, 'infra', 'self_mark') || '100',
@@ -62,10 +63,10 @@ const routing_ports = isEmpty(routing_port) ? [] : split(routing_port, ',');
 
 const lan_direct_ipv4 = normalizeList(uci.get(cfgname, 'control', 'lan_direct_ipv4_ips')),
       lan_direct_mac = normalizeList(uci.get(cfgname, 'control', 'lan_direct_mac_addrs')),
-      lan_proxy_ipv4 = mainland_mode ? normalizeList(uci.get(cfgname, 'control', 'lan_proxy_ipv4_ips')) : [],
-      lan_proxy_mac = mainland_mode ? normalizeList(uci.get(cfgname, 'control', 'lan_proxy_mac_addrs')) : [],
-      wan_proxy_ipv4 = mainland_mode ? normalizeList(uci.get(cfgname, 'control', 'wan_proxy_ipv4_ips')) : [],
-      wan_proxy_ipv6 = mainland_mode ? normalizeList(uci.get(cfgname, 'control', 'wan_proxy_ipv6_ips')) : [],
+      lan_proxy_ipv4 = proxy_policy_mode ? normalizeList(uci.get(cfgname, 'control', 'lan_proxy_ipv4_ips')) : [],
+      lan_proxy_mac = proxy_policy_mode ? normalizeList(uci.get(cfgname, 'control', 'lan_proxy_mac_addrs')) : [],
+      wan_proxy_ipv4 = proxy_policy_mode ? normalizeList(uci.get(cfgname, 'control', 'wan_proxy_ipv4_ips')) : [],
+      wan_proxy_ipv6 = proxy_policy_mode ? normalizeList(uci.get(cfgname, 'control', 'wan_proxy_ipv6_ips')) : [],
       wan_direct_ipv4 = normalizeList(uci.get(cfgname, 'control', 'wan_direct_ipv4_ips')),
       wan_direct_ipv6 = normalizeList(uci.get(cfgname, 'control', 'wan_direct_ipv6_ips'));
 
@@ -222,7 +223,7 @@ chain homeproxy_mangle_prerouting {
 	{% if (length(lan_direct_mac)): %}
 	ether saddr {{ array_to_nftarr(lan_direct_mac) }} counter return
 	{% endif %}
-	{% if (routing_mode === 'bypass_mainland_china'): %}
+	{% if (proxy_policy_mode): %}
 	{% if (length(lan_proxy_ipv4)): %}
 	ip saddr {{ array_to_nftarr(lan_proxy_ipv4) }} counter goto homeproxy_mangle_tproxy
 	{% endif %}
@@ -236,6 +237,8 @@ chain homeproxy_mangle_prerouting {
 	{% if (ipv6_support === '1'): %}
 	ip6 daddr @homeproxy_proxy_domain_addr_v6 counter goto homeproxy_mangle_tproxy
 	{% endif %}
+	{% endif %}
+	{% if (proxy_policy_mode): %}
 	{% if (length(wan_proxy_ipv4)): %}
 	ip daddr {{ array_to_nftarr(wan_proxy_ipv4) }} counter goto homeproxy_mangle_tproxy
 	{% endif %}
@@ -272,6 +275,8 @@ chain homeproxy_mangle_output {
 	{% if (ipv6_support === '1'): %}
 	ip6 daddr @homeproxy_proxy_domain_addr_v6 counter goto homeproxy_mangle_mark
 	{% endif %}
+	{% endif %}
+	{% if (proxy_policy_mode): %}
 	{% if (length(wan_proxy_ipv4)): %}
 	ip daddr {{ array_to_nftarr(wan_proxy_ipv4) }} counter goto homeproxy_mangle_mark
 	{% endif %}

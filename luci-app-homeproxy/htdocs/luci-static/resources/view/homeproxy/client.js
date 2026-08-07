@@ -293,6 +293,27 @@ return view.extend({
 		o.description = _('TUN uses sing-box automatic routing and redirect on Linux; TProxy uses native TCP/UDP transparent proxying.');
 		o.rmempty = false;
 
+		o = s.taboption('routing', form.ListValue, 'tcpip_stack', _('TCP/IP stack'),
+			_('TCP/IP stack.'));
+		if (features.with_gvisor) {
+			o.value('mixed', _('Mixed'));
+			o.value('gvisor', _('gVisor'));
+		}
+		o.value('system', _('System'));
+		o.default = 'system';
+		o.depends('proxy_mode', 'tun');
+		o.rmempty = false;
+		o.retain = true;
+		o.onchange = function(ev, section_id, value) {
+			let desc = ev.target.nextElementSibling;
+			if (value === 'mixed')
+				desc.innerHTML = _('Mixed <code>system</code> TCP stack and <code>gVisor</code> UDP stack.')
+			else if (value === 'gvisor')
+				desc.innerHTML = _('Based on Google/gVisor.');
+			else if (value === 'system')
+				desc.innerHTML = _('Less compatibility and sometimes better performance.');
+		}
+
 		o = s.taboption('routing', form.Flag, 'ipv6_support', _('IPv6 support'));
 		o.default = o.enabled;
 		o.rmempty = false;
@@ -331,27 +352,6 @@ return view.extend({
 		o.depends('routing_mode', 'custom');
 
 		ss = o.subsection;
-		so = ss.option(form.ListValue, 'tcpip_stack', _('TCP/IP stack'),
-			_('TCP/IP stack.'));
-		if (features.with_gvisor) {
-			so.value('mixed', _('Mixed'));
-			so.value('gvisor', _('gVisor'));
-		}
-		so.value('system', _('System'));
-		so.default = 'system';
-		so.depends('homeproxy.config.proxy_mode', 'tun');
-		so.rmempty = false;
-		so.retain = true;
-		so.onchange = function(ev, section_id, value) {
-			let desc = ev.target.nextElementSibling;
-			if (value === 'mixed')
-				desc.innerHTML = _('Mixed <code>system</code> TCP stack and <code>gVisor</code> UDP stack.')
-			else if (value === 'gvisor')
-				desc.innerHTML = _('Based on Google/gVisor.');
-			else if (value === 'system')
-				desc.innerHTML = _('Less compatibility and sometimes better performance.');
-		}
-
 		so = ss.option(form.Value, 'udp_timeout', _('UDP NAT expiration time'),
 			_('In seconds.'));
 		so.datatype = 'uinteger';
@@ -1488,11 +1488,13 @@ return view.extend({
 		so = fwtool.addMACOption(ss, 'lan_ip_policy', 'lan_proxy_mac_addrs', _('Proxy MAC addresses'),
 			_('MAC addresses in this option are forced to use global proxy routing.'), hosts);
 		so.depends('homeproxy.config.routing_mode', 'bypass_mainland_china');
+		so.depends('homeproxy.config.routing_mode', 'custom');
 		so.retain = true;
 
 		so = fwtool.addIPOption(ss, 'lan_ip_policy', 'lan_proxy_ipv4_ips', _('Proxy IPv4 addresses'),
 			_('IPv4 addresses in this option are forced to use global proxy routing.'), 'ipv4', hosts, true);
 		so.depends('homeproxy.config.routing_mode', 'bypass_mainland_china');
+		so.depends('homeproxy.config.routing_mode', 'custom');
 		so.retain = true;
 		/* LAN IP policy end */
 
@@ -1503,6 +1505,7 @@ return view.extend({
 			_('IPv4 addresses in this option are forced to use global proxy routing.'));
 		so.datatype = 'or(ip4addr, cidr4)';
 		so.depends('homeproxy.config.routing_mode', 'bypass_mainland_china');
+		so.depends('homeproxy.config.routing_mode', 'custom');
 		so.retain = true;
 
 		so = ss.taboption('wan_ip_policy', form.DynamicList, 'wan_proxy_ipv6_ips', _('Proxy IPv6 addresses'),
@@ -1510,6 +1513,10 @@ return view.extend({
 		so.datatype = 'or(ip6addr, cidr6)';
 		so.depends({
 			'homeproxy.config.routing_mode': 'bypass_mainland_china',
+			'homeproxy.config.ipv6_support': '1'
+		});
+		so.depends({
+			'homeproxy.config.routing_mode': 'custom',
 			'homeproxy.config.ipv6_support': '1'
 		});
 		so.retain = true;
