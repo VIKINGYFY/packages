@@ -24,6 +24,8 @@ const stockWanProxyIPv6 = [
 	'2001:67c:4e8::/48', '2001:b28:f23c::/47',
 	'2001:b28:f23f::/48', '2a0a:f280::/32'
 ];
+const stockCommonPort = '22,53,80,143,443,465,587,853,873,993,995,5222,8080,8443,9418';
+const updatedCommonPort = '20,21,22,25,53,80,110,119,123,143,389,443,465,514,563,587,636,853,873,989,990,993,995,1194,1883,3306,3389,5222,5432,5671,5672,5900,6379,6443,6514,8080,8443,8883,9418';
 
 function onlyContains(left, right) {
 	const values = normalizeList(left);
@@ -52,6 +54,12 @@ function mergeListOption(section, sourceOption, targetOption) {
 	if (uci.get(uciconfig, section, sourceOption) !== null)
 		uci.delete(uciconfig, section, sourceOption);
 }
+
+const commonPort = uci.get(uciconfig, 'infra', 'common_port');
+if (commonPort === stockCommonPort)
+	uci.set(uciconfig, 'infra', 'common_port', updatedCommonPort);
+else
+	setDefault('infra', 'common_port', updatedCommonPort);
 
 /* Only migrate nodes written before this schema marker was recorded. */
 const subscriptionNodeMigration = '1';

@@ -94,7 +94,7 @@ function validateCronExpression(section_id, value) {
 function cronDescription() {
 	return _('Minutes (0-59), hours (0-23), days (1-31), months (1-12), weekdays (0-6).') +
 		'<br/>' +
-		'<a target="_blank" rel="noreferrer noopener" href="https://cron.ren/cron-studio.html">' +
+		'<a target="_blank" rel="noreferrer noopener" href="https://www.toolbox365.cn/tools/cron/">' +
 		_('Cron expression online generator') + '</a>';
 }
 
