@@ -102,7 +102,7 @@ const ipv6_support = uci.get(uciconfig, ucimain, 'ipv6_support') || '0';
 let main_node, default_outbound, default_outbound_dns,
     domain_strategy, dns_server, china_dns_server, dns_default_strategy,
     dns_default_server, dns_disable_cache, dns_disable_cache_expire,
-    dns_client_subnet, cache_file_store_dns,
+    dns_client_subnet, dns_optimistic, dns_timeout, cache_file_store_dns,
     direct_domain_list = [], proxy_domain_list = [];
 
 if (routing_mode !== 'custom') {
@@ -135,6 +135,8 @@ if (routing_mode !== 'custom') {
 	dns_default_server = uci.get(uciconfig, ucidnssetting, 'default_server');
 	dns_disable_cache = uci.get(uciconfig, ucidnssetting, 'disable_cache');
 	dns_disable_cache_expire = uci.get(uciconfig, ucidnssetting, 'disable_cache_expire');
+	dns_optimistic = uci.get(uciconfig, ucidnssetting, 'optimistic');
+	dns_timeout = uci.get(uciconfig, ucidnssetting, 'timeout');
 	dns_client_subnet = uci.get(uciconfig, ucidnssetting, 'client_subnet');
 	cache_file_store_dns = uci.get(uciconfig, ucidnssetting, 'cache_file_store_dns');
 
@@ -171,8 +173,7 @@ if (tun_enabled) {
 	tun_addr4 = uci.get(uciconfig, uciinfra, 'tun_addr4') || '172.19.0.1/30';
 	tun_addr6 = uci.get(uciconfig, uciinfra, 'tun_addr6') || 'fdfe:dcba:9876::1/126';
 	tun_mtu = uci.get(uciconfig, uciinfra, 'tun_mtu') || '9000';
-	if (routing_mode === 'custom')
-		tcpip_stack = uci.get(uciconfig, uciroutingsetting, 'tcpip_stack') || 'system';
+	tcpip_stack = uci.get(uciconfig, uciroutingsetting, 'tcpip_stack') || 'system';
 }
 
 const log_level = uci.get(uciconfig, ucimain, 'log_level') || 'warn';
@@ -522,6 +523,9 @@ config.dns = {
 	strategy: dns_default_strategy,
 	disable_cache: strToBool(dns_disable_cache),
 	disable_expire: strToBool(dns_disable_cache_expire),
+	optimistic: (!strToBool(dns_disable_cache) && !strToBool(dns_disable_cache_expire)) ?
+		strToBool(dns_optimistic) : null,
+	timeout: strToTime(dns_timeout),
 	client_subnet: dns_client_subnet
 };
 
@@ -652,7 +656,10 @@ if (!isEmpty(main_node)) {
 			action: action,
 			server: (action in ['route', 'evaluate']) ? get_resolver(cfg.server) : null,
 			disable_cache: (action in ['route', 'evaluate', 'route-options']) ? strToBool(cfg.dns_disable_cache) : null,
+			disable_optimistic_cache: (action in ['route', 'evaluate', 'route-options']) ?
+				strToBool(cfg.dns_disable_optimistic_cache) : null,
 			rewrite_ttl: (action in ['route', 'evaluate', 'route-options']) ? strToInt(cfg.rewrite_ttl) : null,
+			timeout: (action in ['route', 'evaluate', 'route-options']) ? strToTime(cfg.dns_timeout) : null,
 			client_subnet: (action in ['route', 'evaluate', 'route-options']) ? cfg.client_subnet : null,
 			method: (action === 'reject') ? cfg.reject_method : null,
 			no_drop: (action === 'reject') ? strToBool(cfg.reject_no_drop) : null,
@@ -1029,7 +1036,10 @@ if (!isEmpty(main_node)) {
 			server: (action === 'resolve') ? get_resolver(cfg.resolve_server) : null,
 			strategy: (action === 'resolve') ? cfg.resolve_strategy : null,
 			disable_cache: (action === 'resolve') ? strToBool(cfg.resolve_disable_cache) : null,
+			disable_optimistic_cache: (action === 'resolve') ?
+				strToBool(cfg.resolve_disable_optimistic_cache) : null,
 			rewrite_ttl: (action === 'resolve') ? strToInt(cfg.resolve_rewrite_ttl) : null,
+			timeout: (action === 'resolve') ? strToTime(cfg.resolve_timeout) : null,
 			client_subnet: (action === 'resolve') ? cfg.resolve_client_subnet : null,
 			method: (action === 'reject') ? cfg.reject_method : null,
 			no_drop: (action === 'reject' && cfg.reject_method !== 'drop') ? strToBool(cfg.reject_no_drop) : null

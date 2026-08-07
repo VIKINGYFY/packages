@@ -182,6 +182,8 @@ setDefault('dns', 'default_strategy', 'prefer_ipv4');
 setDefault('dns', 'default_server', 'default-dns');
 setDefault('dns', 'disable_cache', '0');
 setDefault('dns', 'disable_cache_expire', '0');
+setDefault('dns', 'optimistic', '0');
+setDefault('dns', 'timeout', '10');
 setDefault('dns', 'cache_file_store_dns', '0');
 setDefault('server', 'log_level', 'warn');
 

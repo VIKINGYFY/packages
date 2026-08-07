@@ -49,6 +49,8 @@ config homeproxy 'dns'
 	option default_server 'default-dns'
 	option disable_cache '0'
 	option disable_cache_expire '0'
+	option optimistic '0'
+	option timeout '10'
 	option cache_file_store_dns '0'
 
 config homeproxy 'subscription'

@@ -805,9 +805,21 @@ return view.extend({
 		so.depends('action', 'resolve');
 		so.modalonly = true;
 
+		so = ss.taboption('field_other', form.Flag, 'resolve_disable_optimistic_cache', _('Disable optimistic DNS cache'),
+			_('Disable optimistic DNS caching in this query.'));
+		so.depends('action', 'resolve');
+		so.modalonly = true;
+
 		so = ss.taboption('field_other', form.Value, 'resolve_rewrite_ttl', _('Rewrite TTL'),
 			_('Rewrite TTL in DNS responses.'));
 		so.datatype = 'uinteger';
+		so.depends('action', 'resolve');
+		so.modalonly = true;
+
+		so = ss.taboption('field_other', form.Value, 'resolve_timeout', _('DNS query timeout'),
+			_('Override the DNS query timeout for this lookup, in seconds.'));
+		so.datatype = 'uinteger';
+		so.placeholder = '10';
 		so.depends('action', 'resolve');
 		so.modalonly = true;
 
@@ -916,6 +928,15 @@ return view.extend({
 
 		so = ss.option(form.Flag, 'disable_cache_expire', _('Disable cache expire'));
 		so.depends('disable_cache', '0');
+
+		so = ss.option(form.Flag, 'optimistic', _('Optimistic DNS cache'),
+			_('Serve expired DNS entries while refreshing them in the background.'));
+		so.depends({ disable_cache: '0', disable_cache_expire: '0' });
+
+		so = ss.option(form.Value, 'timeout', _('DNS query timeout'),
+			_('The default timeout for DNS queries, in seconds.'));
+		so.datatype = 'uinteger';
+		so.placeholder = '10';
 
 		so = ss.option(form.Value, 'client_subnet', _('EDNS Client subnet'),
 			_('Append a <code>edns0-subnet</code> OPT extra record with the specified IP prefix to every query by default.<br/>' +
@@ -1205,9 +1226,25 @@ return view.extend({
 		so.depends('action', 'route-options');
 		so.modalonly = true;
 
+		so = ss.taboption('field_other', form.Flag, 'dns_disable_optimistic_cache', _('Disable optimistic DNS cache'),
+			_('Disable optimistic DNS caching in this query.'));
+		so.depends('action', 'route');
+		so.depends('action', 'evaluate');
+		so.depends('action', 'route-options');
+		so.modalonly = true;
+
 		so = ss.taboption('field_other', form.Value, 'rewrite_ttl', _('Rewrite TTL'),
 			_('Rewrite TTL in DNS responses.'));
 		so.datatype = 'uinteger';
+		so.depends('action', 'route');
+		so.depends('action', 'evaluate');
+		so.depends('action', 'route-options');
+		so.modalonly = true;
+
+		so = ss.taboption('field_other', form.Value, 'dns_timeout', _('DNS query timeout'),
+			_('Override the DNS query timeout for this rule, in seconds.'));
+		so.datatype = 'uinteger';
+		so.placeholder = '10';
 		so.depends('action', 'route');
 		so.depends('action', 'evaluate');
 		so.depends('action', 'route-options');
