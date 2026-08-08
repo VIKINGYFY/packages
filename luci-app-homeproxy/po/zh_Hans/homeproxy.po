@@ -699,12 +699,10 @@ msgstr "丢弃请求"
 #: luci-app-homeproxy/htdocs/luci-static/resources/view/homeproxy/node.js:1832
 msgid ""
 "Drop/keep nodes that contain the specific keywords. <a target=\"_blank\" "
-"href=\"https://developer.mozilla.org/en-US/docs/Web/JavaScript/Guide/"
-"Regular_Expressions\">Regex</a> is supported."
+"href=\"https://www.toolbox365.cn/tools/regex/\">Regex</a> is supported."
 msgstr ""
 "丢弃/保留包含指定关键词的节点。支持<a target=\"_blank\" href=\"https://"
-"developer.mozilla.org/zh-CN/docs/Web/JavaScript/Guide/Regular_Expressions\">"
-"正则表达式</a>。"
+"www.toolbox365.cn/tools/regex/\">正则表达式</a>。"
 
 #: luci-app-homeproxy/htdocs/luci-static/resources/view/homeproxy/node.js:1824
 msgid "Drop/keep specific nodes from subscriptions."
