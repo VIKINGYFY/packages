@@ -12,6 +12,16 @@ on:
         description: 留空编译全部软件包；CI 可填写逗号分隔的软件包目录
         required: false
         type: string
+  workflow_call:
+    inputs:
+      source_sha:
+        description: 待编译的精确提交 SHA
+        required: true
+        type: string
+      packages:
+        description: 逗号分隔的软件包目录
+        required: true
+        type: string
   push:
     branches:
       - main

@@ -191,34 +191,6 @@ ci_commit_and_push() {
 	ci_write_output packages_display "$packages_display"
 }
 
-ci_dispatch_apk_build() {
-	local branch="$1"
-	local source_sha="$2"
-	local packages_csv
-	shift 2
-
-	: "${GH_TOKEN:?GH_TOKEN is required}"
-	: "${GITHUB_REPOSITORY:?GITHUB_REPOSITORY is required}"
-	ci_require_commit_sha "$source_sha" || return 1
-	git -C "$CI_REPO_ROOT" cat-file -e "$source_sha^{commit}" || {
-		printf '本地仓库中不存在待编译提交：%s\n' "$source_sha" >&2
-		return 1
-	}
-	(( $# > 0 )) || {
-		printf '未提供需要编译的 APK 软件包。\n' >&2
-		return 1
-	}
-
-	packages_csv="$(ci_join_csv "$@")"
-	printf '触发 APK 软件包编译：分支：%s，提交：%s，软件包：%s\n' \
-		"$branch" "$source_sha" "$(ci_format_csv "$packages_csv")"
-	gh workflow run Build-APK-Packages.yml \
-		--repo "$GITHUB_REPOSITORY" \
-		--ref "$branch" \
-		--field "source_sha=$source_sha" \
-		--field "packages=$packages_csv"
-}
-
 ci_tag_matches_prefix() {
 	local tag="$1"
 	shift

@@ -2,12 +2,9 @@ name: 每日检查并更新 Sing-Box 核心
 
 on:
   workflow_dispatch:
-  schedule:
-    # 中国时间 02:15
-    - cron: '15 18 * * *'
+  workflow_call:
 
 permissions:
-  actions: write
   contents: write
 
 concurrency:
@@ -19,6 +16,9 @@ jobs:
     name: 检查并更新 Sing-Box 核心
     runs-on: ubuntu-latest
     timeout-minutes: 30
+    outputs:
+      package_changed: ${{ steps.package_commit.outputs.changed }}
+      source_sha: ${{ steps.package_commit.outputs.commit_sha }}
     env:
       GH_TOKEN: ${{ github.token }}
     steps:
@@ -112,11 +112,11 @@ jobs:
             "chore: 更新 Sing-Box 至 ${UPSTREAM_VERSION}-r1" \
             sing-box/Makefile
 
-      - name: 编译并发布 Sing-Box 核心 APK
-        if: steps.package_commit.outputs.changed == 'true'
-        env:
-          PACKAGE_BRANCH: ${{ github.event.repository.default_branch }}
-          SOURCE_SHA: ${{ steps.package_commit.outputs.commit_sha }}
-        run: |
-          source .github/scripts/ci-common.sh
-          ci_dispatch_apk_build "$PACKAGE_BRANCH" "$SOURCE_SHA" sing-box
+  build:
+    name: 编译并发布 Sing-Box 核心 APK
+    needs: update
+    if: always() && needs.update.outputs.package_changed == 'true'
+    uses: ./.github/workflows/Build-APK-Packages.yml
+    with:
+      source_sha: ${{ needs.update.outputs.source_sha }}
+      packages: sing-box

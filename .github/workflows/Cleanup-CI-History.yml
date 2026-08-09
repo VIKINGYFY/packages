@@ -2,9 +2,7 @@ name: 每日清理 CI 缓存与运行记录
 
 on:
   workflow_dispatch:
-  schedule:
-    # 中国时间 02:00
-    - cron: '0 18 * * *'
+  workflow_call:
 
 permissions:
   actions: write

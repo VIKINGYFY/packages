@@ -21,7 +21,7 @@ select_all() {
 	selected_packages=("${all_packages[@]}")
 }
 
-if [[ "$EVENT_NAME" == workflow_dispatch ]]; then
+if [[ "$EVENT_NAME" == workflow_dispatch || "$EVENT_NAME" == workflow_call ]]; then
 	if [[ -n "$REQUESTED_PACKAGES" ]]; then
 		IFS=',' read -ra requested <<< "$REQUESTED_PACKAGES"
 		for package in "${requested[@]}"; do

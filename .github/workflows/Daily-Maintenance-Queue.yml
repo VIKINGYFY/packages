@@ -1,0 +1,44 @@
+name: 每日维护任务队列
+
+on:
+  workflow_dispatch:
+  schedule:
+    # 中国时间 02:00
+    - cron: '0 18 * * *'
+
+permissions:
+  actions: write
+  contents: write
+
+concurrency:
+  group: daily-maintenance-queue
+  cancel-in-progress: false
+
+jobs:
+  cleanup:
+    name: CI 清理
+    uses: ./.github/workflows/Cleanup-CI-History.yml
+
+  singbox:
+    name: Sing-Box 更新
+    needs: cleanup
+    if: ${{ always() }}
+    uses: ./.github/workflows/Update-Sing-Box.yml
+
+  axonhub:
+    name: AxonHub 更新
+    needs: singbox
+    if: ${{ always() }}
+    uses: ./.github/workflows/Update-AxonHub.yml
+
+  homeproxy:
+    name: HomeProxy 更新
+    needs: axonhub
+    if: ${{ always() }}
+    uses: ./.github/workflows/Update-HomeProxy.yml
+
+  translation:
+    name: 翻译维护
+    needs: homeproxy
+    if: ${{ always() }}
+    uses: ./.github/workflows/Rescan-Translation.yml
