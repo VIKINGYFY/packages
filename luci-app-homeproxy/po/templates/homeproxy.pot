@@ -1583,13 +1583,12 @@ msgid ""
 "Minutes (0-59), hours (0-23), days (1-31), months (1-12), weekdays (0-6)."
 msgstr ""
 
-#: luci-app-homeproxy/htdocs/luci-static/resources/view/homeproxy/client.js:299
 #: luci-app-homeproxy/htdocs/luci-static/resources/view/homeproxy/server.js:166
 msgid "Mixed"
 msgstr ""
 
 #: luci-app-homeproxy/htdocs/luci-static/resources/view/homeproxy/client.js:310
-msgid "Mixed <code>system</code> TCP stack and <code>gVisor</code> UDP stack."
+msgid "Mixed <code>System</code> TCP stack and <code>gVisor</code> UDP stack."
 msgstr ""
 
 #: luci-app-homeproxy/htdocs/luci-static/resources/view/homeproxy/client.js:611
@@ -2355,10 +2354,6 @@ msgid ""
 "Support UDP, TCP, DoH, DoQ, DoT. TCP protocol will be used if not specified."
 msgstr ""
 
-#: luci-app-homeproxy/htdocs/luci-static/resources/view/homeproxy/client.js:302
-msgid "System"
-msgstr ""
-
 #: luci-app-homeproxy/htdocs/luci-static/resources/view/homeproxy/client.js:397
 #: luci-app-homeproxy/htdocs/luci-static/resources/view/homeproxy/client.js:449
 #: luci-app-homeproxy/htdocs/luci-static/resources/view/homeproxy/client.js:773
@@ -3030,10 +3025,6 @@ msgstr ""
 #: luci-app-homeproxy/htdocs/luci-static/resources/view/homeproxy/node.js:1238
 #: luci-app-homeproxy/htdocs/luci-static/resources/view/homeproxy/server.js:406
 msgid "gRPC service name"
-msgstr ""
-
-#: luci-app-homeproxy/htdocs/luci-static/resources/view/homeproxy/client.js:300
-msgid "gVisor"
 msgstr ""
 
 #: luci-app-homeproxy/htdocs/luci-static/resources/homeproxy.js:401

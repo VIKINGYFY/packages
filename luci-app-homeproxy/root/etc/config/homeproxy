@@ -38,7 +38,7 @@ config homeproxy 'config'
 config homeproxy 'control'
 
 config homeproxy 'routing'
-	option tcpip_stack 'system'
+	option tcpip_stack 'mixed'
 	option udp_timeout '300'
 	option bypass_cn_traffic '0'
 	option default_outbound 'nil'

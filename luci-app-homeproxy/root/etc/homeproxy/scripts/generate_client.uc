@@ -173,7 +173,7 @@ if (tun_enabled) {
 	tun_addr4 = uci.get(uciconfig, uciinfra, 'tun_addr4') || '172.19.0.1/30';
 	tun_addr6 = uci.get(uciconfig, uciinfra, 'tun_addr6') || 'fdfe:dcba:9876::1/126';
 	tun_mtu = uci.get(uciconfig, uciinfra, 'tun_mtu') || '9000';
-	tcpip_stack = uci.get(uciconfig, uciroutingsetting, 'tcpip_stack') || 'system';
+	tcpip_stack = uci.get(uciconfig, uciroutingsetting, 'tcpip_stack') || 'mixed';
 }
 
 const log_level = uci.get(uciconfig, ucimain, 'log_level') || 'warn';

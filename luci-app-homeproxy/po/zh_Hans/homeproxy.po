@@ -1614,14 +1614,13 @@ msgid ""
 "Minutes (0-59), hours (0-23), days (1-31), months (1-12), weekdays (0-6)."
 msgstr "分（0-59）、时（0-23）、日（1-31）、月（1-12）、周（0-6）。"
 
-#: luci-app-homeproxy/htdocs/luci-static/resources/view/homeproxy/client.js:299
 #: luci-app-homeproxy/htdocs/luci-static/resources/view/homeproxy/server.js:166
 msgid "Mixed"
 msgstr "混合"
 
 #: luci-app-homeproxy/htdocs/luci-static/resources/view/homeproxy/client.js:310
-msgid "Mixed <code>system</code> TCP stack and <code>gVisor</code> UDP stack."
-msgstr "混合 <code>system</code> TCP 栈和 <code>gVisor</code> UDP 栈。"
+msgid "Mixed <code>System</code> TCP stack and <code>gVisor</code> UDP stack."
+msgstr "混合 <code>System</code> TCP 栈和 <code>gVisor</code> UDP 栈。"
 
 #: luci-app-homeproxy/htdocs/luci-static/resources/view/homeproxy/client.js:611
 #: luci-app-homeproxy/htdocs/luci-static/resources/view/homeproxy/client.js:1102
@@ -2397,10 +2396,6 @@ msgid ""
 "Support UDP, TCP, DoH, DoQ, DoT. TCP protocol will be used if not specified."
 msgstr "支持 UDP、TCP、DoH、DoQ、DoT。如未指定则使用 TCP 协议。"
 
-#: luci-app-homeproxy/htdocs/luci-static/resources/view/homeproxy/client.js:302
-msgid "System"
-msgstr "系统"
-
 #: luci-app-homeproxy/htdocs/luci-static/resources/view/homeproxy/client.js:397
 #: luci-app-homeproxy/htdocs/luci-static/resources/view/homeproxy/client.js:449
 #: luci-app-homeproxy/htdocs/luci-static/resources/view/homeproxy/client.js:773
@@ -3095,10 +3090,6 @@ msgstr "gRPC 允许无活动连接"
 #: luci-app-homeproxy/htdocs/luci-static/resources/view/homeproxy/server.js:406
 msgid "gRPC service name"
 msgstr "gRPC 服务名称"
-
-#: luci-app-homeproxy/htdocs/luci-static/resources/view/homeproxy/client.js:300
-msgid "gVisor"
-msgstr "gVisor"
 
 #: luci-app-homeproxy/htdocs/luci-static/resources/homeproxy.js:401
 #: luci-app-homeproxy/htdocs/luci-static/resources/homeproxy.js:424
