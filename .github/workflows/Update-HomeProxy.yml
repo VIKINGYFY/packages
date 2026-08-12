@@ -2,7 +2,29 @@ name: 每日检查并更新 HomeProxy 数据
 
 on:
   workflow_dispatch:
+    inputs:
+      build_apks:
+        description: 更新后编译并发布 APK
+        required: false
+        default: true
+        type: boolean
   workflow_call:
+    inputs:
+      build_apks:
+        description: 是否在此工作流内编译并发布 APK
+        required: false
+        default: true
+        type: boolean
+    outputs:
+      package_changed:
+        description: HomeProxy 软件包是否发生变更
+        value: ${{ jobs.update.outputs.package_changed }}
+      packages:
+        description: 需要编译的软件包目录
+        value: ${{ jobs.update.outputs.packages }}
+      source_sha:
+        description: 更新后的精确提交 SHA
+        value: ${{ jobs.update.outputs.source_sha }}
 
 permissions:
   contents: write
@@ -18,6 +40,7 @@ jobs:
     timeout-minutes: 30
     outputs:
       package_changed: ${{ steps.package_commit.outputs.changed }}
+      packages: ${{ steps.package_commit.outputs.packages }}
       source_sha: ${{ steps.package_commit.outputs.commit_sha }}
     env:
       GH_TOKEN: ${{ github.token }}
@@ -62,7 +85,9 @@ jobs:
   build:
     name: 编译并发布 HomeProxy APK
     needs: update
-    if: always() && needs.update.outputs.package_changed == 'true'
+    if: >-
+      always() && needs.update.outputs.package_changed == 'true' &&
+      inputs.build_apks
     uses: ./.github/workflows/Build-APK-Packages.yml
     with:
       source_sha: ${{ needs.update.outputs.source_sha }}

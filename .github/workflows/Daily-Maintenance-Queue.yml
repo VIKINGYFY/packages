@@ -24,21 +24,50 @@ jobs:
     needs: cleanup
     if: ${{ always() }}
     uses: ./.github/workflows/Update-Sing-Box.yml
+    with:
+      build_apks: false
 
   axonhub:
     name: AxonHub 更新
     needs: singbox
     if: ${{ always() }}
     uses: ./.github/workflows/Update-AxonHub.yml
+    with:
+      build_apks: false
 
   homeproxy:
     name: HomeProxy 更新
     needs: axonhub
     if: ${{ always() }}
     uses: ./.github/workflows/Update-HomeProxy.yml
+    with:
+      build_apks: false
 
   translation:
     name: 翻译维护
     needs: homeproxy
     if: ${{ always() }}
     uses: ./.github/workflows/Rescan-Translation.yml
+    with:
+      build_apks: false
+
+  build:
+    name: 编译本轮变更的软件包
+    needs:
+      - singbox
+      - axonhub
+      - homeproxy
+      - translation
+    if: >-
+      always() && (
+        needs.singbox.outputs.package_changed == 'true' ||
+        needs.axonhub.outputs.package_changed == 'true' ||
+        needs.homeproxy.outputs.package_changed == 'true' ||
+        needs.translation.outputs.package_changed == 'true'
+      )
+    uses: ./.github/workflows/Build-APK-Packages.yml
+    with:
+      source_sha: >-
+        ${{ needs.translation.outputs.source_sha || needs.homeproxy.outputs.source_sha || needs.axonhub.outputs.source_sha || needs.singbox.outputs.source_sha }}
+      packages: >-
+        ${{ needs.singbox.outputs.packages }},${{ needs.axonhub.outputs.packages }},${{ needs.homeproxy.outputs.packages }},${{ needs.translation.outputs.packages }}

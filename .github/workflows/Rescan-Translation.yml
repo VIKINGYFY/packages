@@ -2,7 +2,29 @@ name: 每日维护插件说明、翻译与权限
 
 on:
   workflow_dispatch:
+    inputs:
+      build_apks:
+        description: 维护后编译并发布 APK
+        required: false
+        default: true
+        type: boolean
   workflow_call:
+    inputs:
+      build_apks:
+        description: 是否在此工作流内编译并发布 APK
+        required: false
+        default: true
+        type: boolean
+    outputs:
+      package_changed:
+        description: 软件包是否发生变更
+        value: ${{ jobs.maintain.outputs.package_changed }}
+      packages:
+        description: 需要编译的软件包目录
+        value: ${{ jobs.maintain.outputs.packages }}
+      source_sha:
+        description: 维护后的精确提交 SHA
+        value: ${{ jobs.maintain.outputs.source_sha }}
 
 permissions:
   contents: write
@@ -63,7 +85,9 @@ jobs:
   build:
     name: 编译受维护影响的 APK
     needs: maintain
-    if: always() && needs.maintain.outputs.package_changed == 'true' && needs.maintain.outputs.packages != ''
+    if: >-
+      always() && needs.maintain.outputs.package_changed == 'true' &&
+      needs.maintain.outputs.packages != '' && inputs.build_apks
     uses: ./.github/workflows/Build-APK-Packages.yml
     with:
       source_sha: ${{ needs.maintain.outputs.source_sha }}
