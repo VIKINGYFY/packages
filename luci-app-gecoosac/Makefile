@@ -6,12 +6,12 @@
 include $(TOPDIR)/rules.mk
 
 PKG_NAME:=luci-app-gecoosac
-PKG_VERSION:=20260802
-PKG_RELEASE:=1
+PKG_VERSION:=20260812
+PKG_RELEASE:=4
 PKG_PO_VERSION:=$(PKG_VERSION)-r$(PKG_RELEASE)
 
 LUCI_TITLE:=LuCI Support for gecoosac
-LUCI_DEPENDS:=+luci-base +rpcd-mod-ucode +gecoosac
+LUCI_DEPENDS:=+luci-base +gecoosac
 LUCI_PKGARCH:=all
 
 define Package/$(PKG_NAME)/conffiles

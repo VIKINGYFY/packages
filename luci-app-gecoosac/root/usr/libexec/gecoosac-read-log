@@ -7,12 +7,18 @@ config_load gecoosac
 config_get db_dir config db_dir '/etc/gecoosac/'
 config_get_bool log_to_syslog config log_to_syslog 0
 
+format_syslog_timestamps() {
+	sed -E 's/^.*([0-9]{4}\/[0-9]{2}\/[0-9]{2} [0-9]{2}:[0-9]{2}:[0-9]{2})/\1/'
+}
+
 if [ "$log_to_syslog" -eq 1 ]; then
-	logread -e 'gecoosac' 2>/dev/null | tail -n 100
+	logread -e 'gecoosac' 2>/dev/null | tail -n 100 | format_syslog_timestamps
 	exit 0
 fi
 
 db_dir="$(normalize_directory "$db_dir")"
 validate_directory "$db_dir" || exit 1
 
-tail -n 100 "$db_dir/gecoosac.log" 2>/dev/null
+log_file="$db_dir/gecoosac.log"
+[ -f "$log_file" ] || exit 0
+tail -n 100 "$log_file" 2>/dev/null

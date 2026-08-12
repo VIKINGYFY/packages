@@ -206,9 +206,10 @@ start_service() {
 		"AXONHUB_SERVER_PORT=$port" \
 		"AXONHUB_DB_DIALECT=sqlite3" \
 		"AXONHUB_DB_DSN=$db_dsn" \
-			"AXONHUB_DB_MAX_OPEN_CONNS=$max_open_conns" \
-			"AXONHUB_DB_MAX_IDLE_CONNS=$max_idle_conns" \
-			"AXONHUB_LOG_LEVEL=$log_level"
+		"AXONHUB_DB_MAX_OPEN_CONNS=$max_open_conns" \
+		"AXONHUB_DB_MAX_IDLE_CONNS=$max_idle_conns" \
+		"AXONHUB_LOG_LEVEL=$log_level" \
+		"AXONHUB_LOG_ENCODING=console"
 	if [ "$log_to_syslog" -eq 1 ]; then
 		procd_append_param env "AXONHUB_LOG_OUTPUT=stdio"
 	else

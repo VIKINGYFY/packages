@@ -1872,7 +1872,13 @@ return view.extend({
 			}
 		}
 		o.onclick = function() {
-			return fs.exec_direct('/etc/homeproxy/scripts/update_subscriptions.uc').then((res) => {
+			return fs.exec('/etc/homeproxy/scripts/update_subscriptions.sh').then((res) => {
+				if (res.code !== 0) {
+					ui.addNotification(null, E('p', _('An error occurred during updating subscriptions: %s.').format(
+						res.stderr || _('exit code %d').format(res.code))));
+					return this.map.reset();
+				}
+
 				return location.reload();
 			}).catch((err) => {
 				ui.addNotification(null, E('p', _('An error occurred during updating subscriptions: %s.').format(err)));

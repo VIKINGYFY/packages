@@ -8,7 +8,6 @@ LUCI_TITLE:=The modern ImmortalWrt proxy platform for ARM64/AMD64 — AI Edition
 LUCI_PKGARCH:=all
 LUCI_DEPENDS:= \
 	+luci-base \
-	+rpcd-mod-ucode \
 	+sing-box \
 	+firewall4 \
 	+ip-full \
@@ -23,7 +22,7 @@ LUCI_EXTRA_DEPENDS:=sing-box (>=1.14.0_alpha1)
 
 PKG_NAME:=luci-app-homeproxy
 PKG_VERSION:=20260812
-PKG_RELEASE:=2
+PKG_RELEASE:=7
 PKG_PO_VERSION:=$(PKG_VERSION)-r$(PKG_RELEASE)
 
 define Package/luci-app-homeproxy/conffiles

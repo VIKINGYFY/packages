@@ -2,8 +2,7 @@
 
 'use strict';
 
-import { access, popen } from 'fs';
-import { init_action } from 'luci.sys';
+import { popen } from 'fs';
 
 const etherwake = '/usr/bin/etherwake';
 
@@ -22,7 +21,7 @@ function valid_iface(iface) {
 const methods = {
 	sync: {
 		call: function() {
-			let rc = init_action('wolultra', 'reload');
+			let rc = system('/etc/init.d/wolultra reload >/dev/null 2>&1');
 			return { success: rc === 0, code: rc };
 		}
 	},
@@ -41,12 +40,6 @@ const methods = {
 
 			if (!valid_mac(mac)) {
 				result.stderr = 'invalid mac address';
-				return result;
-			}
-
-			if (!access(etherwake, 'x')) {
-				result.stderr = 'etherwake is not executable';
-				result.code = 127;
 				return result;
 			}
 

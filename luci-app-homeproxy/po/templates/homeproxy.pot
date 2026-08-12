@@ -10,7 +10,7 @@ msgstr ""
 msgid "%s ms"
 msgstr ""
 
-#: luci-app-homeproxy/htdocs/luci-static/resources/view/homeproxy/node.js:1912
+#: luci-app-homeproxy/htdocs/luci-static/resources/view/homeproxy/node.js:1918
 msgid "%s nodes removed"
 msgstr ""
 
@@ -162,7 +162,8 @@ msgstr ""
 msgid "Alternative TLS port"
 msgstr ""
 
-#: luci-app-homeproxy/htdocs/luci-static/resources/view/homeproxy/node.js:1878
+#: luci-app-homeproxy/htdocs/luci-static/resources/view/homeproxy/node.js:1877
+#: luci-app-homeproxy/htdocs/luci-static/resources/view/homeproxy/node.js:1884
 msgid "An error occurred during updating subscriptions: %s."
 msgstr ""
 
@@ -1657,7 +1658,7 @@ msgstr ""
 msgid "No subscription available"
 msgstr ""
 
-#: luci-app-homeproxy/htdocs/luci-static/resources/view/homeproxy/node.js:1896
+#: luci-app-homeproxy/htdocs/luci-static/resources/view/homeproxy/node.js:1902
 msgid "No subscription node"
 msgstr ""
 
@@ -2026,11 +2027,11 @@ msgstr ""
 msgid "Remote"
 msgstr ""
 
-#: luci-app-homeproxy/htdocs/luci-static/resources/view/homeproxy/node.js:1893
+#: luci-app-homeproxy/htdocs/luci-static/resources/view/homeproxy/node.js:1899
 msgid "Remove %s nodes"
 msgstr ""
 
-#: luci-app-homeproxy/htdocs/luci-static/resources/view/homeproxy/node.js:1883
+#: luci-app-homeproxy/htdocs/luci-static/resources/view/homeproxy/node.js:1889
 msgid "Remove all nodes from subscriptions"
 msgstr ""
 
@@ -2240,8 +2241,8 @@ msgstr ""
 #: luci-app-homeproxy/htdocs/luci-static/resources/view/homeproxy/client.js:632
 #: luci-app-homeproxy/htdocs/luci-static/resources/view/homeproxy/client.js:1132
 msgid ""
-"Sniffed protocol, see <a target=\"_blank\" href=\"https://sing-box.sagernet."
-"org/configuration/route/sniff/\">Sniff</a> for details."
+"Sniffed protocol, see <a target=\"_blank\" href=\"https://sing-"
+"box.sagernet.org/configuration/route/sniff/\">Sniff</a> for details."
 msgstr ""
 
 #: luci-app-homeproxy/htdocs/luci-static/resources/view/homeproxy/status.js:262
@@ -2489,8 +2490,8 @@ msgstr ""
 msgid "Test all"
 msgstr ""
 
-#: luci-app-homeproxy/htdocs/luci-static/resources/view/homeproxy/node.js:1943
-#: luci-app-homeproxy/htdocs/luci-static/resources/view/homeproxy/node.js:1948
+#: luci-app-homeproxy/htdocs/luci-static/resources/view/homeproxy/node.js:1949
+#: luci-app-homeproxy/htdocs/luci-static/resources/view/homeproxy/node.js:1954
 msgid "Test current list"
 msgstr ""
 
@@ -2513,7 +2514,7 @@ msgstr ""
 msgid "Testing"
 msgstr ""
 
-#: luci-app-homeproxy/htdocs/luci-static/resources/view/homeproxy/node.js:1936
+#: luci-app-homeproxy/htdocs/luci-static/resources/view/homeproxy/node.js:1942
 msgid "Testing current list..."
 msgstr ""
 
@@ -3011,6 +3012,10 @@ msgstr ""
 
 #: luci-app-homeproxy/htdocs/luci-static/resources/view/homeproxy/client.js:732
 msgid "connect UDP connections"
+msgstr ""
+
+#: luci-app-homeproxy/htdocs/luci-static/resources/view/homeproxy/node.js:1878
+msgid "exit code %d"
 msgstr ""
 
 #: luci-app-homeproxy/htdocs/luci-static/resources/view/homeproxy/node.js:1201

@@ -18,7 +18,7 @@ msgstr "%s 日志"
 msgid "%s ms"
 msgstr "%s 毫秒"
 
-#: luci-app-homeproxy/htdocs/luci-static/resources/view/homeproxy/node.js:1912
+#: luci-app-homeproxy/htdocs/luci-static/resources/view/homeproxy/node.js:1918
 msgid "%s nodes removed"
 msgstr "移除了 %s 个节点"
 
@@ -172,7 +172,8 @@ msgstr "备用 HTTP 端口"
 msgid "Alternative TLS port"
 msgstr "备用 TLS 端口"
 
-#: luci-app-homeproxy/htdocs/luci-static/resources/view/homeproxy/node.js:1878
+#: luci-app-homeproxy/htdocs/luci-static/resources/view/homeproxy/node.js:1877
+#: luci-app-homeproxy/htdocs/luci-static/resources/view/homeproxy/node.js:1884
 msgid "An error occurred during updating subscriptions: %s."
 msgstr "更新订阅时发生错误：%s。"
 
@@ -701,8 +702,8 @@ msgid ""
 "Drop/keep nodes that contain the specific keywords. <a target=\"_blank\" "
 "href=\"https://www.toolbox365.cn/tools/regex/\">Regex</a> is supported."
 msgstr ""
-"丢弃/保留包含指定关键词的节点。支持<a target=\"_blank\" href=\"https://www."
-"toolbox365.cn/tools/regex/\">正则表达式</a>。"
+"丢弃/保留包含指定关键词的节点。支持<a target=\"_blank\" href=\"https://"
+"www.toolbox365.cn/tools/regex/\">正则表达式</a>。"
 
 #: luci-app-homeproxy/htdocs/luci-static/resources/view/homeproxy/node.js:1824
 msgid "Drop/keep specific nodes from subscriptions."
@@ -1688,7 +1689,7 @@ msgstr "无额外加密支持：它基本上是重复加密。"
 msgid "No subscription available"
 msgstr "无可用订阅"
 
-#: luci-app-homeproxy/htdocs/luci-static/resources/view/homeproxy/node.js:1896
+#: luci-app-homeproxy/htdocs/luci-static/resources/view/homeproxy/node.js:1902
 msgid "No subscription node"
 msgstr "无订阅节点"
 
@@ -2057,11 +2058,11 @@ msgstr "拒绝"
 msgid "Remote"
 msgstr "远程"
 
-#: luci-app-homeproxy/htdocs/luci-static/resources/view/homeproxy/node.js:1893
+#: luci-app-homeproxy/htdocs/luci-static/resources/view/homeproxy/node.js:1899
 msgid "Remove %s nodes"
 msgstr "移除 %s 个节点"
 
-#: luci-app-homeproxy/htdocs/luci-static/resources/view/homeproxy/node.js:1883
+#: luci-app-homeproxy/htdocs/luci-static/resources/view/homeproxy/node.js:1889
 msgid "Remove all nodes from subscriptions"
 msgstr "移除所有订阅节点"
 
@@ -2271,8 +2272,8 @@ msgstr "嗅探到的客户端类型（QUIC 客户端类型或 SSH 客户端名�
 #: luci-app-homeproxy/htdocs/luci-static/resources/view/homeproxy/client.js:632
 #: luci-app-homeproxy/htdocs/luci-static/resources/view/homeproxy/client.js:1132
 msgid ""
-"Sniffed protocol, see <a target=\"_blank\" href=\"https://sing-box.sagernet."
-"org/configuration/route/sniff/\">Sniff</a> for details."
+"Sniffed protocol, see <a target=\"_blank\" href=\"https://sing-"
+"box.sagernet.org/configuration/route/sniff/\">Sniff</a> for details."
 msgstr ""
 "嗅探协议，具体参见 <a target=\"_blank\" href=\"https://sing-box.sagernet.org/"
 "configuration/route/sniff/\">Sniff</a>。"
@@ -2533,8 +2534,8 @@ msgstr "测试 URL"
 msgid "Test all"
 msgstr "全部测试"
 
-#: luci-app-homeproxy/htdocs/luci-static/resources/view/homeproxy/node.js:1943
-#: luci-app-homeproxy/htdocs/luci-static/resources/view/homeproxy/node.js:1948
+#: luci-app-homeproxy/htdocs/luci-static/resources/view/homeproxy/node.js:1949
+#: luci-app-homeproxy/htdocs/luci-static/resources/view/homeproxy/node.js:1954
 msgid "Test current list"
 msgstr "测试当前列表"
 
@@ -2557,7 +2558,7 @@ msgstr "测试容差"
 msgid "Testing"
 msgstr "测试中"
 
-#: luci-app-homeproxy/htdocs/luci-static/resources/view/homeproxy/node.js:1936
+#: luci-app-homeproxy/htdocs/luci-static/resources/view/homeproxy/node.js:1942
 msgid "Testing current list..."
 msgstr "正在测试当前列表..."
 
@@ -3076,6 +3077,10 @@ msgstr "证书"
 #: luci-app-homeproxy/htdocs/luci-static/resources/view/homeproxy/client.js:732
 msgid "connect UDP connections"
 msgstr "主动连接 UDP"
+
+#: luci-app-homeproxy/htdocs/luci-static/resources/view/homeproxy/node.js:1878
+msgid "exit code %d"
+msgstr "退出代码 %d"
 
 #: luci-app-homeproxy/htdocs/luci-static/resources/view/homeproxy/node.js:1201
 #: luci-app-homeproxy/htdocs/luci-static/resources/view/homeproxy/server.js:378

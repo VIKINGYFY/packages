@@ -13,11 +13,10 @@ import { connect } from 'ubus';
 import { cursor } from 'uci';
 
 import { urldecode, urlencode } from 'luci.http';
-import { init_action } from 'luci.sys';
 
 import {
 	wGET, decodeBase64Str, getTime, isEmpty, parseURL,
-	reconcileUrltestNodes, reserveUniqueLabel, shellQuote, synchronizeNodeLabels,
+	reconcileUrltestNodes, reserveUniqueLabel, synchronizeNodeLabels,
 	validation, HP_DIR, RUN_DIR
 } from 'homeproxy';
 
@@ -81,6 +80,10 @@ function log_error(prefix, error) {
 		log(error_context);
 }
 
+function log_missing_quic(protocol, node) {
+	log(sprintf('Skipping %s node without sing-box QUIC support: %s.', protocol, node));
+}
+
 /* String helper start */
 const invalid_filter_patterns = {};
 
@@ -115,7 +118,7 @@ function restart_service(message) {
 		return true;
 
 	log(message || 'Restarting service...');
-	if (init_action('homeproxy', 'restart') !== 0) {
+	if (system('/etc/init.d/homeproxy restart >/dev/null 2>&1') !== 0) {
 		log('Failed to restart HomeProxy; the updated configuration has not been applied.');
 		return false;
 	}
@@ -125,19 +128,6 @@ function restart_service(message) {
 
 function apply_updated_resources() {
 	return !resources_updated || restart_service('Restarting service to apply updated resources...');
-}
-
-if (getenv('HOMEPROXY_SUBSCRIPTION_LOCKED') !== '1') {
-	const lock_path = `${RUN_DIR}/update_subscriptions.lock`;
-	const script_path = `${HP_DIR}/scripts/update_subscriptions.uc`;
-	const command = sprintf(
-		'exec 9>%s; flock -n 9 || exit 2; HOMEPROXY_SUBSCRIPTION_LOCKED=1 %s',
-		shellQuote(lock_path), shellQuote(script_path)
-	);
-	const status = system(`/bin/sh -c ${shellQuote(command)}`);
-	if (status === 2)
-		log('Subscription update did not complete; another task may be running.');
-	exit(status);
 }
 
 function has_value(value) {
@@ -356,8 +346,7 @@ function parse_mihomo_proxy(proxy) {
 		break;
 	case 'hysteria2':
 		if (!sing_features.with_quic) {
-			log(sprintf('Skipping unsupported %s node: %s.', proxy.type, proxy.name || proxy.server));
-			log(sprintf('Please rebuild sing-box with %s support!', 'QUIC'));
+			log_missing_quic(proxy.type, proxy.name || proxy.server);
 			return null;
 		}
 		config = {
@@ -380,8 +369,7 @@ function parse_mihomo_proxy(proxy) {
 		break;
 	case 'hysteria':
 		if (!sing_features.with_quic) {
-			log(sprintf('Skipping unsupported %s node: %s.', proxy.type, proxy.name || proxy.server));
-			log(sprintf('Please rebuild sing-box with %s support!', 'QUIC'));
+			log_missing_quic(proxy.type, proxy.name || proxy.server);
 			return null;
 		}
 		config = {
@@ -497,8 +485,7 @@ function parse_mihomo_proxy(proxy) {
 		break;
 	case 'tuic': {
 		if (!sing_features.with_quic) {
-			log(sprintf('Skipping unsupported %s node: %s.', proxy.type, proxy.name || proxy.server));
-			log(sprintf('Please rebuild sing-box with %s support!', 'QUIC'));
+			log_missing_quic(proxy.type, proxy.name || proxy.server);
 			return null;
 		}
 		let tuic_heartbeat = proxy['heartbeat-interval'];
@@ -639,9 +626,10 @@ function parse_uri(uri) {
 			params = url.searchParams || {};
 
 			if (!sing_features.with_quic || (params.protocol && params.protocol !== 'udp')) {
-				log(sprintf('Skipping unsupported %s node: %s.', uri[0], urldecode(url.hash) || url.hostname));
 				if (!sing_features.with_quic)
-					log(sprintf('Please rebuild sing-box with %s support!', 'QUIC'));
+					log_missing_quic(uri[0], urldecode(url.hash) || url.hostname);
+				else
+					log(sprintf('Skipping unsupported %s node: %s.', uri[0], urldecode(url.hash) || url.hostname));
 
 				return null;
 			}
@@ -671,8 +659,7 @@ function parse_uri(uri) {
 			params = url.searchParams || {};
 
 			if (!sing_features.with_quic) {
-				log(sprintf('Skipping unsupported %s node: %s.', uri[0], urldecode(url.hash) || url.hostname));
-				log(sprintf('Please rebuild sing-box with %s support!', 'QUIC'));
+				log_missing_quic(uri[0], urldecode(url.hash) || url.hostname);
 				return null;
 			}
 
@@ -796,8 +783,7 @@ function parse_uri(uri) {
 			params = url.searchParams || {};
 
 			if (!sing_features.with_quic) {
-				log(sprintf('Skipping unsupported %s node: %s.', uri[0], urldecode(url.hash) || url.hostname));
-				log(sprintf('Please rebuild sing-box with %s support!', 'QUIC'));
+				log_missing_quic(uri[0], urldecode(url.hash) || url.hostname);
 
 				return null;
 			}
@@ -828,9 +814,10 @@ function parse_uri(uri) {
 				log(sprintf('Skipping unsupported %s node: %s.', uri[0], urldecode(url.hash) || url.hostname));
 				return null;
 			} else if (params.type === 'quic' && ((params.quicSecurity && params.quicSecurity !== 'none') || !sing_features.with_quic)) {
-				log(sprintf('Skipping unsupported %s node: %s.', uri[0], urldecode(url.hash) || url.hostname));
 				if (!sing_features.with_quic)
-					log(sprintf('Please rebuild sing-box with %s support!', 'QUIC'));
+					log_missing_quic(uri[0], urldecode(url.hash) || url.hostname);
+				else
+					log(sprintf('Skipping unsupported %s node: %s.', uri[0], urldecode(url.hash) || url.hostname));
 
 				return null;
 			}
@@ -902,9 +889,10 @@ function parse_uri(uri) {
 				log(sprintf('Skipping unsupported %s node: %s.', uri[0], uri.ps || uri.add));
 				return null;
 			} else if (uri.net === 'quic' && ((uri.type && uri.type !== 'none') || uri.path || !sing_features.with_quic)) {
-				log(sprintf('Skipping unsupported %s node: %s.', uri[0], uri.ps || uri.add));
 				if (!sing_features.with_quic)
-					log(sprintf('Please rebuild sing-box with %s support!', 'QUIC'));
+					log_missing_quic(uri[0], uri.ps || uri.add);
+				else
+					log(sprintf('Skipping unsupported %s node: %s.', uri[0], uri.ps || uri.add));
 
 				return null;
 			}

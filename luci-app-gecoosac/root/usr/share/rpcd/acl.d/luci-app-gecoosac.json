@@ -2,8 +2,11 @@
 	"luci-app-gecoosac": {
 		"description": "Grant access to luci-app-gecoosac",
 		"read": {
+			"file": {
+				"/usr/libexec/gecoosac-read-log": [ "exec" ]
+			},
 			"ubus": {
-				"luci.gecoosac": [ "status", "log" ],
+				"luci.gecoosac": [ "status" ],
 				"service": [ "list" ]
 			},
 			"uci": [ "gecoosac" ]

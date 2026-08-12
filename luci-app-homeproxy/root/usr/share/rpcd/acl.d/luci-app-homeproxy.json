@@ -9,6 +9,7 @@
 			},
 			"ubus": {
 				"service": [ "list" ],
+				"luci-rpc": [ "getHostHints" ],
 				"luci.homeproxy": [
 					"acllist_read", "connection_check", "current_node_get",
 					"node_latency_test", "resources_get",
@@ -19,7 +20,7 @@
 		},
 		"write": {
 			"file": {
-				"/etc/homeproxy/scripts/update_subscriptions.uc": [ "exec" ],
+				"/etc/homeproxy/scripts/update_subscriptions.sh": [ "exec" ],
 				"/tmp/homeproxy_certificate.tmp": [ "write" ]
 			},
 			"ubus": {

@@ -2,8 +2,8 @@
 
 'use strict';
 
-import { access, glob, lsdir, popen, readlink, realpath, rmdir, stat, unlink } from 'fs';
-import { init_action, process_list } from 'luci.sys';
+import { access, glob, lsdir, readlink, realpath, rmdir, stat, unlink } from 'fs';
+import { process_list } from 'luci.sys';
 import { cursor } from 'uci';
 
 const binpath = '/usr/bin/gecoosac';
@@ -146,30 +146,16 @@ const methods = {
 			switch (request.args.action) {
 			case 'start':
 			case 'restart':
-				let rc = init_action('gecoosac', request.args.action);
+				let rc = system('/etc/init.d/gecoosac ' + request.args.action + ' >/dev/null 2>&1');
 				return { success: rc === 0, code: rc };
 			default:
 				return { success: false, code: 2, message: 'invalid action' };
 			}
 		}
 	},
-
-	log: {
-		call: function() {
-			let fd = popen('/usr/libexec/gecoosac-read-log');
-			if (!fd)
-				return { log: '' };
-
-			let output = fd.read('all') || '';
-			fd.close();
-
-			return { log: output };
-		}
-	},
-
 	cron: {
 		call: function() {
-			let rc = init_action('gecoosac', 'sync_cron');
+			let rc = system('/etc/init.d/gecoosac sync_cron >/dev/null 2>&1');
 			return { success: rc === 0, code: rc };
 		}
 	},

@@ -3,7 +3,7 @@
 'use strict';
 
 import { access, glob, popen, readfile, readlink, statvfs } from 'fs';
-import { init_action, process_list } from 'luci.sys';
+import { process_list } from 'luci.sys';
 
 const binpath = '/usr/bin/axonhub';
 const supportedFilesystems = {
@@ -50,7 +50,6 @@ function storage_mounts() {
 
 		push(mounts, {
 			path: path,
-			filesystem: fields[0],
 			type: fields[2],
 			total: stats.totalsize,
 			free: stats.freesize
@@ -138,7 +137,7 @@ const methods = {
 
 	cron: {
 		call: function() {
-			let rc = init_action('axonhub', 'sync_cron');
+			let rc = system('/etc/init.d/axonhub sync_cron >/dev/null 2>&1');
 			return { success: rc === 0, code: rc };
 		}
 	},
@@ -149,26 +148,13 @@ const methods = {
 			switch (request.args.action) {
 			case 'start':
 			case 'restart':
-				let rc = init_action('axonhub', request.args.action);
+				let rc = system('/etc/init.d/axonhub ' + request.args.action + ' >/dev/null 2>&1');
 				return { success: rc === 0, code: rc };
 			default:
 				return { success: false, code: 2, message: 'invalid action' };
 			}
 		}
 	},
-
-	log: {
-		call: function() {
-			let fd = popen('/usr/libexec/axonhub-read-log');
-			if (!fd)
-				return { log: '' };
-
-			let output = fd.read('all') || '';
-			fd.close();
-
-			return { log: output };
-		}
-	}
 };
 
 return { 'luci.axonhub': methods };

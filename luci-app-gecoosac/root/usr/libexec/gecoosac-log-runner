@@ -1,16 +1,25 @@
 #!/bin/sh
 
-log_file="$1"
-shift
+output=file
+
+if [ "${1:-}" = '--syslog' ]; then
+	output=syslog
+	shift
+else
+	log_file="$1"
+	shift
+fi
 
 check_interval="${GECOOSAC_LOG_CHECK_INTERVAL:-30}"
 max_log_size=$((20 * 1048576))
 max_backups=3
 
-case "$log_file" in
-	/*/gecoosac.log) ;;
-	*) exit 1 ;;
-esac
+if [ "$output" = file ]; then
+	case "$log_file" in
+		/*/gecoosac.log) ;;
+		*) exit 1 ;;
+	esac
+fi
 case "$check_interval" in
 	''|*[!0-9]*|0) exit 1 ;;
 esac
@@ -35,8 +44,43 @@ rotate_log() {
 	: > "$log_file"
 }
 
-rotate_log || exit 1
-"$@" >> "$log_file" 2>&1 &
+timestamp_output() {
+	local line timestamp
+
+	while IFS= read -r line || [ -n "$line" ]; do
+		timestamp="$(date '+%Y/%m/%d %H:%M:%S')"
+		if [ "$output" = syslog ]; then
+			logger -t gecoosac "$timestamp $line"
+		else
+			printf '%s %s\n' "$timestamp" "$line"
+		fi
+	done < "$fifo"
+}
+
+if [ "$output" = file ]; then
+	rotate_log || exit 1
+fi
+
+runtime_dir="$(mktemp -d /tmp/gecoosac-log.XXXXXX)" || exit 1
+fifo="$runtime_dir/output"
+cleanup_runtime() {
+	rm -f "$fifo"
+	rmdir "$runtime_dir"
+}
+
+mkfifo "$fifo" || {
+	cleanup_runtime
+	exit 1
+}
+
+if [ "$output" = syslog ]; then
+	timestamp_output &
+else
+	timestamp_output >> "$log_file" &
+fi
+writer_pid=$!
+
+"$@" > "$fifo" 2>&1 &
 child_pid=$!
 
 monitor_log() {
@@ -46,18 +90,28 @@ monitor_log() {
 	done
 }
 
-monitor_log &
-monitor_pid=$!
+if [ "$output" = file ]; then
+	monitor_log &
+	monitor_pid=$!
+fi
 
 forward_term() {
 	kill -TERM "$child_pid" 2>/dev/null
 }
 
-trap forward_term INT TERM
+forward_signal() {
+	forward_term
+	trap - INT TERM
+}
+
+trap forward_signal INT TERM
 wait "$child_pid"
 status=$?
-kill "$monitor_pid" 2>/dev/null
-wait "$monitor_pid" 2>/dev/null
-rotate_log
-trap - INT TERM
+if [ -n "${monitor_pid:-}" ]; then
+	kill "$monitor_pid" 2>/dev/null
+	wait "$monitor_pid" 2>/dev/null
+fi
+wait "$writer_pid"
+[ "$output" = file ] && rotate_log
+cleanup_runtime
 exit "$status"

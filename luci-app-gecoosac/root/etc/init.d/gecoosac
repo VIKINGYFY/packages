@@ -132,7 +132,7 @@ start_service() {
 	if [ "$log_to_syslog" -eq 0 ]; then
 		procd_set_param command "$LOG_RUNNER" "$log_file" "$PROG"
 	else
-		procd_set_param command "$PROG"
+		procd_set_param command "$LOG_RUNNER" --syslog "$PROG"
 	fi
 	procd_append_param command -f "$upload_dir/"
 	procd_append_param command -p '60650'
@@ -145,8 +145,8 @@ start_service() {
 	procd_append_param command -showtip '0'
 	procd_set_param env GIN_MODE=release \
 		PATH=/usr/libexec/gecoosac-compat:/usr/sbin:/usr/bin:/sbin:/bin
-	procd_set_param stdout "$log_to_syslog"
-	procd_set_param stderr "$log_to_syslog"
+	procd_set_param stdout 0
+	procd_set_param stderr 0
 	procd_set_param respawn 3600 5 5
 	procd_set_param term_timeout 30
 	procd_set_param file /etc/config/gecoosac

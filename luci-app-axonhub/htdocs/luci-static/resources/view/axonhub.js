@@ -1,5 +1,6 @@
 'use strict';
 'require dom';
+'require fs';
 'require form';
 'require poll';
 'require rpc';
@@ -30,12 +31,6 @@ var callAction = rpc.declare({
 	object: 'luci.axonhub',
 	method: 'action',
 	params: [ 'action' ],
-	expect: { '': {} }
-});
-
-var callLog = rpc.declare({
-	object: 'luci.axonhub',
-	method: 'log',
 	expect: { '': {} }
 });
 
@@ -81,7 +76,7 @@ function runServiceAction(action, button) {
 
 	return callAction(action).then(function(result) {
 		if (!result || !result.success)
-			throw new Error(result && result.message || _('Service action failed with code %s.').format(result && result.code));
+			throw new Error(result && result.message || _('exit code %s').format(result && result.code));
 
 		return new Promise(function(resolve) {
 			window.setTimeout(resolve, 800);
@@ -108,8 +103,11 @@ function actionButton(label, style, action) {
 }
 
 function showLogs() {
-	return callLog().then(function(result) {
-		var content = result && result.log || _('No AxonHub log entries were found.');
+	return fs.exec('/usr/libexec/axonhub-read-log').then(function(result) {
+		if (result.code)
+			throw new Error(result.stderr || _('Log reader exited with code %s.').format(result.code));
+
+		var content = result.stdout || _('No AxonHub log entries were found.');
 		var logNode = E('textarea', {
 			'class': 'cbi-input-textarea',
 			'readonly': 'readonly',
@@ -180,7 +178,6 @@ function renderStatus(status) {
 				'style': 'color:' + (unmanaged ? '#a65f00' : (running ? '#2d8a34' : '#c33'))
 			}, [ unmanaged ? _('Running (unmanaged)') : (running ? _('Running') : _('Not running')) ]),
 			details.length ? E('span', {}, [ '(' + details.join(', ') + ')' ]) : '',
-			!exists ? E('span', {}, [ _('The AxonHub binary is missing.') ]) : '',
 			!running && exists && !enabled ? E('span', {}, [ _('Enable the service and save the configuration to start it.') ]) : ''
 		]),
 		E('div', { 'style': 'display:flex;gap:8px;flex-wrap:wrap;margin-top:10px' }, buttons)
