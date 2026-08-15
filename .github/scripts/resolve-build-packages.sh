@@ -21,21 +21,20 @@ select_all() {
 	selected_packages=("${all_packages[@]}")
 }
 
-if [[ "$EVENT_NAME" == workflow_dispatch || "$EVENT_NAME" == workflow_call ]]; then
-	if [[ -n "$REQUESTED_PACKAGES" ]]; then
-		IFS=',' read -ra requested <<< "$REQUESTED_PACKAGES"
-		for package in "${requested[@]}"; do
-			package="${package//[[:space:]]/}"
-			[[ -n "$package" ]] || continue
-			if ! printf '%s\n' "${all_packages[@]}" | grep -Fqx "$package"; then
-				printf '未知软件包目录：%s\n' "$package" >&2
-				exit 1
-			fi
-			selected_packages+=("$package")
-		done
-	else
-		select_all
-	fi
+# 可复用工作流继承调用方的事件名，显式软件包列表必须优先于事件类型。
+if [[ -n "$REQUESTED_PACKAGES" ]]; then
+	IFS=',' read -ra requested <<< "$REQUESTED_PACKAGES"
+	for package in "${requested[@]}"; do
+		package="${package//[[:space:]]/}"
+		[[ -n "$package" ]] || continue
+		if ! printf '%s\n' "${all_packages[@]}" | grep -Fqx "$package"; then
+			printf '未知软件包目录：%s\n' "$package" >&2
+			exit 1
+		fi
+		selected_packages+=("$package")
+	done
+elif [[ "$EVENT_NAME" == workflow_dispatch || "$EVENT_NAME" == workflow_call ]]; then
+	select_all
 else
 	if [[ -z "$BEFORE_SHA" ]] || [[ "$BEFORE_SHA" =~ ^0+$ ]]; then
 		mapfile -t changed_files < <(git show --format= --name-only "$SOURCE_SHA")

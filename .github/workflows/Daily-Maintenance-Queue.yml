@@ -60,10 +60,10 @@ jobs:
       - translation
     if: >-
       always() && (
-        needs.singbox.outputs.package_changed == 'true' ||
-        needs.axonhub.outputs.package_changed == 'true' ||
-        needs.homeproxy.outputs.package_changed == 'true' ||
-        needs.translation.outputs.package_changed == 'true'
+        needs.singbox.outputs.packages != '' ||
+        needs.axonhub.outputs.packages != '' ||
+        needs.homeproxy.outputs.packages != '' ||
+        needs.translation.outputs.packages != ''
       )
     uses: ./.github/workflows/Build-APK-Packages.yml
     with:

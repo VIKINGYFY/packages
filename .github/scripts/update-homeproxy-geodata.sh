@@ -85,6 +85,7 @@ normalize_dashboard_javascript() {
 
 	while IFS= read -r -d '' file; do
 		# Preserve the JSON editor's two-space indent without trailing whitespace.
+		# shellcheck disable=SC2016
 		sed -i -E 's/^(`\+[^`]+\+`)  $/\1\\x20\\x20/' "$file" || return 1
 		if grep -nE '[[:blank:]]+$' "$file" >&2; then
 			echo "Unsupported trailing whitespace remains in dashboard JavaScript: $file" >&2
@@ -127,6 +128,15 @@ if [[ "$ip_ready" -eq 1 ]] && ! awk '
 	ip_ready=0
 fi
 [[ "$ip_ready" -eq 0 || -s "$TEMP_DIR/geoip_cn.json" ]] || ip_ready=0
+if [[ "$ip_ready" -eq 1 ]] && ! jq -e '
+	.version == 5 and
+	(.rules | type == "array" and length == 1) and
+	(.rules[0].ip_cidr |
+		type == "array" and length > 0 and
+		all(.[]; type == "string" and test("/[0-9]+$")))
+' "$TEMP_DIR/geoip_cn.json" >/dev/null; then
+	ip_ready=0
+fi
 if [[ "$ip_ready" -eq 1 ]]; then
 	printf '%s\n' "$ip_version" > "$TEMP_DIR/china_ip4.ver"
 	printf '%s\n' "$ip_version" > "$TEMP_DIR/china_ip6.ver"
@@ -154,6 +164,7 @@ geosite_ready=1
 geosite_version="$(fetch_release_version "$GEOSITE_VERSION_URL")" || geosite_ready=0
 if [[ "$geosite_ready" -eq 1 ]] && \
 	download "${GEOSITE_SOURCE}?v=${geosite_version}" "$TEMP_DIR/geosite_cn.srs" && \
+	[[ "$(dd if="$TEMP_DIR/geosite_cn.srs" bs=1 count=3 status=none)" == SRS ]] && \
 	printf '%s\n' "$geosite_version" > "$TEMP_DIR/geosite_cn.ver" && \
 	install -m 0644 "$TEMP_DIR/geosite_cn.srs" "$RESOURCES_DIR/geosite_cn.srs" && \
 	install -m 0644 "$TEMP_DIR/geosite_cn.ver" "$RESOURCES_DIR/geosite_cn.ver"; then
@@ -209,7 +220,6 @@ fi
 
 resource_version="${geosite_version:-${ip_version:-${dashboard_version:-unknown}}}"
 set_output version "$resource_version"
-set_output partial_failure "$update_failed"
 if [[ "$update_failed" -ne 0 ]]; then
 	echo "HomeProxy resource update failed; refusing to commit partial data." >&2
 	exit 1

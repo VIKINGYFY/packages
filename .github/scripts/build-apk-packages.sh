@@ -92,6 +92,29 @@ done
 
 make -C "$SDK_ROOT" defconfig
 
+config_package_enabled() {
+	local package_name="$1"
+
+	grep -Fqx "CONFIG_PACKAGE_${package_name}=m" "$SDK_ROOT/.config" ||
+		grep -Fqx "CONFIG_PACKAGE_${package_name}=y" "$SDK_ROOT/.config"
+}
+
+for package in "${SELECTED_PACKAGES[@]}"; do
+	name="$(package_name "$package")"
+	config_package_enabled "$name" || {
+		printf 'Selected package is not enabled in SDK config: %s\n' "$name" >&2
+		exit 1
+	}
+	if [[ "$name" == luci-app-* ]] && [[ -d "$REPO_ROOT/$package/po/zh_Hans" ]]; then
+		translation_name="luci-i18n-${name#luci-app-}-zh-cn"
+		config_package_enabled "$translation_name" || {
+			printf 'Selected Chinese translation is not enabled in SDK config: %s\n' \
+				"$translation_name" >&2
+			exit 1
+		}
+	fi
+done
+
 for package in "${SELECTED_PACKAGES[@]}"; do
 	name="$(package_name "$package")"
 	while IFS= read -r -d '' cached_source; do
@@ -119,27 +142,28 @@ APK_TOOL="$SDK_ROOT/staging_dir/host/bin/apk"
 copy_apk() {
 	local package_name="$1"
 	local found=0
-	local source_file target_file metadata actual_name
+	local source_file target_file metadata actual_name selected_file=''
 
 	while IFS= read -r -d '' source_file; do
 		metadata="$("$APK_TOOL" adbdump "$source_file")"
 		actual_name="$(awk '/^  name: / { sub(/^  name: /, ""); print; exit }' <<< "$metadata")"
 		[[ "$actual_name" == "$package_name" ]] || continue
-		found=1
-		target_file="$OUTPUT_DIR/$(basename "$source_file")"
-
-		if [[ -e "$target_file" ]] && ! cmp -s "$source_file" "$target_file"; then
-			printf 'Conflicting APK outputs: %s\n' "$target_file" >&2
-			exit 1
-		fi
-
-		cp -p "$source_file" "$target_file"
+		found=$((found + 1))
+		selected_file="$source_file"
 	done < <(find "$SDK_ROOT/bin" -type f -name "${package_name}-*.apk" -print0)
 
-	if (( found == 0 )); then
-		printf 'APK output not found for package: %s\n' "$package_name" >&2
+	if (( found != 1 )); then
+		printf 'Expected exactly one APK output for package %s, found %s\n' \
+			"$package_name" "$found" >&2
 		exit 1
 	fi
+
+	target_file="$OUTPUT_DIR/$(basename "$selected_file")"
+	if [[ -e "$target_file" ]] && ! cmp -s "$selected_file" "$target_file"; then
+		printf 'Conflicting APK outputs: %s\n' "$target_file" >&2
+		exit 1
+	fi
+	cp -p "$selected_file" "$target_file"
 }
 
 for package in "${SELECTED_PACKAGES[@]}"; do

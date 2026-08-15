@@ -345,8 +345,15 @@ jobs:
           release_id="$(gh api \
             "repos/$GITHUB_REPOSITORY/releases/tags/$RELEASE_TAG" \
             --jq '.id')"
+
+          # Upload the replacement before deleting the previous bundle so a transient
+          # release API failure cannot leave the platform without an aggregate ZIP.
+          gh release upload "$RELEASE_TAG" "$archive" \
+            --repo "$GITHUB_REPOSITORY"
+
           while IFS=$'\t' read -r asset_id asset_name; do
-            [[ "$asset_name" == "$ARCHIVE_PREFIX-"*.zip ]] || continue
+            [[ "$asset_name" == "$ARCHIVE_PREFIX-"*.zip && \
+               "$asset_name" != "$ARCHIVE_NAME" ]] || continue
             gh api --method DELETE \
               "repos/$GITHUB_REPOSITORY/releases/assets/$asset_id"
           done < <(
@@ -354,9 +361,6 @@ jobs:
               "repos/$GITHUB_REPOSITORY/releases/$release_id/assets?per_page=100" \
               --jq '.[] | [.id, .name] | @tsv'
           )
-
-          gh release upload "$RELEASE_TAG" "$archive" \
-            --repo "$GITHUB_REPOSITORY"
           echo "### 已发布：$ARCHIVE_NAME" >> "$GITHUB_STEP_SUMMARY"
 
   cleanup:
