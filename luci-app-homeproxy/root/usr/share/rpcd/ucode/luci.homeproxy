@@ -11,7 +11,7 @@ import { lstat, open, popen, readfile, writefile } from 'fs';
 import { cursor } from 'uci';
 
 import {
-	HP_DIR, RUN_DIR, removeBlankAttrs, renderEndpoint, renderOutbound, shellQuote
+	HP_DIR, RUN_DIR, isBinary, removeBlankAttrs, renderEndpoint, renderOutbound, shellQuote
 } from '/etc/homeproxy/scripts/homeproxy.uc';
 
 function hasKernelModule(kmod) {
@@ -94,7 +94,7 @@ const methods = {
 				}
 
 				let filecontent = readfile(tmpcert);
-				if (is_binary(filecontent)) {
+				if (isBinary(filecontent)) {
 					system(`/bin/rm -f ${shellQuote(tmpcert)}`);
 					return { result: false, error: 'illegal file type: binary' };
 				}

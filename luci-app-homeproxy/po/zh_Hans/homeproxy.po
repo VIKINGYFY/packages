@@ -702,8 +702,8 @@ msgid ""
 "Drop/keep nodes that contain the specific keywords. <a target=\"_blank\" "
 "href=\"https://www.toolbox365.cn/tools/regex/\">Regex</a> is supported."
 msgstr ""
-"丢弃/保留包含指定关键词的节点。支持<a target=\"_blank\" href=\"https://www."
-"toolbox365.cn/tools/regex/\">正则表达式</a>。"
+"丢弃/保留包含指定关键词的节点。支持<a target=\"_blank\" href=\"https://"
+"www.toolbox365.cn/tools/regex/\">正则表达式</a>。"
 
 #: luci-app-homeproxy/htdocs/luci-static/resources/view/homeproxy/node.js:1824
 msgid "Drop/keep specific nodes from subscriptions."
@@ -2272,8 +2272,8 @@ msgstr "嗅探到的客户端类型（QUIC 客户端类型或 SSH 客户端名�
 #: luci-app-homeproxy/htdocs/luci-static/resources/view/homeproxy/client.js:632
 #: luci-app-homeproxy/htdocs/luci-static/resources/view/homeproxy/client.js:1132
 msgid ""
-"Sniffed protocol, see <a target=\"_blank\" href=\"https://sing-box.sagernet."
-"org/configuration/route/sniff/\">Sniff</a> for details."
+"Sniffed protocol, see <a target=\"_blank\" href=\"https://sing-"
+"box.sagernet.org/configuration/route/sniff/\">Sniff</a> for details."
 msgstr ""
 "嗅探协议，具体参见 <a target=\"_blank\" href=\"https://sing-box.sagernet.org/"
 "configuration/route/sniff/\">Sniff</a>。"

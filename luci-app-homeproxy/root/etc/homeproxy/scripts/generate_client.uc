@@ -246,7 +246,7 @@ function routing_port_match() {
 	for (let item in split(value, ',')) {
 		item = trim(item);
 		if (match(item, /-/))
-			push(ranges, item);
+			push(ranges, replace(item, '-', ':'));
 		else if (item)
 			push(ports, int(item));
 	}
