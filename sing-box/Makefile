@@ -7,7 +7,7 @@ include $(TOPDIR)/rules.mk
 PKG_NAME:=sing-box
 PKG_UPSTREAM_VERSION:=1.14.0-rc.1
 PKG_VERSION:=1.14.0_rc1
-PKG_RELEASE:=1
+PKG_RELEASE:=2
 
 PKG_SOURCE:=$(PKG_NAME)-$(PKG_UPSTREAM_VERSION).tar.gz
 PKG_SOURCE_URL:=https://codeload.github.com/SagerNet/sing-box/tar.gz/v$(PKG_UPSTREAM_VERSION)?
@@ -131,9 +131,10 @@ define Package/sing-box-tiny/config
 endef
 
 ifeq ($(BUILD_VARIANT),full)
-  GO_PKG_TAGS:=with_acme,with_clash_api,with_dhcp,with_gvisor,with_quic,with_tailscale,with_utls,with_wireguard
+  GO_PKG_TAGS:=http2legacy,with_acme,with_clash_api,with_dhcp,with_gvisor,with_quic,with_tailscale,with_utls,with_wireguard
 else
   GO_PKG_TAGS:=$(subst $(space),$(comma),$(strip \
+	http2legacy \
 	$(if $(CONFIG_SING_BOX_TINY_BUILD_ACME),with_acme) \
 	$(if $(CONFIG_SING_BOX_TINY_BUILD_CLASH_API),with_clash_api) \
 	$(if $(CONFIG_SING_BOX_TINY_BUILD_DHCP),with_dhcp) \
