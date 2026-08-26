@@ -634,7 +634,7 @@ if (!isEmpty(main_node)) {
 			return;
 
 		const action = cfg.action || 'route';
-		const match_response = strToBool(cfg.match_response) ||
+		const match_response = action === 'respond' || strToBool(cfg.match_response) ||
 			!isEmpty(cfg.ip_cidr) || strToBool(cfg.ip_is_private);
 		const match_fields = render_dns_rule_match(cfg);
 

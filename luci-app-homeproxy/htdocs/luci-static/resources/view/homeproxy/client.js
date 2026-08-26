@@ -1217,6 +1217,7 @@ return view.extend({
 			return this.super('load', section_id);
 		}
 		so.depends('match_response', '1');
+		so.depends('action', 'respond');
 		so.modalonly = true;
 
 		so = ss.taboption('field_other', form.Flag, 'dns_disable_cache', _('Disable DNS cache'),

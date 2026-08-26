@@ -1031,6 +1031,11 @@ function renderNodeSettings(section, data, features, main_node, routing_mode, no
 	o.depends('type', 'hysteria');
 	o.depends('type', 'hysteria2');
 	o.modalonly = true;
+
+	o = s.option(form.Flag, 'hysteria_disable_chrome_parrot', _('Disable Chrome QUIC fingerprint imitation'),
+		_('Disable Chrome QUIC handshake fingerprint imitation for compatibility with servers using Ed25519 certificates.'));
+	o.depends('type', 'hysteria2');
+	o.modalonly = true;
 	/* Hysteria (2) config end */
 
 	/* Shadowsocks config start */
@@ -1586,6 +1591,7 @@ function renderNodeSettings(section, data, features, main_node, routing_mode, no
 
 	/* Extra settings start */
 	o = s.option(form.Flag, 'tcp_fast_open', _('TCP fast open'));
+	o.depends({'type': 'anytls', '!reverse': true});
 	o.modalonly = true;
 
 	o = s.option(form.Flag, 'tcp_multi_path', _('TCP multi-path'));

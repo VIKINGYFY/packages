@@ -373,7 +373,7 @@ export function renderOutbound(node, routingMark) {
 		type: node.type,
 		tag: 'cfg-' + node['.name'] + '-out',
 		routing_mark: strToInt(routingMark),
-		tcp_fast_open: strToBool(node.tcp_fast_open),
+		tcp_fast_open: (node.type !== 'anytls') ? strToBool(node.tcp_fast_open) : null,
 		tcp_multi_path: strToBool(node.tcp_multi_path),
 		udp_fragment: strToBool(node.udp_fragment)
 	};
@@ -404,6 +404,7 @@ export function renderOutbound(node, routingMark) {
 		outbound.stream_receive_window = !isEmpty(node.hysteria_stream_receive_window) ? `${node.hysteria_stream_receive_window} B` : null;
 		outbound.connection_receive_window = !isEmpty(node.hysteria_connection_receive_window) ? `${node.hysteria_connection_receive_window} B` : null;
 		outbound.disable_path_mtu_discovery = strToBool(node.hysteria_disable_path_mtu_discovery);
+		outbound.disable_chrome_parrot = (node.type === 'hysteria2') ? strToBool(node.hysteria_disable_chrome_parrot) : null;
 		outbound.obfs = (node.type === 'hysteria2' && node.hysteria_obfs_type) ? {
 			type: node.hysteria_obfs_type,
 			password: node.hysteria_obfs_password
