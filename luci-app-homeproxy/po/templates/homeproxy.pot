@@ -224,6 +224,14 @@ msgstr ""
 msgid "Authentication type"
 msgstr ""
 
+#: luci-app-homeproxy/htdocs/luci-static/resources/view/homeproxy/client.js:1501
+msgid "Auto Proxy IPv4 addresses"
+msgstr ""
+
+#: luci-app-homeproxy/htdocs/luci-static/resources/view/homeproxy/client.js:1513
+msgid "Auto Proxy MAC addresses"
+msgstr ""
+
 #: luci-app-homeproxy/htdocs/luci-static/resources/view/homeproxy/node.js:1794
 msgid "Auto update"
 msgstr ""
@@ -536,21 +544,8 @@ msgstr ""
 msgid "Direct"
 msgstr ""
 
-#: luci-app-homeproxy/htdocs/luci-static/resources/view/homeproxy/client.js:1567
+#: luci-app-homeproxy/htdocs/luci-static/resources/view/homeproxy/client.js:1603
 msgid "Direct Domain List"
-msgstr ""
-
-#: luci-app-homeproxy/htdocs/luci-static/resources/view/homeproxy/client.js:1486
-#: luci-app-homeproxy/htdocs/luci-static/resources/view/homeproxy/client.js:1525
-msgid "Direct IPv4 addresses"
-msgstr ""
-
-#: luci-app-homeproxy/htdocs/luci-static/resources/view/homeproxy/client.js:1529
-msgid "Direct IPv6 addresses"
-msgstr ""
-
-#: luci-app-homeproxy/htdocs/luci-static/resources/view/homeproxy/client.js:1483
-msgid "Direct MAC addresses"
 msgstr ""
 
 #: luci-app-homeproxy/htdocs/luci-static/resources/view/homeproxy/client.js:150
@@ -869,8 +864,8 @@ msgstr ""
 #: luci-app-homeproxy/htdocs/luci-static/resources/view/homeproxy/client.js:1418
 #: luci-app-homeproxy/htdocs/luci-static/resources/view/homeproxy/client.js:1423
 #: luci-app-homeproxy/htdocs/luci-static/resources/view/homeproxy/client.js:1426
-#: luci-app-homeproxy/htdocs/luci-static/resources/view/homeproxy/client.js:1560
-#: luci-app-homeproxy/htdocs/luci-static/resources/view/homeproxy/client.js:1591
+#: luci-app-homeproxy/htdocs/luci-static/resources/view/homeproxy/client.js:1596
+#: luci-app-homeproxy/htdocs/luci-static/resources/view/homeproxy/client.js:1627
 #: luci-app-homeproxy/htdocs/luci-static/resources/view/homeproxy/node.js:921
 #: luci-app-homeproxy/htdocs/luci-static/resources/view/homeproxy/node.js:1563
 #: luci-app-homeproxy/htdocs/luci-static/resources/view/homeproxy/node.js:1761
@@ -976,6 +971,32 @@ msgstr ""
 
 #: luci-app-homeproxy/htdocs/luci-static/resources/view/homeproxy/client.js:265
 msgid "Global"
+msgstr ""
+
+#: luci-app-homeproxy/htdocs/luci-static/resources/view/homeproxy/client.js:1496
+#: luci-app-homeproxy/htdocs/luci-static/resources/view/homeproxy/client.js:1561
+msgid "Global Direct IPv4 addresses"
+msgstr ""
+
+#: luci-app-homeproxy/htdocs/luci-static/resources/view/homeproxy/client.js:1565
+msgid "Global Direct IPv6 addresses"
+msgstr ""
+
+#: luci-app-homeproxy/htdocs/luci-static/resources/view/homeproxy/client.js:1491
+msgid "Global Direct MAC addresses"
+msgstr ""
+
+#: luci-app-homeproxy/htdocs/luci-static/resources/view/homeproxy/client.js:1525
+#: luci-app-homeproxy/htdocs/luci-static/resources/view/homeproxy/client.js:1541
+msgid "Global Proxy IPv4 addresses"
+msgstr ""
+
+#: luci-app-homeproxy/htdocs/luci-static/resources/view/homeproxy/client.js:1548
+msgid "Global Proxy IPv6 addresses"
+msgstr ""
+
+#: luci-app-homeproxy/htdocs/luci-static/resources/view/homeproxy/client.js:1531
+msgid "Global Proxy MAC addresses"
 msgstr ""
 
 #: luci-app-homeproxy/htdocs/luci-static/resources/view/homeproxy/server.js:129
@@ -1118,14 +1139,19 @@ msgstr ""
 msgid "IPv4"
 msgstr ""
 
-#: luci-app-homeproxy/htdocs/luci-static/resources/view/homeproxy/client.js:1487
-#: luci-app-homeproxy/htdocs/luci-static/resources/view/homeproxy/client.js:1526
+#: luci-app-homeproxy/htdocs/luci-static/resources/view/homeproxy/client.js:1497
+#: luci-app-homeproxy/htdocs/luci-static/resources/view/homeproxy/client.js:1562
 msgid "IPv4 addresses in this option are forced to use global direct routing."
 msgstr ""
 
-#: luci-app-homeproxy/htdocs/luci-static/resources/view/homeproxy/client.js:1496
-#: luci-app-homeproxy/htdocs/luci-static/resources/view/homeproxy/client.js:1506
+#: luci-app-homeproxy/htdocs/luci-static/resources/view/homeproxy/client.js:1526
+#: luci-app-homeproxy/htdocs/luci-static/resources/view/homeproxy/client.js:1542
 msgid "IPv4 addresses in this option are forced to use global proxy routing."
+msgstr ""
+
+#: luci-app-homeproxy/htdocs/luci-static/resources/view/homeproxy/client.js:1502
+msgid ""
+"IPv4 addresses in this option automatically use rule-based proxy routing."
 msgstr ""
 
 #: luci-app-homeproxy/htdocs/luci-static/resources/homeproxy.js:27
@@ -1137,11 +1163,11 @@ msgstr ""
 msgid "IPv6"
 msgstr ""
 
-#: luci-app-homeproxy/htdocs/luci-static/resources/view/homeproxy/client.js:1530
+#: luci-app-homeproxy/htdocs/luci-static/resources/view/homeproxy/client.js:1566
 msgid "IPv6 addresses in this option are forced to use global direct routing."
 msgstr ""
 
-#: luci-app-homeproxy/htdocs/luci-static/resources/view/homeproxy/client.js:1513
+#: luci-app-homeproxy/htdocs/luci-static/resources/view/homeproxy/client.js:1549
 msgid "IPv6 addresses in this option are forced to use global proxy routing."
 msgstr ""
 
@@ -1327,6 +1353,10 @@ msgstr ""
 msgid "Let's Encrypt"
 msgstr ""
 
+#: luci-app-homeproxy/htdocs/luci-static/resources/view/homeproxy/client.js:1483
+msgid "List mode"
+msgstr ""
+
 #: luci-app-homeproxy/htdocs/luci-static/resources/view/homeproxy/node.js:1327
 msgid ""
 "List of IP (v4 or v6) addresses prefixes to be assigned to the interface."
@@ -1387,12 +1417,17 @@ msgstr ""
 msgid "Log is empty."
 msgstr ""
 
-#: luci-app-homeproxy/htdocs/luci-static/resources/view/homeproxy/client.js:1484
+#: luci-app-homeproxy/htdocs/luci-static/resources/view/homeproxy/client.js:1492
 msgid "MAC addresses in this option are forced to use global direct routing."
 msgstr ""
 
-#: luci-app-homeproxy/htdocs/luci-static/resources/view/homeproxy/client.js:1490
+#: luci-app-homeproxy/htdocs/luci-static/resources/view/homeproxy/client.js:1532
 msgid "MAC addresses in this option are forced to use global proxy routing."
+msgstr ""
+
+#: luci-app-homeproxy/htdocs/luci-static/resources/view/homeproxy/client.js:1514
+msgid ""
+"MAC addresses in this option automatically use rule-based proxy routing."
 msgstr ""
 
 #: luci-app-homeproxy/htdocs/luci-static/resources/view/homeproxy/node.js:1360
@@ -1715,6 +1750,12 @@ msgstr ""
 msgid "Obfuscate type"
 msgstr ""
 
+#: luci-app-homeproxy/htdocs/luci-static/resources/view/homeproxy/client.js:1484
+msgid ""
+"Only devices in the lists below are processed. All other devices use direct "
+"routing."
+msgstr ""
+
 #: luci-app-homeproxy/htdocs/luci-static/resources/view/homeproxy/client.js:1470
 msgid "Only process traffic from specific interfaces. Leave empty for all."
 msgstr ""
@@ -1913,21 +1954,8 @@ msgid ""
 "default in v2ray and cannot be disabled)."
 msgstr ""
 
-#: luci-app-homeproxy/htdocs/luci-static/resources/view/homeproxy/client.js:1537
+#: luci-app-homeproxy/htdocs/luci-static/resources/view/homeproxy/client.js:1573
 msgid "Proxy Domain List"
-msgstr ""
-
-#: luci-app-homeproxy/htdocs/luci-static/resources/view/homeproxy/client.js:1495
-#: luci-app-homeproxy/htdocs/luci-static/resources/view/homeproxy/client.js:1505
-msgid "Proxy IPv4 addresses"
-msgstr ""
-
-#: luci-app-homeproxy/htdocs/luci-static/resources/view/homeproxy/client.js:1512
-msgid "Proxy IPv6 addresses"
-msgstr ""
-
-#: luci-app-homeproxy/htdocs/luci-static/resources/view/homeproxy/client.js:1489
-msgid "Proxy MAC addresses"
 msgstr ""
 
 #: luci-app-homeproxy/htdocs/luci-static/resources/view/homeproxy/client.js:289
@@ -2961,7 +2989,7 @@ msgstr ""
 msgid "WAN DNS (read from interface)"
 msgstr ""
 
-#: luci-app-homeproxy/htdocs/luci-static/resources/view/homeproxy/client.js:1503
+#: luci-app-homeproxy/htdocs/luci-static/resources/view/homeproxy/client.js:1539
 msgid "WAN IP Policy"
 msgstr ""
 
@@ -3133,8 +3161,8 @@ msgstr ""
 msgid "valid base64 key with %d characters"
 msgstr ""
 
-#: luci-app-homeproxy/htdocs/luci-static/resources/view/homeproxy/client.js:1560
-#: luci-app-homeproxy/htdocs/luci-static/resources/view/homeproxy/client.js:1591
+#: luci-app-homeproxy/htdocs/luci-static/resources/view/homeproxy/client.js:1596
+#: luci-app-homeproxy/htdocs/luci-static/resources/view/homeproxy/client.js:1627
 msgid "valid hostname"
 msgstr ""
 

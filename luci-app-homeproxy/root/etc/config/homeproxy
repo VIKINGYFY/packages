@@ -36,6 +36,7 @@ config homeproxy 'config'
 	option dashboard_secret ''
 
 config homeproxy 'control'
+	option lan_whitelist_mode '0'
 
 config homeproxy 'routing'
 	option tcpip_stack 'mixed'

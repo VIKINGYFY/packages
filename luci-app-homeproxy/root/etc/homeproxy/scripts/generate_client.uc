@@ -295,13 +295,39 @@ function tun_match(match_rule) {
 	};
 }
 
+function tun_unlisted_match(match_rule) {
+	if (!match_rule)
+		return { inbound: 'tun-in' };
+
+	return tun_match({ ...match_rule, invert: !match_rule.invert });
+}
+
+function merge_matches(matches) {
+	const rules = filter(matches, (rule) => rule);
+	if (length(rules) === 1)
+		return rules[0];
+	if (length(rules) > 1)
+		return { type: 'logical', mode: 'or', rules };
+	return null;
+}
+
 function get_control_matches() {
 	const included_ports = routing_port_match();
 	const proxy_policy_mode = routing_mode in ['bypass_mainland_china', 'custom'];
+	const lan_whitelist_mode = proxy_policy_mode &&
+		uci.get(uciconfig, ucicontrol, 'lan_whitelist_mode') === '1';
+	const proxy_source = proxy_policy_mode ?
+		source_match('lan_proxy_ipv4_ips', null, 'lan_proxy_mac_addrs') : null;
+	const auto_source = lan_whitelist_mode ?
+		source_match('lan_auto_proxy_ipv4_ips', null, 'lan_auto_proxy_mac_addrs') : null;
 
 	return {
-		direct_source: source_match('lan_direct_ipv4_ips', null, 'lan_direct_mac_addrs'),
-		proxy_source: proxy_policy_mode ? source_match('lan_proxy_ipv4_ips', null, 'lan_proxy_mac_addrs') : null,
+		lan_whitelist_mode,
+		direct_source: !lan_whitelist_mode ?
+			source_match('lan_direct_ipv4_ips', null, 'lan_direct_mac_addrs') : null,
+		proxy_source,
+		auto_source,
+		whitelist_source: lan_whitelist_mode ? merge_matches([auto_source, proxy_source]) : null,
 		wan_proxy: proxy_policy_mode ? destination_match('wan_proxy_ipv4_ips', 'wan_proxy_ipv6_ips') : null,
 		wan_direct: destination_match('wan_direct_ipv4_ips', 'wan_direct_ipv6_ips'),
 		bypass_ports: included_ports ? { ...included_ports, invert: true } : null
@@ -311,7 +337,10 @@ function get_control_matches() {
 function add_control_pre_match_rules(rules, proxy_outbound) {
 	const control = get_control_matches();
 
-	push_bypass(rules, tun_match(control.direct_source));
+	if (control.lan_whitelist_mode)
+		push_bypass(rules, tun_unlisted_match(control.whitelist_source));
+	else
+		push_bypass(rules, tun_match(control.direct_source));
 
 	if (proxy_outbound) {
 		push_route(rules, tun_match(control.proxy_source), proxy_outbound);
@@ -337,9 +366,12 @@ function add_control_rules(rules, proxy_outbound) {
 }
 
 function has_mac_control() {
+	const lan_whitelist_mode = routing_mode in ['bypass_mainland_china', 'custom'] &&
+		uci.get(uciconfig, ucicontrol, 'lan_whitelist_mode') === '1';
 	return length(merge_control_options([
-		'lan_direct_mac_addrs',
-		(routing_mode in ['bypass_mainland_china', 'custom']) ? 'lan_proxy_mac_addrs' : null
+		!lan_whitelist_mode ? 'lan_direct_mac_addrs' : null,
+		(routing_mode in ['bypass_mainland_china', 'custom']) ? 'lan_proxy_mac_addrs' : null,
+		lan_whitelist_mode ? 'lan_auto_proxy_mac_addrs' : null
 	])) > 0;
 }
 

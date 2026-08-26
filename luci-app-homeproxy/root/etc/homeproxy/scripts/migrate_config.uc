@@ -180,6 +180,7 @@ setDefault('config', 'main_urltest_interval', '180');
 setDefault('config', 'main_urltest_tolerance', '50');
 setDefault('config', 'main_urltest_interrupt_exist_connections', '1');
 setDefault('config', 'log_level', 'warn');
+setDefault('control', 'lan_whitelist_mode', '0');
 setDefault('routing', 'tcpip_stack', 'mixed');
 if (isEmpty(uci.get(uciconfig, 'routing', 'udp_timeout')))
 	uci.set(uciconfig, 'routing', 'udp_timeout', '300');

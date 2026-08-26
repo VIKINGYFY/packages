@@ -210,10 +210,16 @@ export function hasForceProxyRules(uci, config, proxyDomainList) {
 	if (!isEmpty(proxyDomainList))
 		return true;
 
-	for (let option in [
+	let options = [
 		'lan_proxy_ipv4_ips', 'lan_proxy_mac_addrs',
 		'wan_proxy_ipv4_ips', 'wan_proxy_ipv6_ips'
-	])
+	];
+	if (uci.get(config, 'control', 'lan_whitelist_mode') === '1') {
+		push(options, 'lan_auto_proxy_ipv4_ips');
+		push(options, 'lan_auto_proxy_mac_addrs');
+	}
+
+	for (let option in options)
 		if (!isEmpty(uci.get(config, 'control', option)))
 			return true;
 
