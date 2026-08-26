@@ -1488,17 +1488,17 @@ return view.extend({
 		so.depends('homeproxy.config.routing_mode', 'custom');
 		so.retain = true;
 
-		so = fwtool.addMACOption(ss, 'lan_ip_policy', 'lan_direct_mac_addrs', _('Global Direct MAC addresses'),
-			_('MAC addresses in this option are forced to use global direct routing.'), hosts);
-		so.depends('lan_whitelist_mode', '0');
-		so.retain = true;
-
 		so = fwtool.addIPOption(ss, 'lan_ip_policy', 'lan_direct_ipv4_ips', _('Global Direct IPv4 addresses'),
 			_('IPv4 addresses in this option are forced to use global direct routing.'), 'ipv4', hosts, true);
 		so.depends('lan_whitelist_mode', '0');
 		so.retain = true;
 
-		so = fwtool.addIPOption(ss, 'lan_ip_policy', 'lan_auto_proxy_ipv4_ips', _('Auto Proxy IPv4 addresses'),
+		so = fwtool.addMACOption(ss, 'lan_ip_policy', 'lan_direct_mac_addrs', _('Global Direct MAC addresses'),
+			_('MAC addresses in this option are forced to use global direct routing.'), hosts);
+		so.depends('lan_whitelist_mode', '0');
+		so.retain = true;
+
+		so = fwtool.addIPOption(ss, 'lan_ip_policy', 'lan_auto_proxy_ipv4_ips', _('Rule Proxy IPv4 addresses'),
 			_('IPv4 addresses in this option automatically use rule-based proxy routing.'), 'ipv4', hosts, true);
 		so.depends({
 			'lan_whitelist_mode': '1',
@@ -1510,7 +1510,7 @@ return view.extend({
 		});
 		so.retain = true;
 
-		so = fwtool.addMACOption(ss, 'lan_ip_policy', 'lan_auto_proxy_mac_addrs', _('Auto Proxy MAC addresses'),
+		so = fwtool.addMACOption(ss, 'lan_ip_policy', 'lan_auto_proxy_mac_addrs', _('Rule Proxy MAC addresses'),
 			_('MAC addresses in this option automatically use rule-based proxy routing.'), hosts);
 		so.depends({
 			'lan_whitelist_mode': '1',

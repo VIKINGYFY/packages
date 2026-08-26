@@ -236,14 +236,6 @@ msgstr "认证载荷"
 msgid "Authentication type"
 msgstr "认证类型"
 
-#: luci-app-homeproxy/htdocs/luci-static/resources/view/homeproxy/client.js:1501
-msgid "Auto Proxy IPv4 addresses"
-msgstr "自动代理 IPv4 地址"
-
-#: luci-app-homeproxy/htdocs/luci-static/resources/view/homeproxy/client.js:1513
-msgid "Auto Proxy MAC addresses"
-msgstr "自动代理 MAC 地址"
-
 #: luci-app-homeproxy/htdocs/luci-static/resources/view/homeproxy/node.js:1794
 msgid "Auto update"
 msgstr "自动更新"
@@ -996,7 +988,7 @@ msgstr "GitHub"
 msgid "Global"
 msgstr "全局"
 
-#: luci-app-homeproxy/htdocs/luci-static/resources/view/homeproxy/client.js:1496
+#: luci-app-homeproxy/htdocs/luci-static/resources/view/homeproxy/client.js:1491
 #: luci-app-homeproxy/htdocs/luci-static/resources/view/homeproxy/client.js:1561
 msgid "Global Direct IPv4 addresses"
 msgstr "全局直连 IPv4 地址"
@@ -1005,7 +997,7 @@ msgstr "全局直连 IPv4 地址"
 msgid "Global Direct IPv6 addresses"
 msgstr "全局直连 IPv6 地址"
 
-#: luci-app-homeproxy/htdocs/luci-static/resources/view/homeproxy/client.js:1491
+#: luci-app-homeproxy/htdocs/luci-static/resources/view/homeproxy/client.js:1496
 msgid "Global Direct MAC addresses"
 msgstr "全局直连 MAC 地址"
 
@@ -1162,7 +1154,7 @@ msgstr "IP 版本"
 msgid "IPv4"
 msgstr "IPv4"
 
-#: luci-app-homeproxy/htdocs/luci-static/resources/view/homeproxy/client.js:1497
+#: luci-app-homeproxy/htdocs/luci-static/resources/view/homeproxy/client.js:1492
 #: luci-app-homeproxy/htdocs/luci-static/resources/view/homeproxy/client.js:1562
 msgid "IPv4 addresses in this option are forced to use global direct routing."
 msgstr "该选项中的 IPv4 地址将强制走全局直连。"
@@ -1446,7 +1438,7 @@ msgstr "日志文件不存在。"
 msgid "Log is empty."
 msgstr "日志为空。"
 
-#: luci-app-homeproxy/htdocs/luci-static/resources/view/homeproxy/client.js:1492
+#: luci-app-homeproxy/htdocs/luci-static/resources/view/homeproxy/client.js:1497
 msgid "MAC addresses in this option are forced to use global direct routing."
 msgstr "该选项中的 MAC 地址将强制走全局直连。"
 
@@ -2193,6 +2185,14 @@ msgstr "路由模式"
 #: luci-app-homeproxy/htdocs/luci-static/resources/view/homeproxy/client.js:269
 msgid "Routing ports"
 msgstr "路由端口"
+
+#: luci-app-homeproxy/htdocs/luci-static/resources/view/homeproxy/client.js:1501
+msgid "Rule Proxy IPv4 addresses"
+msgstr "规则代理 IPv4 地址"
+
+#: luci-app-homeproxy/htdocs/luci-static/resources/view/homeproxy/client.js:1513
+msgid "Rule Proxy MAC addresses"
+msgstr "规则代理 MAC 地址"
 
 #: luci-app-homeproxy/htdocs/luci-static/resources/view/homeproxy/client.js:1372
 #: luci-app-homeproxy/htdocs/luci-static/resources/view/homeproxy/client.js:1381

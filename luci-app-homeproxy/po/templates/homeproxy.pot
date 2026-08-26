@@ -224,14 +224,6 @@ msgstr ""
 msgid "Authentication type"
 msgstr ""
 
-#: luci-app-homeproxy/htdocs/luci-static/resources/view/homeproxy/client.js:1501
-msgid "Auto Proxy IPv4 addresses"
-msgstr ""
-
-#: luci-app-homeproxy/htdocs/luci-static/resources/view/homeproxy/client.js:1513
-msgid "Auto Proxy MAC addresses"
-msgstr ""
-
 #: luci-app-homeproxy/htdocs/luci-static/resources/view/homeproxy/node.js:1794
 msgid "Auto update"
 msgstr ""
@@ -973,7 +965,7 @@ msgstr ""
 msgid "Global"
 msgstr ""
 
-#: luci-app-homeproxy/htdocs/luci-static/resources/view/homeproxy/client.js:1496
+#: luci-app-homeproxy/htdocs/luci-static/resources/view/homeproxy/client.js:1491
 #: luci-app-homeproxy/htdocs/luci-static/resources/view/homeproxy/client.js:1561
 msgid "Global Direct IPv4 addresses"
 msgstr ""
@@ -982,7 +974,7 @@ msgstr ""
 msgid "Global Direct IPv6 addresses"
 msgstr ""
 
-#: luci-app-homeproxy/htdocs/luci-static/resources/view/homeproxy/client.js:1491
+#: luci-app-homeproxy/htdocs/luci-static/resources/view/homeproxy/client.js:1496
 msgid "Global Direct MAC addresses"
 msgstr ""
 
@@ -1139,7 +1131,7 @@ msgstr ""
 msgid "IPv4"
 msgstr ""
 
-#: luci-app-homeproxy/htdocs/luci-static/resources/view/homeproxy/client.js:1497
+#: luci-app-homeproxy/htdocs/luci-static/resources/view/homeproxy/client.js:1492
 #: luci-app-homeproxy/htdocs/luci-static/resources/view/homeproxy/client.js:1562
 msgid "IPv4 addresses in this option are forced to use global direct routing."
 msgstr ""
@@ -1417,7 +1409,7 @@ msgstr ""
 msgid "Log is empty."
 msgstr ""
 
-#: luci-app-homeproxy/htdocs/luci-static/resources/view/homeproxy/client.js:1492
+#: luci-app-homeproxy/htdocs/luci-static/resources/view/homeproxy/client.js:1497
 msgid "MAC addresses in this option are forced to use global direct routing."
 msgstr ""
 
@@ -2161,6 +2153,14 @@ msgstr ""
 
 #: luci-app-homeproxy/htdocs/luci-static/resources/view/homeproxy/client.js:269
 msgid "Routing ports"
+msgstr ""
+
+#: luci-app-homeproxy/htdocs/luci-static/resources/view/homeproxy/client.js:1501
+msgid "Rule Proxy IPv4 addresses"
+msgstr ""
+
+#: luci-app-homeproxy/htdocs/luci-static/resources/view/homeproxy/client.js:1513
+msgid "Rule Proxy MAC addresses"
 msgstr ""
 
 #: luci-app-homeproxy/htdocs/luci-static/resources/view/homeproxy/client.js:1372
