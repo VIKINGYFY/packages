@@ -18,10 +18,10 @@ LUCI_DEPENDS:= \
 	+unzip \
 	+ucode-mod-digest \
 	+ucode-mod-math
-LUCI_EXTRA_DEPENDS:=sing-box (>=1.14.0_alpha1)
+LUCI_EXTRA_DEPENDS:=sing-box (>=1.14.0)
 
 PKG_NAME:=luci-app-homeproxy
-PKG_VERSION:=20260826
+PKG_VERSION:=20260903
 PKG_RELEASE:=2
 PKG_PO_VERSION:=$(PKG_VERSION)-r$(PKG_RELEASE)
 

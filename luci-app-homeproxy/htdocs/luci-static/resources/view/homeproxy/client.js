@@ -181,7 +181,7 @@ return view.extend({
 
 		o = s.taboption('routing', form.Flag, 'main_urltest_interrupt_exist_connections', _('Interrupt existing connections'),
 			_('Interrupt existing connections when the selected outbound has changed.'));
-		o.default = o.enabled;
+		o.default = o.disabled;
 		o.rmempty = false;
 		o.depends('main_node', 'urltest');
 		o.retain = true;
@@ -573,7 +573,7 @@ return view.extend({
 
 		so = ss.option(form.Flag, 'urltest_interrupt_exist_connections', _('Interrupt existing connections'),
 			_('Interrupt existing connections when the selected outbound has changed.'));
-		so.default = so.enabled;
+		so.default = so.disabled;
 		so.rmempty = false;
 		so.depends('node', 'urltest');
 		so.modalonly = true;

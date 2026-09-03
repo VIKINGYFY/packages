@@ -146,6 +146,11 @@ uci.foreach(uciconfig, 'node', (section) => {
 		uci.delete(uciconfig, section['.name'], 'hysteria_protocol');
 });
 
+uci.foreach(uciconfig, 'routing_node', (section) => {
+	if (section.node === 'urltest')
+		setDefault(section['.name'], 'urltest_interrupt_exist_connections', '0');
+});
+
 uci.foreach(uciconfig, 'server', (section) => {
 	for (let pair in [
 		['hysteria_recv_window_conn', 'hysteria_stream_receive_window'],
@@ -178,7 +183,7 @@ if (isEmpty(uci.get(uciconfig, 'infra', 'udp_timeout')))
 	uci.set(uciconfig, 'infra', 'udp_timeout', '300');
 setDefault('config', 'main_urltest_interval', '180');
 setDefault('config', 'main_urltest_tolerance', '50');
-setDefault('config', 'main_urltest_interrupt_exist_connections', '1');
+setDefault('config', 'main_urltest_interrupt_exist_connections', '0');
 setDefault('config', 'log_level', 'warn');
 setDefault('control', 'lan_whitelist_mode', '0');
 setDefault('routing', 'tcpip_stack', 'mixed');
