@@ -1,3 +1,11 @@
+# 高质量<免费>交流群
+
+[IPQ技术讨论群](https://qm.qq.com/q/v7nMhzB4oU)
+
+# 高质量<付费>中转站
+
+[LiBwrt-Ai](https://api.zipimg.cn/register?aff=LR7FSZ2ZZ4D3)
+
 # imm-packages · AI Edition
 
 这是一个个人自用的 OpenWrt/ImmortalWrt 插件分享仓库。插件以实际使用需求为导向，并借助 AI 完成维护、适配、审计和自动化，因此统一标记为 **AI Edition**。
@@ -15,7 +23,7 @@
 
 | 软件包 | 版本 | 源码来源 |
 | --- | --- | --- |
-| `axonhub` | `20260907-r1` | [looplj/axonhub](https://github.com/looplj/axonhub) |
+| `axonhub` | `20260908-r1` | [looplj/axonhub](https://github.com/looplj/axonhub) |
 | `gecoosac` | `2.2.20251015-r1` | [www.cnrouter.com](http://www.cnrouter.com) |
 | `sing-box` | `1.15.0_alpha2-r1` | [SagerNet/sing-box](https://github.com/SagerNet/sing-box) |
 
