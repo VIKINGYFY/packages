@@ -124,6 +124,14 @@ plugin_description() {
 mapfile -t package_dirs < <(ci_discover_packages)
 
 {
+	echo '# 高质量<免费>交流群'
+	echo
+	echo '[IPQ技术讨论群](https://qm.qq.com/q/v7nMhzB4oU)'
+	echo
+	echo '# 高质量<付费>中转站'
+	echo
+	echo '[LiBwrt-Ai](https://api.zipimg.cn/register?aff=LR7FSZ2ZZ4D3)'
+	echo
 	echo '# imm-packages · AI Edition'
 	echo
 	echo '这是一个个人自用的 OpenWrt/ImmortalWrt 插件分享仓库。插件以实际使用需求为导向，并借助 AI 完成维护、适配、审计和自动化，因此统一标记为 **AI Edition**。'
