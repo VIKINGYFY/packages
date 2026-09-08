@@ -108,7 +108,7 @@ return baseclass.extend({
 		const available = Object.create(null);
 		const orphanedNodes = [];
 		let firstNode = null;
-		let changed = false, removed = 0, removedNodes = 0, disabled = 0;
+		let changed = false, removed = 0, removedNodes = 0;
 
 		const subscriptionUrls = uci.get(uciconfig, 'subscription', 'subscription_url');
 		for (const configuredUrl of (Array.isArray(subscriptionUrls) ? subscriptionUrls :
@@ -166,19 +166,7 @@ return baseclass.extend({
 			changed = true;
 		}
 
-		uci.sections(uciconfig, 'routing_node', (section) => {
-			if (section.node !== 'urltest')
-				return;
-
-			const nodes = reconcileList(section['.name'], 'urltest_nodes');
-			if (section.enabled === '1' && !nodes.length) {
-				uci.set(uciconfig, section['.name'], 'enabled', '0');
-				changed = true;
-				disabled++;
-			}
-		});
-
-		return { changed, removed, removedNodes, disabled };
+		return { changed, removed, removedNodes };
 	},
 
 	calcStringMD5(e) {

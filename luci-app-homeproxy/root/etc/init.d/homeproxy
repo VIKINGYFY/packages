@@ -217,11 +217,7 @@ start_service() {
 	dnsmasq --version 2>"/dev/null" | grep -qw "nftset" && dnsmasq_nftset=1
 
 	local outbound_node
-	if [ "$routing_mode" != "custom" ]; then
-		config_get outbound_node "config" "main_node" "nil"
-	else
-		config_get outbound_node "routing" "default_outbound" "nil"
-	fi
+	config_get outbound_node "config" "main_node" "nil"
 
 	local server_enabled
 	config_get_bool server_enabled "server" "enabled" "0"
@@ -287,7 +283,7 @@ start_service() {
 	fi
 
 	case "$client_ready:$routing_mode" in
-	"1:bypass_mainland_china"|"1:custom")
+	"1:bypass_mainland_china")
 		mkdir -p "$CACHE_DIR"
 		touch "$CACHE_PATH"
 		chown -R sing-box:sing-box "$CACHE_DIR"
@@ -425,7 +421,6 @@ start_service() {
 		# QUIC-GO GSO is broken on kernel 6.6 currently
 		uname -r | grep -Eq "^6\.6" && procd_set_param env "QUIC_GO_DISABLE_GSO"="true"
 		if [ -x "/sbin/ujail" ] && [ "$dashboard_ready" -ne 1 ] && \
-		   [ "$routing_mode" != "custom" ] && \
 		   ! grep -Eq '"type": "(wireguard|tun)"' "$RUN_DIR/sing-box-c.json"; then
 			procd_add_jail "sing-box-c" log procfs
 			procd_add_jail_mount "$RUN_DIR/sing-box-c.json"
@@ -503,13 +498,6 @@ start_service() {
 	procd_set_param command "$HP_DIR/scripts/clean_log.sh"
 	procd_set_param respawn
 	procd_close_instance
-
-	case "$client_ready:$routing_mode" in
-	"1:custom")
-		# Prepare ruleset directory
-		[ -d "$HP_DIR/ruleset" ] || mkdir -p "$HP_DIR/ruleset"
-		;;
-	esac
 
 	[ "$client_ready" -ne 1 ] || : > "$RUN_DIR/sing-box-c.log"
 	if [ "$server_ready" -eq 1 ]; then

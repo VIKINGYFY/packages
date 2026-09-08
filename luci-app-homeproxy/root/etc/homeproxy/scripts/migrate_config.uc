@@ -86,8 +86,8 @@ if (subscriptionNodeMigrationState !== subscriptionNodeMigration) {
 
 synchronizeNodeLabels(uci, uciconfig);
 
-/* Keep only the modes implemented by the 1.14 configuration generator. */
-if (!(uci.get(uciconfig, 'config', 'routing_mode') in ['bypass_mainland_china', 'custom', 'global']))
+/* Keep only the supported routing modes. */
+if (!(uci.get(uciconfig, 'config', 'routing_mode') in ['bypass_mainland_china', 'global']))
 	uci.set(uciconfig, 'config', 'routing_mode', 'bypass_mainland_china');
 if (!(uci.get(uciconfig, 'config', 'proxy_mode') in ['tun', 'tproxy']))
 	uci.set(uciconfig, 'config', 'proxy_mode', 'tun');
@@ -107,18 +107,8 @@ for (let option in [
 	if (uci.get(uciconfig, 'infra', option) !== null)
 		uci.delete(uciconfig, 'infra', option);
 
-for (let option in ['endpoint_independent_nat', 'sniff_override'])
-	if (uci.get(uciconfig, 'routing', option) !== null)
-		uci.delete(uciconfig, 'routing', option);
-
-for (let option in ['independent_cache', 'cache_file_store_rdrc', 'cache_file_rdrc_timeout'])
-	if (uci.get(uciconfig, 'dns', option) !== null)
-		uci.delete(uciconfig, 'dns', option);
-
 if (uci.get(uciconfig, 'config', 'routing_port') === 'all')
 	uci.delete(uciconfig, 'config', 'routing_port');
-if (uci.get(uciconfig, 'routing', 'default_outbound') === 'block-out')
-	uci.set(uciconfig, 'routing', 'default_outbound', 'reject');
 
 for (let pair in [
 	['lan_gaming_mode_ipv4_ips', 'lan_proxy_ipv4_ips'],
@@ -144,11 +134,6 @@ uci.foreach(uciconfig, 'node', (section) => {
 		migrateOption(section['.name'], pair[0], pair[1]);
 	if (uci.get(uciconfig, section['.name'], 'hysteria_protocol') !== null)
 		uci.delete(uciconfig, section['.name'], 'hysteria_protocol');
-});
-
-uci.foreach(uciconfig, 'routing_node', (section) => {
-	if (section.node === 'urltest')
-		setDefault(section['.name'], 'urltest_interrupt_exist_connections', '0');
 });
 
 uci.foreach(uciconfig, 'server', (section) => {
@@ -181,24 +166,12 @@ if (subscriptionUserAgent === 'v2rayN/7.23.4' ||
 setDefault('infra', 'ntp_server', 'nil');
 if (isEmpty(uci.get(uciconfig, 'infra', 'udp_timeout')))
 	uci.set(uciconfig, 'infra', 'udp_timeout', '300');
-setDefault('config', 'main_urltest_interval', '180');
+setDefault('config', 'main_urltest_interval', '90');
 setDefault('config', 'main_urltest_tolerance', '50');
 setDefault('config', 'main_urltest_interrupt_exist_connections', '0');
 setDefault('config', 'log_level', 'warn');
+setDefault('config', 'tcpip_stack', 'mixed');
 setDefault('control', 'lan_whitelist_mode', '0');
-setDefault('routing', 'tcpip_stack', 'mixed');
-if (isEmpty(uci.get(uciconfig, 'routing', 'udp_timeout')))
-	uci.set(uciconfig, 'routing', 'udp_timeout', '300');
-setDefault('routing', 'bypass_cn_traffic', '0');
-setDefault('routing', 'default_outbound', 'nil');
-setDefault('routing', 'default_outbound_dns', 'default-dns');
-setDefault('dns', 'default_strategy', 'prefer_ipv4');
-setDefault('dns', 'default_server', 'default-dns');
-setDefault('dns', 'disable_cache', '0');
-setDefault('dns', 'disable_cache_expire', '0');
-setDefault('dns', 'optimistic', '0');
-setDefault('dns', 'timeout', '10');
-setDefault('dns', 'cache_file_store_dns', '0');
 setDefault('server', 'log_level', 'warn');
 
 reconcileUrltestNodes(uci, uciconfig);

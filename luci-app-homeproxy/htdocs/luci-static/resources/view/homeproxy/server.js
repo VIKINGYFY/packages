@@ -235,6 +235,12 @@ return view.extend({
 		o.datatype = 'uinteger';
 		o.depends('type', 'hysteria');
 		o.depends('type', 'hysteria2');
+		o.validate = function(section_id, value) {
+			if (section_id && this.section.formvalue(section_id, 'type') === 'hysteria' && !value)
+				return _('Expecting: %s').format(_('non-empty value'));
+
+			return true;
+		}
 		o.modalonly = true;
 
 		o = s.option(form.Value, 'hysteria_up_mbps', _('Max upload speed'),
@@ -242,6 +248,12 @@ return view.extend({
 		o.datatype = 'uinteger';
 		o.depends('type', 'hysteria');
 		o.depends('type', 'hysteria2');
+		o.validate = function(section_id, value) {
+			if (section_id && this.section.formvalue(section_id, 'type') === 'hysteria' && !value)
+				return _('Expecting: %s').format(_('non-empty value'));
+
+			return true;
+		}
 		o.modalonly = true;
 
 		o = s.option(form.ListValue, 'hysteria_auth_type', _('Authentication type'));
@@ -260,6 +272,7 @@ return view.extend({
 		o = s.option(form.ListValue, 'hysteria_obfs_type', _('Obfuscate type'));
 		o.value('', _('Disable'));
 		o.value('salamander', _('Salamander'));
+		o.value('gecko', _('Gecko'));
 		o.depends('type', 'hysteria2');
 		o.modalonly = true;
 
@@ -519,11 +532,14 @@ return view.extend({
 		o.validate = function(section_id, value) {
 			if (section_id) {
 				let type = this.map.lookupOption('type', section_id)[0].formvalue(section_id);
+				let network_options = this.map.lookupOption('network', section_id);
+				let network = network_options?.[0]?.formvalue(section_id);
 				let transport_options = this.map.lookupOption('transport', section_id);
 				let transport = transport_options?.[0]?.formvalue(section_id);
 				let tls = this.map.findElement('id', 'cbid.homeproxy.%s.tls'.format(section_id)).firstElementChild;
 
-				if (['hysteria', 'hysteria2', 'tuic'].includes(type) || transport === 'quic') {
+				if (['hysteria', 'hysteria2', 'tuic'].includes(type) ||
+				    (type === 'naive' && network !== 'tcp') || transport === 'quic') {
 					tls.checked = true;
 					tls.disabled = true;
 				} else {

@@ -287,6 +287,16 @@ function apply_transport_opts(config, proxy) {
 	}
 }
 
+function has_required_hysteria_bandwidth(config) {
+	if (config?.type !== 'hysteria' ||
+	    (has_value(config.hysteria_up_mbps) && has_value(config.hysteria_down_mbps)))
+		return true;
+
+	log(sprintf('Skipping Hysteria node without upload/download speed: %s.',
+		config.label || config.address || 'NULL'));
+	return false;
+}
+
 function parse_mihomo_proxy(proxy) {
 	if (type(proxy) !== 'object')
 		return null;
@@ -300,8 +310,9 @@ function parse_mihomo_proxy(proxy) {
 
 	switch (proxy.type) {
 	case 'anytls': {
-		let anytls_fp = (proxy['client-fingerprint'] !== null && proxy['client-fingerprint'] !== undefined) ?
-			proxy['client-fingerprint'] : proxy.fingerprint;
+		let anytls_fp = proxy['client-fingerprint'];
+		if (anytls_fp === null)
+			anytls_fp = proxy.fingerprint;
 		anytls_fp = to_string(anytls_fp);
 		if (anytls_fp === 'none' || anytls_fp === 'disable' || anytls_fp === 'disabled')
 			anytls_fp = null;
@@ -555,7 +566,7 @@ function parse_mihomo_proxy(proxy) {
 		return null;
 	}
 
-	return config;
+	return has_required_hysteria_bandwidth(config) ? config : null;
 }
 
 function parse_uri(uri) {
@@ -951,6 +962,9 @@ function parse_uri(uri) {
 	}
 
 	if (!isEmpty(config)) {
+		if (!has_required_hysteria_bandwidth(config))
+			return null;
+
 		if (config.address)
 			config.address = replace(config.address, /\[|\]/g, '');
 

@@ -150,7 +150,7 @@ export function filterExistingNodes(uci, config, value, onRemove) {
 };
 
 export function reconcileUrltestNodes(uci, config, logger) {
-	let changed = false, removed = 0, disabled = 0;
+	let changed = false, removed = 0;
 
 	function log(message) {
 		if (type(logger) === 'function')
@@ -186,23 +186,9 @@ export function reconcileUrltestNodes(uci, config, logger) {
 			sprintf('Main URLTest group is empty; switching to node %s.', fallback));
 	}
 
-	uci.foreach(config, 'routing_node', (section) => {
-		if (section.node !== 'urltest')
-			return;
-
-		const nodes = reconcileList(section['.name'], 'urltest_nodes');
-		if (section.enabled === '1' && !length(nodes)) {
-			uci.set(config, section['.name'], 'enabled', '0');
-			changed = true;
-			disabled++;
-			log(sprintf('Routing URLTest group %s is empty; disabling it.', section['.name']));
-		}
-	});
-
 	return {
 		changed,
-		removed,
-		disabled
+		removed
 	};
 };
 
@@ -393,7 +379,7 @@ export function renderOutbound(node, routingMark) {
 	case 'anytls':
 		outbound.password = node.password;
 		outbound.idle_session_check_interval = strToTime(node.anytls_idle_session_check_interval);
-		outbound.idle_session_timeout = strToTime(node.anytls_idle_session_timeout);
+		outbound.idle_session_timeout = strToTime(node.anytls_idle_session_timeout || '120');
 		outbound.min_idle_session = strToInt(node.anytls_min_idle_session);
 		break;
 	case 'http':

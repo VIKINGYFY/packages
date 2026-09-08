@@ -256,9 +256,6 @@ const methods = {
 		call: function() {
 			const uci = cursor();
 			uci.load('homeproxy');
-			const routing_mode = uci.get('homeproxy', 'config', 'routing_mode') || 'bypass_mainland_china';
-			if (routing_mode === 'custom')
-				return { mode: 'custom', active: null, error: null };
 
 			const formatNode = (section_id, fallback_name) => {
 				if (!section_id || section_id in ['nil', 'same'])

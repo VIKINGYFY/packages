@@ -710,7 +710,7 @@ function createNodeLatencyRowStateModel() {
 	};
 }
 
-function renderNodeSettings(section, data, features, main_node, routing_mode, node_latency_row_state) {
+function renderNodeSettings(section, data, features, main_node, node_latency_row_state) {
 	let s = section, o;
 	if (typeof globalThis !== 'undefined') {
 		globalThis.__hpNodeLatencySections = globalThis.__hpNodeLatencySections || {};
@@ -793,29 +793,26 @@ function renderNodeSettings(section, data, features, main_node, routing_mode, no
 		return this.handleNodeLatencyTests([section_id]);
 	}
 
-	if (routing_mode !== 'custom') {
-		o = s.option(form.Button, '_apply', _('Apply'));
-		o.editable = true;
-		o.modalonly = false;
-		o.inputstyle = 'apply';
-		o.inputtitle = function(section_id) {
-			if (main_node == section_id) {
-				this.readonly = true;
-				return _('Applied');
-			} else {
-				this.readonly = false;
-				return _('Apply');
-			}
-		}
-		o.onclick = function(ev, section_id) {
-			uci.set(data[0], 'config', 'main_node', section_id);
-
-			return this.map.save(null, true).then(() => {
-				ui.changes.apply(true);
-			});
+	o = s.option(form.Button, '_apply', _('Apply'));
+	o.editable = true;
+	o.modalonly = false;
+	o.inputstyle = 'apply';
+	o.inputtitle = function(section_id) {
+		if (main_node == section_id) {
+			this.readonly = true;
+			return _('Applied');
+		} else {
+			this.readonly = false;
+			return _('Apply');
 		}
 	}
+	o.onclick = function(ev, section_id) {
+		uci.set(data[0], 'config', 'main_node', section_id);
 
+		return this.map.save(null, true).then(() => {
+			ui.changes.apply(true);
+		});
+	}
 	o = s.option(form.DummyValue, '_latency', _('Latency'));
 	o.rawhtml = true;
 	o.modalonly = false;
@@ -937,7 +934,7 @@ function renderNodeSettings(section, data, features, main_node, routing_mode, no
 	o = s.option(form.Value, 'anytls_idle_session_timeout', _('Idle session check timeout'),
 		_('In the check, close sessions that have been idle for longer than this, in seconds.'));
 	o.datatype = 'uinteger';
-	o.placeholder = '30';
+	o.placeholder = '120';
 	o.depends('type', 'anytls');
 	o.modalonly = true;
 
@@ -989,6 +986,7 @@ function renderNodeSettings(section, data, features, main_node, routing_mode, no
 	o = s.option(form.ListValue, 'hysteria_obfs_type', _('Obfuscate type'));
 	o.value('', _('Disable'));
 	o.value('salamander', _('Salamander'));
+	o.value('gecko', _('Gecko'));
 	o.depends('type', 'hysteria2');
 	o.modalonly = true;
 
@@ -1003,6 +1001,12 @@ function renderNodeSettings(section, data, features, main_node, routing_mode, no
 	o.datatype = 'uinteger';
 	o.depends('type', 'hysteria');
 	o.depends('type', 'hysteria2');
+	o.validate = function(section_id, value) {
+		if (section_id && this.section.formvalue(section_id, 'type') === 'hysteria' && !value)
+			return _('Expecting: %s').format(_('non-empty value'));
+
+		return true;
+	}
 	o.modalonly = true;
 
 	o = s.option(form.Value, 'hysteria_up_mbps', _('Max upload speed'),
@@ -1010,6 +1014,12 @@ function renderNodeSettings(section, data, features, main_node, routing_mode, no
 	o.datatype = 'uinteger';
 	o.depends('type', 'hysteria');
 	o.depends('type', 'hysteria2');
+	o.validate = function(section_id, value) {
+		if (section_id && this.section.formvalue(section_id, 'type') === 'hysteria' && !value)
+			return _('Expecting: %s').format(_('non-empty value'));
+
+		return true;
+	}
 	o.modalonly = true;
 
 	o = s.option(form.Value, 'hysteria_stream_receive_window', _('QUIC stream receive window'),
@@ -1629,7 +1639,6 @@ return view.extend({
 	render(data) {
 		let m, s, o, ss, so;
 		let main_node = uci.get(data[0], 'config', 'main_node');
-		let routing_mode = uci.get(data[0], 'config', 'routing_mode');
 		let features = data[1];
 		let node_latency_row_state = createNodeLatencyRowStateModel();
 
@@ -1672,7 +1681,7 @@ return view.extend({
 		/* User nodes start */
 		s.tab('node', _('Nodes'));
 		o = s.taboption('node', form.SectionValue, '_node', form.GridSection, 'node');
-		ss = renderNodeSettings(o.subsection, data, features, main_node, routing_mode, node_latency_row_state);
+		ss = renderNodeSettings(o.subsection, data, features, main_node, node_latency_row_state);
 		ss.addremove = true;
 		ss.filter = function(section_id) {
 			return !uci.get(data[0], section_id, 'grouphash');
@@ -1780,7 +1789,7 @@ return view.extend({
 		for (const info of subinfo) {
 			s.tab('sub_' + info.hash, _('Sub (%s)').format(info.title));
 			o = s.taboption('sub_' + info.hash, form.SectionValue, '_sub_' + info.hash, form.GridSection, 'node');
-			ss = renderNodeSettings(o.subsection, data, features, main_node, routing_mode, node_latency_row_state);
+			ss = renderNodeSettings(o.subsection, data, features, main_node, node_latency_row_state);
 			ss.filter = function(section_id) {
 				return (uci.get(data[0], section_id, 'grouphash') === info.hash);
 			}
