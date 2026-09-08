@@ -112,10 +112,8 @@ synchronizeNodeLabels(uci, uciconfig);
 /* Keep only the supported routing modes. */
 if (!(uci.get(uciconfig, 'config', 'routing_mode') in ['bypass_mainland_china', 'global']))
 	uci.set(uciconfig, 'config', 'routing_mode', 'bypass_mainland_china');
-if (!(uci.get(uciconfig, 'config', 'proxy_mode') in ['tun', 'tproxy']))
-	uci.set(uciconfig, 'config', 'proxy_mode', 'tun');
-
 deleteOptions('config', [
+	'proxy_mode',
 	'main_udp_node', 'main_udp_urltest_nodes',
 	'main_udp_urltest_interval', 'main_udp_urltest_tolerance',
 	'github_token', 'dashboard_download_url'
@@ -123,6 +121,7 @@ deleteOptions('config', [
 
 deleteOptions('infra', [
 	'china_dns_port', 'redirect_port', 'tun_mark', 'tun_gso',
+	'tproxy_port', 'table_mark', 'self_mark', 'tproxy_mark',
 	'sniff_override', 'github_token'
 ]);
 

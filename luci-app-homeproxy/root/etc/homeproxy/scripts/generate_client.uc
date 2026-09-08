@@ -107,32 +107,18 @@ if (routing_mode === 'bypass_mainland_china') {
 		proxy_domain_list = split(proxy_domain_content, /[\r\n]/);
 }
 
-const proxy_mode = uci.get(uciconfig, ucimain, 'proxy_mode') || 'tun',
-      default_interface = uci.get(uciconfig, ucicontrol, 'bind_interface'),
+const default_interface = uci.get(uciconfig, ucicontrol, 'bind_interface'),
       listen_interfaces = normalizeList(uci.get(uciconfig, ucicontrol, 'listen_interfaces'));
 
 const mixed_port = uci.get(uciconfig, uciinfra, 'mixed_port') || '5330';
 const clash_api_port = strToInt(uci.get(uciconfig, uciinfra, 'clash_api_port'));
 
-let self_mark, tproxy_port, tun_name,
-    tun_addr4, tun_addr6, tun_mtu, tcpip_stack, udp_timeout;
-const tproxy_enabled = proxy_mode === 'tproxy';
-const tun_enabled = proxy_mode === 'tun';
-
-udp_timeout = uci.get(uciconfig, 'infra', 'udp_timeout');
-
-if (tproxy_enabled)
-	self_mark = uci.get(uciconfig, 'infra', 'self_mark') || '100';
-
-if (tproxy_enabled)
-	tproxy_port = uci.get(uciconfig, 'infra', 'tproxy_port') || '5332';
-if (tun_enabled) {
-	tun_name = uci.get(uciconfig, uciinfra, 'tun_name') || 'singtun0';
-	tun_addr4 = uci.get(uciconfig, uciinfra, 'tun_addr4') || '172.19.0.1/30';
-	tun_addr6 = uci.get(uciconfig, uciinfra, 'tun_addr6') || 'fdfe:dcba:9876::1/126';
-	tun_mtu = uci.get(uciconfig, uciinfra, 'tun_mtu') || '9000';
-	tcpip_stack = uci.get(uciconfig, ucimain, 'tcpip_stack') || 'mixed';
-}
+const tun_name = uci.get(uciconfig, uciinfra, 'tun_name') || 'singtun0';
+const tun_addr4 = uci.get(uciconfig, uciinfra, 'tun_addr4') || '172.19.0.1/30';
+const tun_addr6 = uci.get(uciconfig, uciinfra, 'tun_addr6') || 'fdfe:dcba:9876::1/126';
+const tun_mtu = uci.get(uciconfig, uciinfra, 'tun_mtu') || '9000';
+const tcpip_stack = uci.get(uciconfig, ucimain, 'tcpip_stack') || 'mixed';
+const udp_timeout = uci.get(uciconfig, 'infra', 'udp_timeout');
 
 const log_level = uci.get(uciconfig, ucimain, 'log_level') || 'warn';
 const dashboard_path = HP_DIR + '/dashboard';
@@ -320,8 +306,8 @@ function add_mainland_rule_sets(rule_sets) {
 	push(rule_sets, {
 		type: 'local',
 		tag: 'geoip-cn',
-		format: 'source',
-		path: HP_DIR + '/resources/geoip_cn.json'
+		format: 'binary',
+		path: HP_DIR + '/resources/geoip_cn.srs'
 	});
 	push(rule_sets, {
 		type: 'local',
@@ -348,7 +334,7 @@ function parse_dnsserver(server_addr, default_protocol) {
 }
 
 function generate_outbound(node) {
-	const outbound = renderOutbound(node, self_mark);
+	const outbound = renderOutbound(node);
 	if (outbound && node['.name'])
 		outbound.tag = get_node_outbound_tag(node['.name']);
 	return outbound;
@@ -376,8 +362,7 @@ config.log = {
 /* HTTP clients */
 config.http_clients = [
 	{
-		tag: 'direct-http',
-		routing_mark: strToInt(self_mark)
+		tag: 'direct-http'
 	}
 ];
 
@@ -398,12 +383,12 @@ config.dns = {
 			tag: 'default-dns',
 			type: 'udp',
 			server: wan_dns,
-			detour: self_mark ? 'direct-out' : null
+			detour: null
 		},
 		{
 			tag: 'system-dns',
 			type: 'local',
-			detour: self_mark ? 'direct-out' : null
+			detour: null
 		}
 	],
 	rules: [],
@@ -446,9 +431,9 @@ if (!isEmpty(main_node)) {
 			tag: 'china-dns',
 			domain_resolver: {
 				server: 'default-dns',
-				strategy: 'prefer_ipv6'
+				strategy: (ipv6_support !== '1') ? 'prefer_ipv4' : null
 			},
-			detour: self_mark ? 'direct-out' : null,
+			detour: null,
 			...parse_dnsserver(china_dns_server)
 		});
 
@@ -505,31 +490,21 @@ push(config.inbounds, {
 	set_system_proxy: false
 });
 
-if (tproxy_enabled)
-	push(config.inbounds, {
-		type: 'tproxy',
-		tag: 'tproxy-in',
+push(config.inbounds, {
+	type: 'tun',
+	tag: 'tun-in',
 
-		listen: '::',
-		listen_port: int(tproxy_port),
-		udp_timeout: strToTime(udp_timeout)
-	});
-if (tun_enabled)
-	push(config.inbounds, {
-		type: 'tun',
-		tag: 'tun-in',
-
-		interface_name: tun_name,
-		address: (ipv6_support === '1') ? [tun_addr4, tun_addr6] : [tun_addr4],
-		mtu: strToInt(tun_mtu),
-		auto_route: true,
-		auto_redirect: true,
-		dns_mode: 'hijack',
-		route_exclude_address_set: fast_bypass_mainland ? ['geoip-cn'] : null,
-		include_interface: length(listen_interfaces) ? listen_interfaces : null,
-		udp_timeout: strToTime(udp_timeout),
-		stack: tcpip_stack
-	});
+	interface_name: tun_name,
+	address: (ipv6_support === '1') ? [tun_addr4, tun_addr6] : [tun_addr4],
+	mtu: strToInt(tun_mtu),
+	auto_route: true,
+	auto_redirect: true,
+	dns_mode: 'hijack',
+	route_exclude_address_set: fast_bypass_mainland ? ['geoip-cn'] : null,
+	include_interface: length(listen_interfaces) ? listen_interfaces : null,
+	udp_timeout: strToTime(udp_timeout),
+	stack: tcpip_stack
+});
 /* Inbound end */
 
 /* Outbound start */
@@ -539,8 +514,7 @@ config.endpoints = [];
 config.outbounds = [
 	{
 		type: 'direct',
-		tag: 'direct-out',
-		routing_mark: strToInt(self_mark)
+		tag: 'direct-out'
 	}
 ];
 
@@ -630,20 +604,18 @@ if (!isEmpty(main_node)) {
 		strategy: (ipv6_support !== '1') ? 'prefer_ipv4' : null
 	};
 
-	/* Native auto_redirect pre-match: force exceptions first, then bypass. */
-	if (tun_enabled) {
-		add_control_pre_match_rules(config.route.rules, 'main-out');
+	/* Native auto_redirect pre-match: handle device and address exceptions first. */
+	add_control_pre_match_rules(config.route.rules, 'main-out');
 
-		if (length(direct_domain_list))
-			push_bypass(config.route.rules, tun_match({ rule_set: 'direct-domain' }));
+	if (length(direct_domain_list))
+		push_bypass(config.route.rules, tun_match({ rule_set: 'direct-domain' }));
 
-		if (length(proxy_domain_list))
-			push_route(config.route.rules, tun_match({ rule_set: 'proxy-domain' }), 'main-out');
+	if (length(proxy_domain_list))
+		push_route(config.route.rules, tun_match({ rule_set: 'proxy-domain' }), 'main-out');
 
-		if (routing_mode === 'bypass_mainland_china' && force_proxy_rules) {
-			push_bypass(config.route.rules, tun_match({ rule_set: 'geosite-cn' }));
-			push_bypass(config.route.rules, tun_match({ rule_set: 'geoip-cn' }));
-		}
+	if (routing_mode === 'bypass_mainland_china' && force_proxy_rules) {
+		push_bypass(config.route.rules, tun_match({ rule_set: 'geosite-cn' }));
+		push_bypass(config.route.rules, tun_match({ rule_set: 'geoip-cn' }));
 	}
 
 	push(config.route.rules, { action: 'sniff' });

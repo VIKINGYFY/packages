@@ -323,7 +323,7 @@ export function renderV2RayTransport(node, server_mode) {
 	}
 };
 
-export function renderOutbound(node, routingMark) {
+export function renderOutbound(node) {
 	if (type(node) !== 'object' || isEmpty(node))
 		return null;
 
@@ -382,7 +382,6 @@ export function renderOutbound(node, routingMark) {
 	const outbound = {
 		type: node.type,
 		tag: 'cfg-' + node['.name'] + '-out',
-		routing_mark: strToInt(routingMark),
 		tcp_fast_open: (node.type !== 'anytls') ? strToBool(node.tcp_fast_open) : null,
 		tcp_multi_path: strToBool(node.tcp_multi_path),
 		udp_fragment: strToBool(node.udp_fragment)

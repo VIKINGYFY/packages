@@ -20,9 +20,7 @@ if (getenv('HOMEPROXY_SERVER_READY') === '1')
 		push(input, `meta l4proto ${network} th dport ${server.port} counter accept comment "!${cfgname}: accept server ${server['.name']}"`);
 	});
 
-const forward_file = RUN_DIR + '/fw4_forward.nft';
 const input_file = RUN_DIR + '/fw4_input.nft';
 
-if (writefile(forward_file, '') === null ||
-    writefile(input_file, length(input) ? join('\n', input) + '\n' : '') === null)
+if (writefile(input_file, length(input) ? join('\n', input) + '\n' : '') === null)
 	exit(1);

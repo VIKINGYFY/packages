@@ -19,13 +19,9 @@ function hasKernelModule(kmod) {
 }
 
 const RESOURCES = {
-	china_ip4: {
-		source: 'https://cdn.jsdelivr.net/gh/Loyalsoldier/surge-rules@release/cncidr.txt',
-		version: `${HP_DIR}/resources/china_ip4.ver`
-	},
-	china_ip6: {
-		source: 'https://cdn.jsdelivr.net/gh/Loyalsoldier/surge-rules@release/cncidr.txt',
-		version: `${HP_DIR}/resources/china_ip6.ver`
+	geoip_cn: {
+		source: 'https://cdn.jsdelivr.net/gh/SagerNet/sing-geoip@rule-set/geoip-cn.srs',
+		version: `${HP_DIR}/resources/geoip_cn.ver`
 	},
 	geosite_cn: {
 		source: 'https://cdn.jsdelivr.net/gh/SagerNet/sing-geosite@rule-set-unstable/geosite-cn.srs',

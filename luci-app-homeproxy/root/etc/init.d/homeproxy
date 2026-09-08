@@ -34,20 +34,8 @@ log() {
 }
 
 clear_firewall() {
-	: > "$RUN_DIR/fw4_forward.nft"
 	: > "$RUN_DIR/fw4_input.nft"
-	: > "$RUN_DIR/fw4_post.nft"
 	fw4 reload >"/dev/null" 2>&1
-}
-
-remove_policy_routing() {
-	local table_mark tproxy_mark
-	config_get table_mark "infra" "table_mark" "100"
-	config_get tproxy_mark "infra" "tproxy_mark" "101"
-	while ip rule del fwmark "$tproxy_mark" table "$table_mark" 2>"/dev/null"; do :; done
-	ip route del local 0.0.0.0/0 dev lo table "$table_mark" 2>"/dev/null"
-	while ip -6 rule del fwmark "$tproxy_mark" table "$table_mark" 2>"/dev/null"; do :; done
-	ip -6 route del local ::/0 dev lo table "$table_mark" 2>"/dev/null"
 }
 
 clear_dnsmasq() {
@@ -210,11 +198,8 @@ start_service() {
 	fi
 	config_load "$CONF"
 
-	local routing_mode proxy_mode
+	local routing_mode
 	config_get routing_mode "config" "routing_mode" "bypass_mainland_china"
-	config_get proxy_mode "config" "proxy_mode" "tun"
-	local dnsmasq_nftset=0
-	dnsmasq --version 2>"/dev/null" | grep -qw "nftset" && dnsmasq_nftset=1
 
 	local outbound_node
 	config_get outbound_node "config" "main_node" "nil"
@@ -300,73 +285,13 @@ start_service() {
 		client_ready=0
 		rm -f "$RUN_DIR/sing-box-c.json"
 	fi
-	local firewall_post_new="$RUN_DIR/fw4_post.nft.new"
-	if [ "$firewall_ready" -eq 1 ] && [ "$client_ready" -eq 1 ] && [ "$proxy_mode" = "tproxy" ]; then
-		if ! HOMEPROXY_DNSMASQ_NFTSET="$dnsmasq_nftset" \
-			utpl -S "$HP_DIR/scripts/firewall_post.ut" > "$firewall_post_new" || \
-		   [ ! -s "$firewall_post_new" ]; then
-			log "Error: failed to generate client TProxy firewall rules."
-			rm -f "$firewall_post_new"
-			client_ready=0
-			rm -f "$RUN_DIR/sing-box-c.json"
-			: > "$firewall_post_new"
-		fi
-	elif [ "$firewall_ready" -eq 1 ]; then
-		: > "$firewall_post_new"
-	fi
-	if [ "$firewall_ready" -eq 1 ] && { \
-	   ! mv -f "$firewall_post_new" "$RUN_DIR/fw4_post.nft" || \
-	   ! fw4 reload >"/dev/null" 2>&1; }; then
+	if [ "$firewall_ready" -eq 1 ] && ! fw4 reload >"/dev/null" 2>&1; then
 		log "Error: failed to apply client firewall rules."
-		rm -f "$firewall_post_new"
 		clear_firewall
 		firewall_ready=0
 		client_ready=0
 		rm -f "$RUN_DIR/sing-box-c.json"
 	fi
-	if [ "$client_ready" -eq 1 ] && [ "$routing_mode" = "bypass_mainland_china" ]; then
-		if grep -q 'route_exclude_address_set' "$RUN_DIR/sing-box-c.json" 2>"/dev/null" || \
-		   grep -q 'daddr @homeproxy_mainland_addr_v4 counter return' "$RUN_DIR/fw4_post.nft" 2>"/dev/null"; then
-			log "Client mainland direct fast path: firewall."
-		elif grep -q '"action": "bypass"' "$RUN_DIR/sing-box-c.json" 2>"/dev/null"; then
-			log "Client mainland direct fast path: native pre-match."
-		else
-			log "Client mainland direct fast path unavailable."
-		fi
-	fi
-
-	local ipv6_support table_mark
-	if [ "$client_ready" -eq 1 ]; then
-		# Configure policy routing before redirecting DNS to the client core.
-		config_get_bool ipv6_support "config" "ipv6_support" "0"
-		config_get table_mark "infra" "table_mark" "100"
-		if [ "$proxy_mode" = "tproxy" ]; then
-			local tproxy_mark policy_error
-			config_get tproxy_mark "infra" "tproxy_mark" "101"
-
-			remove_policy_routing
-			if ! ip rule add fwmark "$tproxy_mark" table "$table_mark"; then
-				policy_error="IPv4 rule"
-			elif ! ip route add local 0.0.0.0/0 dev lo table "$table_mark"; then
-				policy_error="IPv4 route"
-			elif [ "$ipv6_support" -eq "1" ] && \
-			     ! ip -6 rule add fwmark "$tproxy_mark" table "$table_mark"; then
-				policy_error="IPv6 rule"
-			elif [ "$ipv6_support" -eq "1" ] && \
-			     ! ip -6 route add local ::/0 dev lo table "$table_mark"; then
-				policy_error="IPv6 route"
-			fi
-			if [ -n "$policy_error" ]; then
-				log "Error: failed to configure client TProxy policy routing ($policy_error)."
-				remove_policy_routing
-				clear_firewall
-				firewall_ready=0
-				client_ready=0
-				rm -f "$RUN_DIR/sing-box-c.json"
-			fi
-		fi
-	fi
-
 	if [ "$client_ready" -eq 1 ]; then
 		# DNSMasq rules
 		local dns_port dns_ready=1
@@ -377,30 +302,12 @@ start_service() {
 			log "Error: failed to prepare client DNSMasq rules."
 			dns_ready=0
 		fi
-		[ "$dns_ready" -eq 0 ] || rm -f "$DNSMASQ_DIR/proxy_list.conf"
-		if [ "$dns_ready" -eq 1 ] && [ "$routing_mode" = "bypass_mainland_china" ] && [ "$proxy_mode" = "tproxy" ] && \
-		   [ "$dnsmasq_nftset" -eq "1" ] && \
-		   [ -s "$HP_DIR/resources/proxy_list.txt" ]; then
-			local proxy_nftset_v6
-			[ "$ipv6_support" -eq "0" ] || proxy_nftset_v6=",6#inet#fw4#homeproxy_proxy_domain_addr_v6"
-			if ! sed -r -e '/^[[:space:]]*$/d' \
-				-e '/\./!d' \
-				-e "s|(.*)|nftset=/\\1/4#inet#fw4#homeproxy_proxy_domain_addr_v4$proxy_nftset_v6|g" \
-				"$HP_DIR/resources/proxy_list.txt" > "$DNSMASQ_DIR/proxy_list.conf"; then
-				log "Error: failed to prepare client DNSMasq domain rules."
-				dns_ready=0
-			fi
-		elif [ "$dns_ready" -eq 1 ] && [ "$routing_mode" = "bypass_mainland_china" ] && [ "$proxy_mode" = "tproxy" ] && \
-		     [ -s "$HP_DIR/resources/proxy_list.txt" ]; then
-			log "Client dnsmasq nftset is unavailable; proxy domain traffic will use the core fallback."
-		fi
 		if [ "$dns_ready" -eq 1 ] && ! /etc/init.d/dnsmasq restart >"/dev/null" 2>&1; then
 			log "Error: failed to reload client DNSMasq rules."
 			dns_ready=0
 		fi
 		if [ "$dns_ready" -eq 0 ]; then
 			clear_dnsmasq
-			remove_policy_routing
 			clear_firewall
 			firewall_ready=0
 			client_ready=0
@@ -448,8 +355,6 @@ start_service() {
 	if [ "$client_ready" -eq 0 ] && [ "$server_ready" -eq 1 ] && [ "$firewall_ready" -eq 0 ]; then
 		# A client-only setup failure may have cleared shared firewall includes.
 		if HOMEPROXY_SERVER_READY=1 ucode "$HP_DIR/scripts/firewall_pre.uc" 2>>"$LOG_PATH" && \
-		   : > "$firewall_post_new" && \
-		   mv -f "$firewall_post_new" "$RUN_DIR/fw4_post.nft" && \
 		   fw4 reload >"/dev/null" 2>&1; then
 			firewall_ready=1
 		else
@@ -527,27 +432,8 @@ stop_service() {
 	[ ! -s "$RUN_DIR/sing-box-c.json" ] || client_was_running=1
 	[ ! -s "$RUN_DIR/sing-box-s.json" ] || server_was_running=1
 
-	# Setup firewall
-	# Load config
 	config_load "$CONF"
 	sync_subscription_cron 0 || log "Error: failed to clear the subscription update schedule."
-	# Tproxy
-	remove_policy_routing
-
-	# Nftables rules
-	for i in "homeproxy_mangle_tproxy" "homeproxy_mangle_tproxy_port" "homeproxy_mangle_mark" \
-		 "homeproxy_mangle_lanac" \
-		 "homeproxy_mangle_prerouting" "homeproxy_mangle_output"; do
-		nft flush chain inet fw4 "$i"
-		nft delete chain inet fw4 "$i"
-	done 2>"/dev/null"
-	for i in "homeproxy_local_addr_v4" "homeproxy_local_addr_v6" \
-		 "homeproxy_mainland_addr_v4" "homeproxy_mainland_addr_v6" \
-		 "homeproxy_proxy_domain_addr_v4" "homeproxy_proxy_domain_addr_v6" \
-		 "homeproxy_routing_port"; do
-		nft flush set inet fw4 "$i"
-		nft delete set inet fw4 "$i"
-	done 2>"/dev/null"
 	clear_firewall
 
 	# Remove DNS hijack

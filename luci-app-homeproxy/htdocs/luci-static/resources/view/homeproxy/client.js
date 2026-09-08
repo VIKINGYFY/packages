@@ -111,7 +111,7 @@ return view.extend({
 		});
 
 		m = new form.Map('homeproxy', _('HomeProxy'),
-			_('The modern ImmortalWrt proxy platform for ARM64/AMD64. — AI Edition'));
+			_('The modern ImmortalWRT proxy platform for ARM64/AMD64. Powered by Sing-Box/TUN/AI Edition'));
 
 		s = m.section(form.TypedSection);
 		s.render = function () {
@@ -290,15 +290,6 @@ return view.extend({
 			return true;
 		}
 
-		o = s.taboption('routing', form.ListValue, 'proxy_mode', _('Proxy mode'));
-		o.depends('routing_mode', 'bypass_mainland_china');
-		o.depends('routing_mode', 'global');
-		o.value('tun', _('TUN TCP/UDP'));
-		o.value('tproxy', _('TProxy TCP/UDP'));
-		o.default = 'tun';
-		o.description = _('TUN uses sing-box automatic routing and redirect on Linux; TProxy uses native TCP/UDP transparent proxying.');
-		o.rmempty = false;
-
 		o = s.taboption('routing', form.ListValue, 'tcpip_stack', _('TCP/IP stack'),
 			_('TCP/IP stack.'));
 		if (features.with_gvisor) {
@@ -307,8 +298,8 @@ return view.extend({
 		}
 		o.value('system', 'System');
 		o.default = 'mixed';
-		o.depends({ routing_mode: 'bypass_mainland_china', proxy_mode: 'tun' });
-		o.depends({ routing_mode: 'global', proxy_mode: 'tun' });
+		o.depends('routing_mode', 'bypass_mainland_china');
+		o.depends('routing_mode', 'global');
 		o.rmempty = false;
 		o.retain = true;
 		o.onchange = function(ev, section_id, value) {

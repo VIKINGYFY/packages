@@ -169,12 +169,8 @@ function getConnectionStatus() {
 
 const resources = [
 	{
-		type: 'china_ip4',
-		name: _('China IPv4 list')
-	},
-	{
-		type: 'china_ip6',
-		name: _('China IPv6 list')
+		type: 'geoip_cn',
+		name: _('China IP rule set')
 	},
 	{
 		type: 'geosite_cn',
