@@ -364,7 +364,7 @@ msgstr ""
 msgid "Direct"
 msgstr ""
 
-#: luci-app-homeproxy/htdocs/luci-static/resources/view/homeproxy/client.js:494
+#: luci-app-homeproxy/htdocs/luci-static/resources/view/homeproxy/client.js:502
 msgid "Direct Domain List"
 msgstr ""
 
@@ -567,8 +567,8 @@ msgstr ""
 #: luci-app-homeproxy/htdocs/luci-static/resources/view/homeproxy/client.js:255
 #: luci-app-homeproxy/htdocs/luci-static/resources/view/homeproxy/client.js:259
 #: luci-app-homeproxy/htdocs/luci-static/resources/view/homeproxy/client.js:283
-#: luci-app-homeproxy/htdocs/luci-static/resources/view/homeproxy/client.js:487
-#: luci-app-homeproxy/htdocs/luci-static/resources/view/homeproxy/client.js:518
+#: luci-app-homeproxy/htdocs/luci-static/resources/view/homeproxy/client.js:495
+#: luci-app-homeproxy/htdocs/luci-static/resources/view/homeproxy/client.js:526
 #: luci-app-homeproxy/htdocs/luci-static/resources/view/homeproxy/node.js:918
 #: luci-app-homeproxy/htdocs/luci-static/resources/view/homeproxy/node.js:1006
 #: luci-app-homeproxy/htdocs/luci-static/resources/view/homeproxy/node.js:1019
@@ -657,28 +657,28 @@ msgid "Global"
 msgstr ""
 
 #: luci-app-homeproxy/htdocs/luci-static/resources/view/homeproxy/client.js:397
-#: luci-app-homeproxy/htdocs/luci-static/resources/view/homeproxy/client.js:452
+#: luci-app-homeproxy/htdocs/luci-static/resources/view/homeproxy/client.js:460
 msgid "Global Direct IPv4 addresses"
 msgstr ""
 
-#: luci-app-homeproxy/htdocs/luci-static/resources/view/homeproxy/client.js:456
+#: luci-app-homeproxy/htdocs/luci-static/resources/view/homeproxy/client.js:464
 msgid "Global Direct IPv6 addresses"
 msgstr ""
 
-#: luci-app-homeproxy/htdocs/luci-static/resources/view/homeproxy/client.js:402
+#: luci-app-homeproxy/htdocs/luci-static/resources/view/homeproxy/client.js:406
 msgid "Global Direct MAC addresses"
 msgstr ""
 
-#: luci-app-homeproxy/htdocs/luci-static/resources/view/homeproxy/client.js:423
-#: luci-app-homeproxy/htdocs/luci-static/resources/view/homeproxy/client.js:437
+#: luci-app-homeproxy/htdocs/luci-static/resources/view/homeproxy/client.js:431
+#: luci-app-homeproxy/htdocs/luci-static/resources/view/homeproxy/client.js:445
 msgid "Global Proxy IPv4 addresses"
 msgstr ""
 
-#: luci-app-homeproxy/htdocs/luci-static/resources/view/homeproxy/client.js:443
+#: luci-app-homeproxy/htdocs/luci-static/resources/view/homeproxy/client.js:451
 msgid "Global Proxy IPv6 addresses"
 msgstr ""
 
-#: luci-app-homeproxy/htdocs/luci-static/resources/view/homeproxy/client.js:428
+#: luci-app-homeproxy/htdocs/luci-static/resources/view/homeproxy/client.js:436
 msgid "Global Proxy MAC addresses"
 msgstr ""
 
@@ -789,16 +789,16 @@ msgid "Hysteria2"
 msgstr ""
 
 #: luci-app-homeproxy/htdocs/luci-static/resources/view/homeproxy/client.js:398
-#: luci-app-homeproxy/htdocs/luci-static/resources/view/homeproxy/client.js:453
+#: luci-app-homeproxy/htdocs/luci-static/resources/view/homeproxy/client.js:461
 msgid "IPv4 addresses in this option are forced to use global direct routing."
 msgstr ""
 
-#: luci-app-homeproxy/htdocs/luci-static/resources/view/homeproxy/client.js:424
-#: luci-app-homeproxy/htdocs/luci-static/resources/view/homeproxy/client.js:438
+#: luci-app-homeproxy/htdocs/luci-static/resources/view/homeproxy/client.js:432
+#: luci-app-homeproxy/htdocs/luci-static/resources/view/homeproxy/client.js:446
 msgid "IPv4 addresses in this option are forced to use global proxy routing."
 msgstr ""
 
-#: luci-app-homeproxy/htdocs/luci-static/resources/view/homeproxy/client.js:408
+#: luci-app-homeproxy/htdocs/luci-static/resources/view/homeproxy/client.js:416
 msgid ""
 "IPv4 addresses in this option automatically use rule-based proxy routing."
 msgstr ""
@@ -807,11 +807,11 @@ msgstr ""
 msgid "IPv4 only"
 msgstr ""
 
-#: luci-app-homeproxy/htdocs/luci-static/resources/view/homeproxy/client.js:457
+#: luci-app-homeproxy/htdocs/luci-static/resources/view/homeproxy/client.js:465
 msgid "IPv6 addresses in this option are forced to use global direct routing."
 msgstr ""
 
-#: luci-app-homeproxy/htdocs/luci-static/resources/view/homeproxy/client.js:444
+#: luci-app-homeproxy/htdocs/luci-static/resources/view/homeproxy/client.js:452
 msgid "IPv6 addresses in this option are forced to use global proxy routing."
 msgstr ""
 
@@ -1008,15 +1008,15 @@ msgstr ""
 msgid "Log is empty."
 msgstr ""
 
-#: luci-app-homeproxy/htdocs/luci-static/resources/view/homeproxy/client.js:403
+#: luci-app-homeproxy/htdocs/luci-static/resources/view/homeproxy/client.js:407
 msgid "MAC addresses in this option are forced to use global direct routing."
 msgstr ""
 
-#: luci-app-homeproxy/htdocs/luci-static/resources/view/homeproxy/client.js:429
+#: luci-app-homeproxy/htdocs/luci-static/resources/view/homeproxy/client.js:437
 msgid "MAC addresses in this option are forced to use global proxy routing."
 msgstr ""
 
-#: luci-app-homeproxy/htdocs/luci-static/resources/view/homeproxy/client.js:416
+#: luci-app-homeproxy/htdocs/luci-static/resources/view/homeproxy/client.js:424
 msgid ""
 "MAC addresses in this option automatically use rule-based proxy routing."
 msgstr ""
@@ -1330,7 +1330,7 @@ msgid ""
 "default in v2ray and cannot be disabled)."
 msgstr ""
 
-#: luci-app-homeproxy/htdocs/luci-static/resources/view/homeproxy/client.js:464
+#: luci-app-homeproxy/htdocs/luci-static/resources/view/homeproxy/client.js:472
 msgid "Proxy Domain List"
 msgstr ""
 
@@ -1449,11 +1449,11 @@ msgstr ""
 msgid "Routing ports"
 msgstr ""
 
-#: luci-app-homeproxy/htdocs/luci-static/resources/view/homeproxy/client.js:407
+#: luci-app-homeproxy/htdocs/luci-static/resources/view/homeproxy/client.js:415
 msgid "Rule Proxy IPv4 addresses"
 msgstr ""
 
-#: luci-app-homeproxy/htdocs/luci-static/resources/view/homeproxy/client.js:415
+#: luci-app-homeproxy/htdocs/luci-static/resources/view/homeproxy/client.js:423
 msgid "Rule Proxy MAC addresses"
 msgstr ""
 
@@ -2043,7 +2043,7 @@ msgstr ""
 msgid "WAN DNS (read from interface)"
 msgstr ""
 
-#: luci-app-homeproxy/htdocs/luci-static/resources/view/homeproxy/client.js:435
+#: luci-app-homeproxy/htdocs/luci-static/resources/view/homeproxy/client.js:443
 msgid "WAN IP Policy"
 msgstr ""
 
@@ -2205,8 +2205,8 @@ msgstr ""
 msgid "valid base64 key with %d characters"
 msgstr ""
 
-#: luci-app-homeproxy/htdocs/luci-static/resources/view/homeproxy/client.js:487
-#: luci-app-homeproxy/htdocs/luci-static/resources/view/homeproxy/client.js:518
+#: luci-app-homeproxy/htdocs/luci-static/resources/view/homeproxy/client.js:495
+#: luci-app-homeproxy/htdocs/luci-static/resources/view/homeproxy/client.js:526
 msgid "valid hostname"
 msgstr ""
 

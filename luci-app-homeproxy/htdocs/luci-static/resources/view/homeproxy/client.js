@@ -396,12 +396,20 @@ return view.extend({
 
 		so = fwtool.addIPOption(ss, 'lan_ip_policy', 'lan_direct_ipv4_ips', _('Global Direct IPv4 addresses'),
 			_('IPv4 addresses in this option are forced to use global direct routing.'), 'ipv4', hosts, true);
-		so.depends('lan_whitelist_mode', '0');
+		so.depends({
+			'lan_whitelist_mode': '0',
+			'homeproxy.config.routing_mode': 'bypass_mainland_china'
+		});
+		so.depends('homeproxy.config.routing_mode', 'global');
 		so.retain = true;
 
 		so = fwtool.addMACOption(ss, 'lan_ip_policy', 'lan_direct_mac_addrs', _('Global Direct MAC addresses'),
 			_('MAC addresses in this option are forced to use global direct routing.'), hosts);
-		so.depends('lan_whitelist_mode', '0');
+		so.depends({
+			'lan_whitelist_mode': '0',
+			'homeproxy.config.routing_mode': 'bypass_mainland_china'
+		});
+		so.depends('homeproxy.config.routing_mode', 'global');
 		so.retain = true;
 
 		so = fwtool.addIPOption(ss, 'lan_ip_policy', 'lan_auto_proxy_ipv4_ips', _('Rule Proxy IPv4 addresses'),

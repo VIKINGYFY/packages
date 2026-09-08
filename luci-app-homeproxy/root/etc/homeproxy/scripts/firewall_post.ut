@@ -3,7 +3,7 @@
 {%-
 import { readfile } from 'fs';
 import { cursor } from 'uci';
-import { isEmpty, normalizeList } from '/etc/homeproxy/scripts/homeproxy.uc';
+import { isEmpty, normalizeList, resolveLanPolicy } from '/etc/homeproxy/scripts/homeproxy.uc';
 
 const fw4 = require('fw4');
 
@@ -41,13 +41,12 @@ uci.load(cfgname);
 
 const routing_mode = uci.get(cfgname, 'config', 'routing_mode') || 'bypass_mainland_china',
       mainland_mode = routing_mode === 'bypass_mainland_china',
-      proxy_policy_mode = mainland_mode,
-      lan_whitelist_mode = proxy_policy_mode && uci.get(cfgname, 'control', 'lan_whitelist_mode') === '1',
       ipv6_support = uci.get(cfgname, 'config', 'ipv6_support') || '0',
       listen_interfaces = normalizeList(uci.get(cfgname, 'control', 'listen_interfaces')),
       self_mark = uci.get(cfgname, 'infra', 'self_mark') || '100',
       tproxy_port = uci.get(cfgname, 'infra', 'tproxy_port') || '5332',
       tproxy_mark = resolve_mark(uci.get(cfgname, 'infra', 'tproxy_mark') || '101');
+const lan_policy = resolveLanPolicy(uci, cfgname);
 const proxy_domain_list = mainland_mode ?
       trim(readfile(resources_dir + '/proxy_list.txt') || '') : '',
       proxy_domain_keywords = filter(split(proxy_domain_list, /[\r\n]/),
@@ -62,14 +61,14 @@ if (routing_port === 'common')
 	routing_port = uci.get(cfgname, 'infra', 'common_port');
 const routing_ports = isEmpty(routing_port) ? [] : split(routing_port, ',');
 
-const lan_direct_ipv4 = normalizeList(uci.get(cfgname, 'control', 'lan_direct_ipv4_ips')),
-      lan_direct_mac = normalizeList(uci.get(cfgname, 'control', 'lan_direct_mac_addrs')),
-      lan_auto_proxy_ipv4 = lan_whitelist_mode ? normalizeList(uci.get(cfgname, 'control', 'lan_auto_proxy_ipv4_ips')) : [],
-      lan_auto_proxy_mac = lan_whitelist_mode ? normalizeList(uci.get(cfgname, 'control', 'lan_auto_proxy_mac_addrs')) : [],
-      lan_proxy_ipv4 = proxy_policy_mode ? normalizeList(uci.get(cfgname, 'control', 'lan_proxy_ipv4_ips')) : [],
-      lan_proxy_mac = proxy_policy_mode ? normalizeList(uci.get(cfgname, 'control', 'lan_proxy_mac_addrs')) : [],
-      wan_proxy_ipv4 = proxy_policy_mode ? normalizeList(uci.get(cfgname, 'control', 'wan_proxy_ipv4_ips')) : [],
-      wan_proxy_ipv6 = proxy_policy_mode ? normalizeList(uci.get(cfgname, 'control', 'wan_proxy_ipv6_ips')) : [],
+const lan_direct_ipv4 = lan_policy.use_direct_list ? normalizeList(uci.get(cfgname, 'control', 'lan_direct_ipv4_ips')) : [],
+      lan_direct_mac = lan_policy.use_direct_list ? normalizeList(uci.get(cfgname, 'control', 'lan_direct_mac_addrs')) : [],
+      lan_auto_proxy_ipv4 = lan_policy.use_rule_proxy_list ? normalizeList(uci.get(cfgname, 'control', 'lan_auto_proxy_ipv4_ips')) : [],
+      lan_auto_proxy_mac = lan_policy.use_rule_proxy_list ? normalizeList(uci.get(cfgname, 'control', 'lan_auto_proxy_mac_addrs')) : [],
+      lan_proxy_ipv4 = lan_policy.use_proxy_list ? normalizeList(uci.get(cfgname, 'control', 'lan_proxy_ipv4_ips')) : [],
+      lan_proxy_mac = lan_policy.use_proxy_list ? normalizeList(uci.get(cfgname, 'control', 'lan_proxy_mac_addrs')) : [],
+      wan_proxy_ipv4 = mainland_mode ? normalizeList(uci.get(cfgname, 'control', 'wan_proxy_ipv4_ips')) : [],
+      wan_proxy_ipv6 = mainland_mode ? normalizeList(uci.get(cfgname, 'control', 'wan_proxy_ipv6_ips')) : [],
       wan_direct_ipv4 = normalizeList(uci.get(cfgname, 'control', 'wan_direct_ipv4_ips')),
       wan_direct_ipv6 = normalizeList(uci.get(cfgname, 'control', 'wan_direct_ipv6_ips'));
 
@@ -222,7 +221,7 @@ chain homeproxy_mangle_policy {
 	ip6 daddr @homeproxy_proxy_domain_addr_v6 counter goto homeproxy_mangle_tproxy
 	{% endif %}
 	{% endif %}
-	{% if (proxy_policy_mode): %}
+	{% if (mainland_mode): %}
 	{% if (length(wan_proxy_ipv4)): %}
 	ip daddr {{ array_to_nftarr(wan_proxy_ipv4) }} counter goto homeproxy_mangle_tproxy
 	{% endif %}
@@ -252,13 +251,13 @@ chain homeproxy_mangle_prerouting {
 	{% if (ipv6_support === '1'): %}
 	ip6 daddr @homeproxy_local_addr_v6 counter return
 	{% endif %}
-	{% if (!lan_whitelist_mode && length(lan_direct_ipv4)): %}
+	{% if (length(lan_direct_ipv4)): %}
 	ip saddr {{ array_to_nftarr(lan_direct_ipv4) }} counter return
 	{% endif %}
-	{% if (!lan_whitelist_mode && length(lan_direct_mac)): %}
+	{% if (length(lan_direct_mac)): %}
 	ether saddr {{ array_to_nftarr(lan_direct_mac) }} counter return
 	{% endif %}
-	{% if (proxy_policy_mode): %}
+	{% if (lan_policy.use_proxy_list): %}
 	{% if (length(lan_proxy_ipv4)): %}
 	ip saddr {{ array_to_nftarr(lan_proxy_ipv4) }} counter goto homeproxy_mangle_tproxy
 	{% endif %}
@@ -266,13 +265,13 @@ chain homeproxy_mangle_prerouting {
 	ether saddr {{ array_to_nftarr(lan_proxy_mac) }} counter goto homeproxy_mangle_tproxy
 	{% endif %}
 	{% endif %}
-	{% if (lan_whitelist_mode && length(lan_auto_proxy_ipv4)): %}
+	{% if (length(lan_auto_proxy_ipv4)): %}
 	ip saddr {{ array_to_nftarr(lan_auto_proxy_ipv4) }} counter jump homeproxy_mangle_policy
 	{% endif %}
-	{% if (lan_whitelist_mode && length(lan_auto_proxy_mac)): %}
+	{% if (length(lan_auto_proxy_mac)): %}
 	ether saddr {{ array_to_nftarr(lan_auto_proxy_mac) }} counter jump homeproxy_mangle_policy
 	{% endif %}
-	{% if (lan_whitelist_mode): %}
+	{% if (lan_policy.restrict_to_list): %}
 	counter return
 	{% endif %}
 
@@ -292,7 +291,7 @@ chain homeproxy_mangle_output {
 	ip6 daddr @homeproxy_proxy_domain_addr_v6 counter goto homeproxy_mangle_mark
 	{% endif %}
 	{% endif %}
-	{% if (proxy_policy_mode): %}
+	{% if (mainland_mode): %}
 	{% if (length(wan_proxy_ipv4)): %}
 	ip daddr {{ array_to_nftarr(wan_proxy_ipv4) }} counter goto homeproxy_mangle_mark
 	{% endif %}

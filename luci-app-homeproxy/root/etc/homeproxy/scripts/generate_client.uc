@@ -13,7 +13,7 @@ import { cursor } from 'uci';
 
 import {
 	createNodeLabelRegistry, filterExistingNodes, hasForceProxyRules, isEmpty,
-	normalizeList, parseURL,
+	normalizeList, parseURL, resolveLanPolicy,
 	reserveUniqueLabel, strToBool, strToInt, strToTime,
 	removeBlankAttrs, renderEndpoint, renderOutbound, validation, HP_DIR, RUN_DIR
 } from 'homeproxy';
@@ -36,6 +36,8 @@ const routing_mode = uci.get(uciconfig, ucimain, 'routing_mode') || 'bypass_main
 
 if (!(routing_mode in ['bypass_mainland_china', 'global']))
 	die('Unsupported routing mode. Select bypass_mainland_china or global.');
+
+const lan_policy = resolveLanPolicy(uci, uciconfig);
 
 const outbound_tags = createNodeLabelRegistry();
 const node_outbound_tags = {};
@@ -257,22 +259,19 @@ function merge_matches(matches) {
 
 function get_control_matches() {
 	const included_ports = routing_port_match();
-	const proxy_policy_mode = routing_mode === 'bypass_mainland_china';
-	const lan_whitelist_mode = proxy_policy_mode &&
-		uci.get(uciconfig, ucicontrol, 'lan_whitelist_mode') === '1';
-	const proxy_source = proxy_policy_mode ?
+	const proxy_source = lan_policy.use_proxy_list ?
 		source_match('lan_proxy_ipv4_ips', null, 'lan_proxy_mac_addrs') : null;
-	const auto_source = lan_whitelist_mode ?
+	const auto_source = lan_policy.use_rule_proxy_list ?
 		source_match('lan_auto_proxy_ipv4_ips', null, 'lan_auto_proxy_mac_addrs') : null;
 
 	return {
-		lan_whitelist_mode,
-		direct_source: !lan_whitelist_mode ?
+		restrict_to_list: lan_policy.restrict_to_list,
+		direct_source: lan_policy.use_direct_list ?
 			source_match('lan_direct_ipv4_ips', null, 'lan_direct_mac_addrs') : null,
 		proxy_source,
 		auto_source,
-		whitelist_source: lan_whitelist_mode ? merge_matches([auto_source, proxy_source]) : null,
-		wan_proxy: proxy_policy_mode ? destination_match('wan_proxy_ipv4_ips', 'wan_proxy_ipv6_ips') : null,
+		listed_source: lan_policy.restrict_to_list ? merge_matches([auto_source, proxy_source]) : null,
+		wan_proxy: lan_policy.use_proxy_list ? destination_match('wan_proxy_ipv4_ips', 'wan_proxy_ipv6_ips') : null,
 		wan_direct: destination_match('wan_direct_ipv4_ips', 'wan_direct_ipv6_ips'),
 		bypass_ports: included_ports ? { ...included_ports, invert: true } : null
 	};
@@ -281,8 +280,8 @@ function get_control_matches() {
 function add_control_pre_match_rules(rules, proxy_outbound) {
 	const control = get_control_matches();
 
-	if (control.lan_whitelist_mode)
-		push_bypass(rules, tun_unlisted_match(control.whitelist_source));
+	if (control.restrict_to_list)
+		push_bypass(rules, tun_unlisted_match(control.listed_source));
 	else
 		push_bypass(rules, tun_match(control.direct_source));
 
@@ -310,12 +309,10 @@ function add_control_rules(rules, proxy_outbound) {
 }
 
 function has_mac_control() {
-	const lan_whitelist_mode = routing_mode === 'bypass_mainland_china' &&
-		uci.get(uciconfig, ucicontrol, 'lan_whitelist_mode') === '1';
 	return length(merge_control_options([
-		!lan_whitelist_mode ? 'lan_direct_mac_addrs' : null,
-		(routing_mode === 'bypass_mainland_china') ? 'lan_proxy_mac_addrs' : null,
-		lan_whitelist_mode ? 'lan_auto_proxy_mac_addrs' : null
+		lan_policy.use_direct_list ? 'lan_direct_mac_addrs' : null,
+		lan_policy.use_proxy_list ? 'lan_proxy_mac_addrs' : null,
+		lan_policy.use_rule_proxy_list ? 'lan_auto_proxy_mac_addrs' : null
 	])) > 0;
 }
 

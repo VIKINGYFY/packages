@@ -91,6 +91,20 @@ export function normalizeList(value) {
 	return (type(value) === 'array') ? value : [value];
 };
 
+export function resolveLanPolicy(uci, config) {
+	const mainlandMode = (uci.get(config, 'config', 'routing_mode') || 'bypass_mainland_china') ===
+		'bypass_mainland_china';
+	const listMode = mainlandMode && uci.get(config, 'control', 'lan_whitelist_mode') === '1';
+
+	return {
+		mode: listMode ? 'mainland_list' : (mainlandMode ? 'mainland_default' : 'global'),
+		use_direct_list: !listMode,
+		use_proxy_list: mainlandMode,
+		use_rule_proxy_list: listMode,
+		restrict_to_list: listMode
+	};
+};
+
 export function reserveUniqueLabel(used, label, fallback) {
 	let base = trim(label || '') || fallback;
 	let candidate = base;
@@ -193,6 +207,10 @@ export function reconcileUrltestNodes(uci, config, logger) {
 };
 
 export function hasForceProxyRules(uci, config, proxyDomainList) {
+	const lanPolicy = resolveLanPolicy(uci, config);
+	if (lanPolicy.mode === 'global')
+		return false;
+
 	if (!isEmpty(proxyDomainList))
 		return true;
 
@@ -200,7 +218,7 @@ export function hasForceProxyRules(uci, config, proxyDomainList) {
 		'lan_proxy_ipv4_ips', 'lan_proxy_mac_addrs',
 		'wan_proxy_ipv4_ips', 'wan_proxy_ipv6_ips'
 	];
-	if (uci.get(config, 'control', 'lan_whitelist_mode') === '1') {
+	if (lanPolicy.use_rule_proxy_list) {
 		push(options, 'lan_auto_proxy_ipv4_ips');
 		push(options, 'lan_auto_proxy_mac_addrs');
 	}
