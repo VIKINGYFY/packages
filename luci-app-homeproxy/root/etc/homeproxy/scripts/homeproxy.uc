@@ -108,11 +108,7 @@ export function normalizeDomainList(content) {
 };
 
 export function domainListPath(id) {
-	if (id === 'direct')
-		return `${HP_DIR}/resources/direct_list.txt`;
-	if (id === 'proxy')
-		return `${HP_DIR}/resources/proxy_list.txt`;
-	return `${HP_DIR}/resources/diversion/${id}.txt`;
+	return `${HP_DIR}/diversion/${id}.txt`;
 };
 
 export function splitDomainList(domains) {

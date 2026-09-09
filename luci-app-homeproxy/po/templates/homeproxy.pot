@@ -1,7 +1,8 @@
 msgid ""
 msgstr "Content-Type: text/plain; charset=UTF-8"
 
-#: htdocs/luci-static/resources/view/homeproxy/status.js:368
+#: htdocs/luci-static/resources/view/homeproxy/status.js:321
+#: htdocs/luci-static/resources/view/homeproxy/status.js:358
 msgid "%s Log"
 msgstr ""
 
@@ -10,7 +11,7 @@ msgid "%s contains an invalid domain."
 msgstr ""
 
 #: htdocs/luci-static/resources/view/homeproxy/node.js:520
-#: htdocs/luci-static/resources/view/homeproxy/status.js:93
+#: htdocs/luci-static/resources/view/homeproxy/status.js:78
 msgid "%s ms"
 msgstr ""
 
@@ -138,7 +139,7 @@ msgstr ""
 msgid "Allowed payload size is in the request."
 msgstr ""
 
-#: htdocs/luci-static/resources/view/homeproxy/status.js:254
+#: htdocs/luci-static/resources/view/homeproxy/status.js:239
 msgid "Already at the latest version."
 msgstr ""
 
@@ -233,7 +234,7 @@ msgstr ""
 msgid "Backend execution failed"
 msgstr ""
 
-#: htdocs/luci-static/resources/view/homeproxy/status.js:35
+#: htdocs/luci-static/resources/view/homeproxy/status.js:20
 msgid "Baidu"
 msgstr ""
 
@@ -246,7 +247,7 @@ msgstr ""
 msgid "Based on Google/gVisor."
 msgstr ""
 
-#: htdocs/luci-static/resources/view/homeproxy/status.js:36
+#: htdocs/luci-static/resources/view/homeproxy/status.js:21
 msgid "Bilibili"
 msgstr ""
 
@@ -293,11 +294,11 @@ msgstr ""
 msgid "China DNS server"
 msgstr ""
 
-#: htdocs/luci-static/resources/view/homeproxy/status.js:172
+#: htdocs/luci-static/resources/view/homeproxy/status.js:157
 msgid "China IP rule set"
 msgstr ""
 
-#: htdocs/luci-static/resources/view/homeproxy/status.js:176
+#: htdocs/luci-static/resources/view/homeproxy/status.js:161
 msgid "China domain rule set"
 msgstr ""
 
@@ -310,7 +311,7 @@ msgstr ""
 msgid "Cisco Public DNS (DoH)"
 msgstr ""
 
-#: htdocs/luci-static/resources/view/homeproxy/status.js:376
+#: htdocs/luci-static/resources/view/homeproxy/status.js:366
 msgid "Clean log"
 msgstr ""
 
@@ -333,7 +334,7 @@ msgstr ""
 #: htdocs/luci-static/resources/view/homeproxy/client.js:305
 #: htdocs/luci-static/resources/view/homeproxy/client.js:770
 #: htdocs/luci-static/resources/view/homeproxy/server.js:125
-#: htdocs/luci-static/resources/view/homeproxy/status.js:338
+#: htdocs/luci-static/resources/view/homeproxy/status.js:327
 msgid "Collecting data..."
 msgstr ""
 
@@ -350,11 +351,11 @@ msgstr ""
 msgid "Connected"
 msgstr ""
 
-#: htdocs/luci-static/resources/view/homeproxy/status.js:160
+#: htdocs/luci-static/resources/view/homeproxy/status.js:145
 msgid "Connection Status"
 msgstr ""
 
-#: htdocs/luci-static/resources/view/homeproxy/status.js:57
+#: htdocs/luci-static/resources/view/homeproxy/status.js:42
 msgid "Connectivity"
 msgstr ""
 
@@ -398,11 +399,11 @@ msgid "DNS.SB Public DNS (DoH)"
 msgstr ""
 
 #: htdocs/luci-static/resources/view/homeproxy/client.js:312
-#: htdocs/luci-static/resources/view/homeproxy/status.js:180
+#: htdocs/luci-static/resources/view/homeproxy/status.js:165
 msgid "Dashboard"
 msgstr ""
 
-#: htdocs/luci-static/resources/view/homeproxy/status.js:298
+#: htdocs/luci-static/resources/view/homeproxy/status.js:283
 msgid "Debug"
 msgstr ""
 
@@ -670,7 +671,7 @@ msgid ""
 msgstr ""
 
 #: htdocs/luci-static/resources/view/homeproxy/node.js:508
-#: htdocs/luci-static/resources/view/homeproxy/status.js:301
+#: htdocs/luci-static/resources/view/homeproxy/status.js:286
 msgid "Error"
 msgstr ""
 
@@ -733,7 +734,7 @@ msgstr ""
 msgid "External account key ID"
 msgstr ""
 
-#: htdocs/luci-static/resources/view/homeproxy/status.js:96
+#: htdocs/luci-static/resources/view/homeproxy/status.js:81
 msgid "Failed"
 msgstr ""
 
@@ -750,7 +751,7 @@ msgstr ""
 msgid "Failed to upload %s, error: %s."
 msgstr ""
 
-#: htdocs/luci-static/resources/view/homeproxy/status.js:302
+#: htdocs/luci-static/resources/view/homeproxy/status.js:287
 msgid "Fatal"
 msgstr ""
 
@@ -786,7 +787,7 @@ msgstr ""
 msgid "Generate"
 msgstr ""
 
-#: htdocs/luci-static/resources/view/homeproxy/status.js:39
+#: htdocs/luci-static/resources/view/homeproxy/status.js:24
 msgid "GitHub"
 msgstr ""
 
@@ -828,7 +829,7 @@ msgstr ""
 msgid "Global padding"
 msgstr ""
 
-#: htdocs/luci-static/resources/view/homeproxy/status.js:38
+#: htdocs/luci-static/resources/view/homeproxy/status.js:23
 msgid "Google"
 msgstr ""
 
@@ -874,7 +875,7 @@ msgstr ""
 #: htdocs/luci-static/resources/view/homeproxy/client.js:146
 #: htdocs/luci-static/resources/view/homeproxy/client.js:148
 #: htdocs/luci-static/resources/view/homeproxy/client.js:196
-#: htdocs/luci-static/resources/view/homeproxy/status.js:407
+#: htdocs/luci-static/resources/view/homeproxy/status.js:397
 #: root/usr/share/luci/menu.d/luci-app-homeproxy.json:3
 msgid "HomeProxy"
 msgstr ""
@@ -1030,7 +1031,7 @@ msgid ""
 "seconds."
 msgstr ""
 
-#: htdocs/luci-static/resources/view/homeproxy/status.js:299
+#: htdocs/luci-static/resources/view/homeproxy/status.js:284
 msgid "Info"
 msgstr ""
 
@@ -1076,7 +1077,7 @@ msgstr ""
 msgid "Invalid response"
 msgstr ""
 
-#: htdocs/luci-static/resources/view/homeproxy/status.js:37
+#: htdocs/luci-static/resources/view/homeproxy/status.js:22
 msgid "JD"
 msgstr ""
 
@@ -1104,7 +1105,7 @@ msgid "Label"
 msgstr ""
 
 #: htdocs/luci-static/resources/view/homeproxy/node.js:826
-#: htdocs/luci-static/resources/view/homeproxy/status.js:58
+#: htdocs/luci-static/resources/view/homeproxy/status.js:43
 msgid "Latency"
 msgstr ""
 
@@ -1155,15 +1156,11 @@ msgstr ""
 msgid "Listen port"
 msgstr ""
 
-#: htdocs/luci-static/resources/view/homeproxy/status.js:336
-msgid "Loading"
-msgstr ""
-
 #: htdocs/luci-static/resources/view/homeproxy/node.js:1367
 msgid "Local address"
 msgstr ""
 
-#: htdocs/luci-static/resources/view/homeproxy/status.js:353
+#: htdocs/luci-static/resources/view/homeproxy/status.js:349
 msgid "Log file does not exist."
 msgstr ""
 
@@ -1320,7 +1317,7 @@ msgid "NOTE: Save current settings before updating subscriptions."
 msgstr ""
 
 #: htdocs/luci-static/resources/view/homeproxy/client.js:701
-#: htdocs/luci-static/resources/view/homeproxy/status.js:204
+#: htdocs/luci-static/resources/view/homeproxy/status.js:189
 msgid "Name"
 msgstr ""
 
@@ -1429,7 +1426,7 @@ msgstr ""
 msgid "Padding scheme"
 msgstr ""
 
-#: htdocs/luci-static/resources/view/homeproxy/status.js:303
+#: htdocs/luci-static/resources/view/homeproxy/status.js:288
 msgid "Panic"
 msgstr ""
 
@@ -1584,7 +1581,7 @@ msgstr ""
 msgid "Random version will be used if empty."
 msgstr ""
 
-#: htdocs/luci-static/resources/view/homeproxy/status.js:381
+#: htdocs/luci-static/resources/view/homeproxy/status.js:371
 msgid "Refresh every %s seconds."
 msgstr ""
 
@@ -1604,11 +1601,11 @@ msgstr ""
 msgid "Reserved field bytes"
 msgstr ""
 
-#: htdocs/luci-static/resources/view/homeproxy/status.js:230
+#: htdocs/luci-static/resources/view/homeproxy/status.js:215
 msgid "Resource Management"
 msgstr ""
 
-#: htdocs/luci-static/resources/view/homeproxy/status.js:239
+#: htdocs/luci-static/resources/view/homeproxy/status.js:224
 msgid ""
 "Resources were updated, but HomeProxy failed to reload. Check the log for "
 "details."
@@ -1720,11 +1717,11 @@ msgstr ""
 msgid "Shadowsocks"
 msgstr ""
 
-#: htdocs/luci-static/resources/view/homeproxy/status.js:257
+#: htdocs/luci-static/resources/view/homeproxy/status.js:242
 msgid "Some resources failed to update. Check the log for details."
 msgstr ""
 
-#: htdocs/luci-static/resources/view/homeproxy/status.js:206
+#: htdocs/luci-static/resources/view/homeproxy/status.js:191
 msgid "Source"
 msgstr ""
 
@@ -1778,7 +1775,7 @@ msgid "Subscriptions"
 msgstr ""
 
 #: htdocs/luci-static/resources/view/homeproxy/node.js:520
-#: htdocs/luci-static/resources/view/homeproxy/status.js:92
+#: htdocs/luci-static/resources/view/homeproxy/status.js:77
 msgid "Success"
 msgstr ""
 
@@ -1786,7 +1783,7 @@ msgstr ""
 msgid "Successfully imported %s nodes of total %s."
 msgstr ""
 
-#: htdocs/luci-static/resources/view/homeproxy/status.js:244
+#: htdocs/luci-static/resources/view/homeproxy/status.js:229
 msgid "Successfully updated."
 msgstr ""
 
@@ -1877,7 +1874,7 @@ msgstr ""
 msgid "Test"
 msgstr ""
 
-#: htdocs/luci-static/resources/view/homeproxy/status.js:156
+#: htdocs/luci-static/resources/view/homeproxy/status.js:141
 msgid "Test all"
 msgstr ""
 
@@ -1903,7 +1900,7 @@ msgstr ""
 msgid "Testing current list..."
 msgstr ""
 
-#: htdocs/luci-static/resources/view/homeproxy/status.js:111
+#: htdocs/luci-static/resources/view/homeproxy/status.js:96
 msgid "Testing..."
 msgstr ""
 
@@ -2037,7 +2034,7 @@ msgstr ""
 msgid "ThreatBook Public DNS (DoH)"
 msgstr ""
 
-#: htdocs/luci-static/resources/view/homeproxy/status.js:96
+#: htdocs/luci-static/resources/view/homeproxy/status.js:81
 msgid "Timed out"
 msgstr ""
 
@@ -2051,7 +2048,7 @@ msgid ""
 "code>."
 msgstr ""
 
-#: htdocs/luci-static/resources/view/homeproxy/status.js:297
+#: htdocs/luci-static/resources/view/homeproxy/status.js:282
 msgid "Trace"
 msgstr ""
 
@@ -2105,7 +2102,7 @@ msgstr ""
 msgid "UDP relay mode"
 msgstr ""
 
-#: htdocs/luci-static/resources/view/homeproxy/status.js:56
+#: htdocs/luci-static/resources/view/homeproxy/status.js:41
 msgid "URL"
 msgstr ""
 
@@ -2126,12 +2123,12 @@ msgstr ""
 msgid "UUID"
 msgstr ""
 
-#: htdocs/luci-static/resources/view/homeproxy/status.js:261
+#: htdocs/luci-static/resources/view/homeproxy/status.js:246
 msgid "Unknown error."
 msgstr ""
 
 #: htdocs/luci-static/resources/view/homeproxy/node.js:1802
-#: htdocs/luci-static/resources/view/homeproxy/status.js:357
+#: htdocs/luci-static/resources/view/homeproxy/status.js:351
 msgid "Unknown error: %s."
 msgstr ""
 
@@ -2147,15 +2144,15 @@ msgstr ""
 msgid "Update %s subscriptions"
 msgstr ""
 
-#: htdocs/luci-static/resources/view/homeproxy/status.js:271
+#: htdocs/luci-static/resources/view/homeproxy/status.js:256
 msgid "Update all"
 msgstr ""
 
-#: htdocs/luci-static/resources/view/homeproxy/status.js:251
+#: htdocs/luci-static/resources/view/homeproxy/status.js:236
 msgid "Update already in progress."
 msgstr ""
 
-#: htdocs/luci-static/resources/view/homeproxy/status.js:247
+#: htdocs/luci-static/resources/view/homeproxy/status.js:232
 msgid "Update failed."
 msgstr ""
 
@@ -2241,7 +2238,7 @@ msgstr ""
 msgid "VMess"
 msgstr ""
 
-#: htdocs/luci-static/resources/view/homeproxy/status.js:205
+#: htdocs/luci-static/resources/view/homeproxy/status.js:190
 msgid "Version"
 msgstr ""
 
@@ -2260,7 +2257,7 @@ msgid ""
 "not appear."
 msgstr ""
 
-#: htdocs/luci-static/resources/view/homeproxy/status.js:300
+#: htdocs/luci-static/resources/view/homeproxy/status.js:285
 msgid "Warn"
 msgstr ""
 
@@ -2269,7 +2266,7 @@ msgstr ""
 msgid "WebSocket"
 msgstr ""
 
-#: htdocs/luci-static/resources/view/homeproxy/status.js:55
+#: htdocs/luci-static/resources/view/homeproxy/status.js:40
 msgid "Website"
 msgstr ""
 
@@ -2298,7 +2295,7 @@ msgstr ""
 msgid "XUDP (Xray-core)"
 msgstr ""
 
-#: htdocs/luci-static/resources/view/homeproxy/status.js:40
+#: htdocs/luci-static/resources/view/homeproxy/status.js:25
 msgid "YouTube"
 msgstr ""
 
@@ -2357,11 +2354,11 @@ msgstr ""
 msgid "packet addr (v2ray-core v5+)"
 msgstr ""
 
-#: htdocs/luci-static/resources/view/homeproxy/status.js:410
+#: htdocs/luci-static/resources/view/homeproxy/status.js:400
 msgid "sing-box Client"
 msgstr ""
 
-#: htdocs/luci-static/resources/view/homeproxy/status.js:413
+#: htdocs/luci-static/resources/view/homeproxy/status.js:403
 msgid "sing-box Server"
 msgstr ""
 

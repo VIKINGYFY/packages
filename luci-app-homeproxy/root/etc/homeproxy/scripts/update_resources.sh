@@ -5,7 +5,7 @@
 
 NAME="homeproxy"
 
-RESOURCES_DIR="${RESOURCES_DIR:-/etc/$NAME/resources}"
+RESOURCES_DIR="${RESOURCES_DIR:-/etc/$NAME/diversion}"
 DASHBOARD_DIR="${DASHBOARD_DIR:-/etc/$NAME/dashboard}"
 RUN_DIR="${RUN_DIR:-/var/run/$NAME}"
 LOG_PATH="$RUN_DIR/$NAME.log"

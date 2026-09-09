@@ -8,7 +8,52 @@
 'use strict';
 
 import { cursor } from 'uci';
-import { isEmpty } from 'homeproxy';
+import { glob, mkdir, readfile, rename, rmdir, stat, unlink, writefile } from 'fs';
+import { HP_DIR, domainListPath, isEmpty, normalizeDomainList } from 'homeproxy';
+
+/* Move user lists independently of UCI, including disabled or orphaned groups. */
+function migrateDomainList(source, target) {
+	if (!stat(source))
+		return;
+	if (!stat(`${HP_DIR}/diversion`) && !mkdir(`${HP_DIR}/diversion`))
+		die('HomeProxy: failed to create the diversion directory.\n');
+
+	if (stat(target)) {
+		const current = readfile(target), previous = readfile(source);
+		if (current === null || previous === null)
+			die('HomeProxy: failed to read domain lists during migration.\n');
+		/* Preserve both lists when a restored backup contains old and new paths. */
+		const merged = normalizeDomainList(current + '\n' + previous);
+		const content = length(merged) ? join('\n', merged) + '\n' : '';
+		const temporary = target + '.new';
+		if (writefile(temporary, content) !== length(content) || !rename(temporary, target)) {
+			unlink(temporary);
+			die('HomeProxy: failed to merge domain lists during migration.\n');
+		}
+		if (!unlink(source))
+			die('HomeProxy: failed to remove a migrated domain list.\n');
+	} else if (!rename(source, target)) {
+		die('HomeProxy: failed to move a domain list.\n');
+	}
+}
+
+migrateDomainList(`${HP_DIR}/resources/direct_list.txt`, domainListPath('direct'));
+migrateDomainList(`${HP_DIR}/resources/proxy_list.txt`, domainListPath('proxy'));
+for (let path in glob(`${HP_DIR}/resources/diversion/*.txt`))
+	migrateDomainList(path, `${HP_DIR}/diversion/${substr(path, length(`${HP_DIR}/resources/diversion/`))}`);
+rmdir(`${HP_DIR}/resources/diversion`);
+
+/* Prefer the installed rules when both paths exist; old downloads are disposable. */
+for (let name in ['geoip_cn.srs', 'geoip_cn.ver', 'geosite_cn.srs', 'geosite_cn.ver']) {
+	const source = `${HP_DIR}/resources/${name}`, target = `${HP_DIR}/diversion/${name}`;
+	if (!stat(source))
+		continue;
+	if (!stat(`${HP_DIR}/diversion`) && !mkdir(`${HP_DIR}/diversion`))
+		die('HomeProxy: failed to create the diversion directory.\n');
+	if (!(stat(target) ? unlink(source) : rename(source, target)))
+		die('HomeProxy: failed to migrate rule resources.\n');
+}
+rmdir(`${HP_DIR}/resources`);
 
 const uci = cursor();
 const uciconfig = 'homeproxy';

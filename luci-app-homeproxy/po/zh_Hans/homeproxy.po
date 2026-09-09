@@ -9,7 +9,8 @@ msgstr ""
 "Content-Type: text/plain; charset=UTF-8\n"
 "Content-Transfer-Encoding: 8bit\n"
 
-#: htdocs/luci-static/resources/view/homeproxy/status.js:368
+#: htdocs/luci-static/resources/view/homeproxy/status.js:321
+#: htdocs/luci-static/resources/view/homeproxy/status.js:358
 msgid "%s Log"
 msgstr "%s 日志"
 
@@ -18,7 +19,7 @@ msgid "%s contains an invalid domain."
 msgstr "%s 包含无效域名。"
 
 #: htdocs/luci-static/resources/view/homeproxy/node.js:520
-#: htdocs/luci-static/resources/view/homeproxy/status.js:93
+#: htdocs/luci-static/resources/view/homeproxy/status.js:78
 msgid "%s ms"
 msgstr "%s 毫秒"
 
@@ -146,7 +147,7 @@ msgstr "从订阅添加节点时，默认允许不安全连接。"
 msgid "Allowed payload size is in the request."
 msgstr "请求中允许的载荷大小。"
 
-#: htdocs/luci-static/resources/view/homeproxy/status.js:254
+#: htdocs/luci-static/resources/view/homeproxy/status.js:239
 msgid "Already at the latest version."
 msgstr "已是最新版本。"
 
@@ -241,7 +242,7 @@ msgstr "BBR"
 msgid "Backend execution failed"
 msgstr "后端执行失败"
 
-#: htdocs/luci-static/resources/view/homeproxy/status.js:35
+#: htdocs/luci-static/resources/view/homeproxy/status.js:20
 msgid "Baidu"
 msgstr "百度"
 
@@ -254,7 +255,7 @@ msgstr "Base64"
 msgid "Based on Google/gVisor."
 msgstr "基于 Google/gVisor。"
 
-#: htdocs/luci-static/resources/view/homeproxy/status.js:36
+#: htdocs/luci-static/resources/view/homeproxy/status.js:21
 msgid "Bilibili"
 msgstr "哔哩哔哩"
 
@@ -301,11 +302,11 @@ msgstr "证书路径"
 msgid "China DNS server"
 msgstr "国内 DNS 服务器"
 
-#: htdocs/luci-static/resources/view/homeproxy/status.js:172
+#: htdocs/luci-static/resources/view/homeproxy/status.js:157
 msgid "China IP rule set"
 msgstr "国内 IP 规则集"
 
-#: htdocs/luci-static/resources/view/homeproxy/status.js:176
+#: htdocs/luci-static/resources/view/homeproxy/status.js:161
 msgid "China domain rule set"
 msgstr "国内 域名 规则集"
 
@@ -318,7 +319,7 @@ msgstr "密码套件"
 msgid "Cisco Public DNS (DoH)"
 msgstr "Cisco 公共DNS (DoH)"
 
-#: htdocs/luci-static/resources/view/homeproxy/status.js:376
+#: htdocs/luci-static/resources/view/homeproxy/status.js:366
 msgid "Clean log"
 msgstr "清空日志"
 
@@ -341,7 +342,7 @@ msgstr "Cloudflare 公共DNS (DoH)"
 #: htdocs/luci-static/resources/view/homeproxy/client.js:305
 #: htdocs/luci-static/resources/view/homeproxy/client.js:770
 #: htdocs/luci-static/resources/view/homeproxy/server.js:125
-#: htdocs/luci-static/resources/view/homeproxy/status.js:338
+#: htdocs/luci-static/resources/view/homeproxy/status.js:327
 msgid "Collecting data..."
 msgstr "正在收集数据中..."
 
@@ -358,11 +359,11 @@ msgstr "拥塞控制算法"
 msgid "Connected"
 msgstr "已连接"
 
-#: htdocs/luci-static/resources/view/homeproxy/status.js:160
+#: htdocs/luci-static/resources/view/homeproxy/status.js:145
 msgid "Connection Status"
 msgstr "连接状态"
 
-#: htdocs/luci-static/resources/view/homeproxy/status.js:57
+#: htdocs/luci-static/resources/view/homeproxy/status.js:42
 msgid "Connectivity"
 msgstr "通断"
 
@@ -406,11 +407,11 @@ msgid "DNS.SB Public DNS (DoH)"
 msgstr "DNS.SB 公共DNS (DoH)"
 
 #: htdocs/luci-static/resources/view/homeproxy/client.js:312
-#: htdocs/luci-static/resources/view/homeproxy/status.js:180
+#: htdocs/luci-static/resources/view/homeproxy/status.js:165
 msgid "Dashboard"
 msgstr "仪表盘"
 
-#: htdocs/luci-static/resources/view/homeproxy/status.js:298
+#: htdocs/luci-static/resources/view/homeproxy/status.js:283
 msgid "Debug"
 msgstr "调试"
 
@@ -689,7 +690,7 @@ msgid ""
 msgstr "包含点号的条目使用域名后缀匹配；其他条目使用关键词匹配。"
 
 #: htdocs/luci-static/resources/view/homeproxy/node.js:508
-#: htdocs/luci-static/resources/view/homeproxy/status.js:301
+#: htdocs/luci-static/resources/view/homeproxy/status.js:286
 msgid "Error"
 msgstr "错误"
 
@@ -753,7 +754,7 @@ msgstr "外部账户绑定"
 msgid "External account key ID"
 msgstr "外部账户密钥标识符"
 
-#: htdocs/luci-static/resources/view/homeproxy/status.js:96
+#: htdocs/luci-static/resources/view/homeproxy/status.js:81
 msgid "Failed"
 msgstr "失败"
 
@@ -770,7 +771,7 @@ msgstr "保存域名列表失败。"
 msgid "Failed to upload %s, error: %s."
 msgstr "上传 %s 失败，错误：%s。"
 
-#: htdocs/luci-static/resources/view/homeproxy/status.js:302
+#: htdocs/luci-static/resources/view/homeproxy/status.js:287
 msgid "Fatal"
 msgstr "致命"
 
@@ -806,7 +807,7 @@ msgstr "Gecko"
 msgid "Generate"
 msgstr "生成"
 
-#: htdocs/luci-static/resources/view/homeproxy/status.js:39
+#: htdocs/luci-static/resources/view/homeproxy/status.js:24
 msgid "GitHub"
 msgstr "GitHub"
 
@@ -848,7 +849,7 @@ msgstr "全局设置"
 msgid "Global padding"
 msgstr "全局填充"
 
-#: htdocs/luci-static/resources/view/homeproxy/status.js:38
+#: htdocs/luci-static/resources/view/homeproxy/status.js:23
 msgid "Google"
 msgstr "Google"
 
@@ -894,7 +895,7 @@ msgstr "心跳间隔"
 #: htdocs/luci-static/resources/view/homeproxy/client.js:146
 #: htdocs/luci-static/resources/view/homeproxy/client.js:148
 #: htdocs/luci-static/resources/view/homeproxy/client.js:196
-#: htdocs/luci-static/resources/view/homeproxy/status.js:407
+#: htdocs/luci-static/resources/view/homeproxy/status.js:397
 #: root/usr/share/luci/menu.d/luci-app-homeproxy.json:3
 msgid "HomeProxy"
 msgstr "HomeProxy"
@@ -1052,7 +1053,7 @@ msgid ""
 "seconds."
 msgstr "在检查中，关闭空闲时间超过此值的会话（单位：秒）。"
 
-#: htdocs/luci-static/resources/view/homeproxy/status.js:299
+#: htdocs/luci-static/resources/view/homeproxy/status.js:284
 msgid "Info"
 msgstr "信息"
 
@@ -1098,7 +1099,7 @@ msgstr "无效节点"
 msgid "Invalid response"
 msgstr "无效响应"
 
-#: htdocs/luci-static/resources/view/homeproxy/status.js:37
+#: htdocs/luci-static/resources/view/homeproxy/status.js:22
 msgid "JD"
 msgstr "京东"
 
@@ -1126,7 +1127,7 @@ msgid "Label"
 msgstr "标签"
 
 #: htdocs/luci-static/resources/view/homeproxy/node.js:826
-#: htdocs/luci-static/resources/view/homeproxy/status.js:58
+#: htdocs/luci-static/resources/view/homeproxy/status.js:43
 msgid "Latency"
 msgstr "延迟"
 
@@ -1179,15 +1180,11 @@ msgstr "监听接口"
 msgid "Listen port"
 msgstr "监听端口"
 
-#: htdocs/luci-static/resources/view/homeproxy/status.js:336
-msgid "Loading"
-msgstr "加载中"
-
 #: htdocs/luci-static/resources/view/homeproxy/node.js:1367
 msgid "Local address"
 msgstr "本地地址"
 
-#: htdocs/luci-static/resources/view/homeproxy/status.js:353
+#: htdocs/luci-static/resources/view/homeproxy/status.js:349
 msgid "Log file does not exist."
 msgstr "日志文件不存在。"
 
@@ -1348,7 +1345,7 @@ msgid "NOTE: Save current settings before updating subscriptions."
 msgstr "注意：更新订阅前先保存当前配置。"
 
 #: htdocs/luci-static/resources/view/homeproxy/client.js:701
-#: htdocs/luci-static/resources/view/homeproxy/status.js:204
+#: htdocs/luci-static/resources/view/homeproxy/status.js:189
 msgid "Name"
 msgstr "名称"
 
@@ -1457,7 +1454,7 @@ msgstr "数据包编码"
 msgid "Padding scheme"
 msgstr "填充方案"
 
-#: htdocs/luci-static/resources/view/homeproxy/status.js:303
+#: htdocs/luci-static/resources/view/homeproxy/status.js:288
 msgid "Panic"
 msgstr "崩溃"
 
@@ -1612,7 +1609,7 @@ msgstr "运行中"
 msgid "Random version will be used if empty."
 msgstr "如留空，则使用随机版本。"
 
-#: htdocs/luci-static/resources/view/homeproxy/status.js:381
+#: htdocs/luci-static/resources/view/homeproxy/status.js:371
 msgid "Refresh every %s seconds."
 msgstr "每 %s 秒刷新。"
 
@@ -1632,11 +1629,11 @@ msgstr "移除所有订阅节点"
 msgid "Reserved field bytes"
 msgstr "保留字段字节"
 
-#: htdocs/luci-static/resources/view/homeproxy/status.js:230
+#: htdocs/luci-static/resources/view/homeproxy/status.js:215
 msgid "Resource Management"
 msgstr "资源管理"
 
-#: htdocs/luci-static/resources/view/homeproxy/status.js:239
+#: htdocs/luci-static/resources/view/homeproxy/status.js:224
 msgid ""
 "Resources were updated, but HomeProxy failed to reload. Check the log for "
 "details."
@@ -1748,11 +1745,11 @@ msgstr "ShadowTLS 版本"
 msgid "Shadowsocks"
 msgstr "Shadowsocks"
 
-#: htdocs/luci-static/resources/view/homeproxy/status.js:257
+#: htdocs/luci-static/resources/view/homeproxy/status.js:242
 msgid "Some resources failed to update. Check the log for details."
 msgstr "部分资源更新失败，请查看日志了解详情。"
 
-#: htdocs/luci-static/resources/view/homeproxy/status.js:206
+#: htdocs/luci-static/resources/view/homeproxy/status.js:191
 msgid "Source"
 msgstr "来源"
 
@@ -1813,7 +1810,7 @@ msgid "Subscriptions"
 msgstr "订阅"
 
 #: htdocs/luci-static/resources/view/homeproxy/node.js:520
-#: htdocs/luci-static/resources/view/homeproxy/status.js:92
+#: htdocs/luci-static/resources/view/homeproxy/status.js:77
 msgid "Success"
 msgstr "成功"
 
@@ -1821,7 +1818,7 @@ msgstr "成功"
 msgid "Successfully imported %s nodes of total %s."
 msgstr "成功导入 %s 个节点，共 %s 个。"
 
-#: htdocs/luci-static/resources/view/homeproxy/status.js:244
+#: htdocs/luci-static/resources/view/homeproxy/status.js:229
 msgid "Successfully updated."
 msgstr "更新成功。"
 
@@ -1914,7 +1911,7 @@ msgstr "腾讯 公共DNS (DoH)"
 msgid "Test"
 msgstr "测试"
 
-#: htdocs/luci-static/resources/view/homeproxy/status.js:156
+#: htdocs/luci-static/resources/view/homeproxy/status.js:141
 msgid "Test all"
 msgstr "全部测试"
 
@@ -1940,7 +1937,7 @@ msgstr "测试中"
 msgid "Testing current list..."
 msgstr "正在测试当前列表..."
 
-#: htdocs/luci-static/resources/view/homeproxy/status.js:111
+#: htdocs/luci-static/resources/view/homeproxy/status.js:96
 msgid "Testing..."
 msgstr "测试中..."
 
@@ -2084,7 +2081,7 @@ msgstr ""
 msgid "ThreatBook Public DNS (DoH)"
 msgstr "微步 公共DNS (DoH)"
 
-#: htdocs/luci-static/resources/view/homeproxy/status.js:96
+#: htdocs/luci-static/resources/view/homeproxy/status.js:81
 msgid "Timed out"
 msgstr "超时"
 
@@ -2099,7 +2096,7 @@ msgid ""
 msgstr ""
 "要与 Xray-core 兼容，请将其设置为 <code>Sec-WebSocket-Protocol</code>。"
 
-#: htdocs/luci-static/resources/view/homeproxy/status.js:297
+#: htdocs/luci-static/resources/view/homeproxy/status.js:282
 msgid "Trace"
 msgstr "跟踪"
 
@@ -2153,7 +2150,7 @@ msgstr "WireGuard 和点对点流量的 UDP 监听端口。留空时自动选择
 msgid "UDP relay mode"
 msgstr "UDP 中继模式"
 
-#: htdocs/luci-static/resources/view/homeproxy/status.js:56
+#: htdocs/luci-static/resources/view/homeproxy/status.js:41
 msgid "URL"
 msgstr "网址"
 
@@ -2174,12 +2171,12 @@ msgstr "URLTest: %s"
 msgid "UUID"
 msgstr "UUID"
 
-#: htdocs/luci-static/resources/view/homeproxy/status.js:261
+#: htdocs/luci-static/resources/view/homeproxy/status.js:246
 msgid "Unknown error."
 msgstr "未知错误。"
 
 #: htdocs/luci-static/resources/view/homeproxy/node.js:1802
-#: htdocs/luci-static/resources/view/homeproxy/status.js:357
+#: htdocs/luci-static/resources/view/homeproxy/status.js:351
 msgid "Unknown error: %s."
 msgstr "未知错误：%s。"
 
@@ -2195,15 +2192,15 @@ msgstr "不支持的传输方式：%s。"
 msgid "Update %s subscriptions"
 msgstr "更新 %s 个订阅"
 
-#: htdocs/luci-static/resources/view/homeproxy/status.js:271
+#: htdocs/luci-static/resources/view/homeproxy/status.js:256
 msgid "Update all"
 msgstr "全部更新"
 
-#: htdocs/luci-static/resources/view/homeproxy/status.js:251
+#: htdocs/luci-static/resources/view/homeproxy/status.js:236
 msgid "Update already in progress."
 msgstr "正在更新中。"
 
-#: htdocs/luci-static/resources/view/homeproxy/status.js:247
+#: htdocs/luci-static/resources/view/homeproxy/status.js:232
 msgid "Update failed."
 msgstr "更新失败。"
 
@@ -2289,7 +2286,7 @@ msgstr "VLESS"
 msgid "VMess"
 msgstr "VMess"
 
-#: htdocs/luci-static/resources/view/homeproxy/status.js:205
+#: htdocs/luci-static/resources/view/homeproxy/status.js:190
 msgid "Version"
 msgstr "版本"
 
@@ -2308,7 +2305,7 @@ msgid ""
 "not appear."
 msgstr "正在等待登录链接。若一直未显示，请检查与控制服务器的连接。"
 
-#: htdocs/luci-static/resources/view/homeproxy/status.js:300
+#: htdocs/luci-static/resources/view/homeproxy/status.js:285
 msgid "Warn"
 msgstr "警告"
 
@@ -2317,7 +2314,7 @@ msgstr "警告"
 msgid "WebSocket"
 msgstr "WebSocket"
 
-#: htdocs/luci-static/resources/view/homeproxy/status.js:55
+#: htdocs/luci-static/resources/view/homeproxy/status.js:40
 msgid "Website"
 msgstr "网站"
 
@@ -2346,7 +2343,7 @@ msgstr "WireGuard 要求 base64 编码的私钥。"
 msgid "XUDP (Xray-core)"
 msgstr "XUDP (Xray-core)"
 
-#: htdocs/luci-static/resources/view/homeproxy/status.js:40
+#: htdocs/luci-static/resources/view/homeproxy/status.js:25
 msgid "YouTube"
 msgstr "YouTube"
 
@@ -2405,11 +2402,11 @@ msgstr "非空值"
 msgid "packet addr (v2ray-core v5+)"
 msgstr "packet addr (v2ray-core v5+)"
 
-#: htdocs/luci-static/resources/view/homeproxy/status.js:410
+#: htdocs/luci-static/resources/view/homeproxy/status.js:400
 msgid "sing-box Client"
 msgstr "sing-box 客户端"
 
-#: htdocs/luci-static/resources/view/homeproxy/status.js:413
+#: htdocs/luci-static/resources/view/homeproxy/status.js:403
 msgid "sing-box Server"
 msgstr "sing-box 服务端"
 

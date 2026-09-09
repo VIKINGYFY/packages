@@ -23,11 +23,11 @@ function hasKernelModule(kmod) {
 const RESOURCES = {
 	geoip_cn: {
 		source: 'https://cdn.jsdelivr.net/gh/SagerNet/sing-geoip@rule-set/geoip-cn.srs',
-		version: `${HP_DIR}/resources/geoip_cn.ver`
+		version: `${HP_DIR}/diversion/geoip_cn.ver`
 	},
 	geosite_cn: {
 		source: 'https://cdn.jsdelivr.net/gh/SagerNet/sing-geosite@rule-set-unstable/geosite-cn.srs',
-		version: `${HP_DIR}/resources/geosite_cn.ver`
+		version: `${HP_DIR}/diversion/geosite_cn.ver`
 	},
 	dashboard: {
 		source: 'https://codeload.github.com/SagerNet/sing-box-dashboard/zip/refs/heads/gh-pages',
@@ -183,7 +183,7 @@ const methods = {
 					error: `domain ${conflict.left.value} conflicts with ${conflict.right.value}`
 				};
 
-			system(`mkdir -p ${HP_DIR}/resources/diversion`);
+			system(`mkdir -p ${HP_DIR}/diversion`);
 			let staged = [];
 			for (let id in keys(changes)) {
 				const file = domainListPath(id), temporary = file + '.new';

@@ -14,21 +14,6 @@
 'require ui';
 'require view';
 
-/* Thanks to luci-app-aria2 */
-const css = '				\
-#log_textarea {				\
-	padding: 10px;			\
-	text-align: left;		\
-}					\
-#log_textarea pre {			\
-	padding: .5rem;			\
-	word-break: break-all;		\
-	margin: 0;			\
-}					\
-.description {				\
-	background-color: #33ccff;	\
-}';
-
 const hp_dir = '/var/run/homeproxy';
 
 const connectionSites = [
@@ -330,39 +315,44 @@ function getRuntimeLog(o, name, _option_index, section_id, _in_table) {
 		expect: { '': {} }
 	});
 
-	const log_textarea = E('div', { 'id': 'log_textarea' },
-		E('img', {
-			'src': L.resource('icons/loading.svg'),
-			'alt': _('Loading'),
-			'style': 'vertical-align:middle'
-		}, _('Collecting data...'))
-	);
+	const log_textarea = E('textarea', {
+		'id': filename + '-log',
+		'class': 'cbi-input-textarea',
+		'aria-label': _('%s Log').format(name),
+		'readonly': true,
+		'wrap': 'off',
+		'spellcheck': 'false',
+		'rows': 20,
+		'style': 'width:100%; font-family:monospace; white-space:pre; overflow:auto;'
+	}, [ _('Collecting data...') ]);
 
-	let log;
+	function updateLog(content) {
+		if (log_textarea.value === content)
+			return;
+		const focused = document.activeElement === log_textarea;
+		const start = log_textarea.selectionStart, end = log_textarea.selectionEnd;
+		const direction = log_textarea.selectionDirection;
+		const top = log_textarea.scrollTop, left = log_textarea.scrollLeft;
+		log_textarea.value = content;
+		if (focused)
+			log_textarea.setSelectionRange(start, end, direction);
+		log_textarea.scrollTop = top;
+		log_textarea.scrollLeft = left;
+	}
+
 	poll.add(L.bind(() => {
 		return fs.read_direct(String.format('%s/%s.log', hp_dir, filename), 'text')
 		.then((res) => {
-			log = E('pre', { 'wrap': 'pre' }, [
-				res.trim() || _('Log is empty.')
-			]);
-
-			dom.content(log_textarea, log);
+			updateLog(res || _('Log is empty.'));
 		}).catch((err) => {
 			if (err.toString().includes('NotFoundError'))
-				log = E('pre', { 'wrap': 'pre' }, [
-					_('Log file does not exist.')
-				]);
+				updateLog(_('Log file does not exist.'));
 			else
-				log = E('pre', { 'wrap': 'pre' }, [
-					_('Unknown error: %s.').format(err)
-				]);
-
-			dom.content(log_textarea, log);
+				updateLog(_('Unknown error: %s.').format(err));
 		});
 	}));
 
 	return E([
-		E('style', [ css ]),
 		E('div', {'class': 'cbi-map'}, [
 			E('h3', {'name': 'content', 'style': 'align-items: center; display: flex;'}, [
 				_('%s Log').format(name),
