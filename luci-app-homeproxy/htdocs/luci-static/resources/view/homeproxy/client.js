@@ -6,6 +6,7 @@
 
 'use strict';
 'require form';
+'require dom';
 'require network';
 'require poll';
 'require rpc';
@@ -20,32 +21,81 @@
 
 const callReadDomainList = rpc.declare({
 	object: 'luci.homeproxy',
-	method: 'acllist_read',
-	params: ['type'],
+	method: 'domainlist_read',
+	params: ['id'],
 	expect: { '': {} }
 });
 
-const callWriteDomainList = rpc.declare({
+const callWriteDomainLists = rpc.declare({
 	object: 'luci.homeproxy',
-	method: 'acllist_write',
-	params: ['type', 'content'],
+	method: 'domainlist_write',
+	params: ['lists', 'routing_mode'],
 	expect: { '': {} }
 });
 
-function normalizeDomainList(value) {
-	value = (value || '').trim().replace(/\r\n?/g, '\n');
-	return value ? value + '\n' : '';
+function parseDomainList(value) {
+	let suffixes = [], keywords = [], normalized = [], seen = Object.create(null);
+	for (let item of (value || '').replace(/\r\n?/g, '\n').split('\n')) {
+		item = item.trim().toLowerCase();
+		if (!item)
+			continue;
+		item = item.replace(/^\.+|\.+$/g, '');
+		if (!item)
+			return { error: _('Expecting: %s').format(_('valid hostname')) };
+		if (!stubValidator.apply('hostname', item))
+			return { error: _('Expecting: %s').format(_('valid hostname')) };
+		if (seen[item])
+			continue;
+
+		seen[item] = true;
+		normalized.push(item);
+		(item.includes('.') ? suffixes : keywords).push(item);
+	}
+
+	return {
+		content: normalized.length ? normalized.join('\n') + '\n' : '',
+		suffixes,
+		keywords
+	};
 }
 
-function writeDomainList(type, checksumOption, value) {
-	const content = normalizeDomainList(value);
+function domainSuffixOverlap(left, right) {
+	const endsWithDomain = (value, suffix) =>
+		value === suffix || value.endsWith('.' + suffix);
+	return endsWithDomain(left, right) || endsWithDomain(right, left);
+}
 
-	return callWriteDomainList(type, content).then((result) => {
-		if (!result.result)
-			throw new Error(_('Failed to save domain list.'));
-		uci.set('homeproxy', 'control', checksumOption, hp.calcStringMD5(content));
-		return result;
-	});
+function findDomainListConflict(groups) {
+	let entries = [];
+	for (let group of groups) {
+		for (let value of group.suffixes)
+			entries.push({ group, type: 'suffix', value });
+		for (let value of group.keywords)
+			entries.push({ group, type: 'keyword', value });
+	}
+
+	for (let i = 0; i < entries.length; i++) {
+		for (let j = 0; j < i; j++) {
+			const left = entries[i], right = entries[j];
+			if (left.group.id === right.group.id)
+				continue;
+
+			let overlap;
+			if (left.type === 'keyword' || right.type === 'keyword') {
+				const keyword = left.type === 'keyword' ? left.value : right.value;
+				const other = left.type === 'keyword' ? right.value : left.value;
+				overlap = other.includes(keyword) ||
+					(right.type === 'keyword' && keyword.includes(other));
+			} else {
+				overlap = domainSuffixOverlap(left.value, right.value);
+			}
+
+			if (overlap)
+				return { left, right };
+		}
+	}
+
+	return null;
 }
 
 const callCurrentNode = rpc.declare({
@@ -112,6 +162,84 @@ return view.extend({
 
 		m = new form.Map('homeproxy', _('HomeProxy'),
 			_('The modern ImmortalWRT proxy platform for ARM64/AMD64. Powered by Sing-Box/TUN/AI Edition'));
+
+		let domainListCache = Object.create(null),
+		    pendingDomainLists = Object.create(null);
+
+		function loadDomainList(id) {
+			if (Object.prototype.hasOwnProperty.call(pendingDomainLists, id))
+				return Promise.resolve(pendingDomainLists[id]);
+
+			return L.resolveDefault(callReadDomainList(id), {}).then((res) => {
+				domainListCache[id] = res.content || '';
+				return domainListCache[id];
+			});
+		}
+
+		function stageDomainList(id, section, checksumOption, value) {
+			const parsed = parseDomainList(value);
+			if (parsed.error)
+				throw new TypeError(parsed.error);
+
+			pendingDomainLists[id] = parsed.content;
+			domainListCache[id] = parsed.content;
+			uci.set('homeproxy', section, checksumOption, hp.calcStringMD5(parsed.content));
+		}
+
+		function domainListContent(id) {
+			return Object.prototype.hasOwnProperty.call(pendingDomainLists, id) ?
+				pendingDomainLists[id] : (domainListCache[id] || '');
+		}
+
+		function validateDomainLists() {
+			const routingMode = uci.get('homeproxy', 'config', 'routing_mode') || 'bypass_mainland_china';
+			let groups = [ { id: 'direct', label: _('Direct List') } ];
+			if (routingMode === 'bypass_mainland_china')
+				groups.push({ id: 'proxy', label: _('Proxy List') });
+			uci.sections('homeproxy', 'domain_route', (section) => {
+				groups.push({
+					id: section['.name'],
+					label: section.label || section['.name']
+				});
+			});
+
+			for (let group of groups) {
+				const parsed = parseDomainList(domainListContent(group.id));
+				if (parsed.error)
+					throw new TypeError(_('%s contains an invalid domain.').format(group.label));
+				Object.assign(group, parsed);
+			}
+
+			const conflict = findDomainListConflict(groups);
+			if (conflict)
+				throw new TypeError(
+					_('Domain %s in %s conflicts with %s in %s.').format(
+						conflict.left.value, conflict.left.group.label,
+						conflict.right.value, conflict.right.group.label
+					)
+				);
+
+			return routingMode;
+		}
+
+		const saveMap = m.save;
+		m.save = function(cb, silent) {
+			return saveMap.call(this, () => Promise.resolve(
+				typeof cb === 'function' ? cb() : null
+			).then(() => {
+				const routingMode = validateDomainLists();
+				const ids = Object.keys(pendingDomainLists);
+				if (!ids.length)
+					return null;
+
+				const lists = Object.assign({}, pendingDomainLists);
+				return callWriteDomainLists(lists, routingMode).then((result) => {
+					if (!result.result)
+						throw new Error(result.error || _('Failed to save domain lists.'));
+					pendingDomainLists = Object.create(null);
+				});
+			}), silent);
+		};
 
 		s = m.section(form.TypedSection);
 		s.render = function () {
@@ -459,67 +587,120 @@ return view.extend({
 		so.retain = true;
 		/* WAN IP policy end */
 
-		/* Proxy domain list start */
-		ss.tab('proxy_domain_list', _('Proxy Domain List'));
-
-		so = ss.taboption('proxy_domain_list', form.TextValue, '_proxy_domain_list');
-		so.rows = 10;
-		so.monospace = true;
-		so.datatype = 'hostname';
-		so.depends('homeproxy.config.routing_mode', 'bypass_mainland_china');
-		so.retain = true;
-		so.load = function(/* ... */) {
-			return L.resolveDefault(callReadDomainList('proxy_list')).then((res) => {
-				return res.content;
-			}, {});
-		}
-		so.write = function(_section_id, value) {
-			return writeDomainList('proxy_list', 'proxy_domain_list_checksum', value);
-		}
-		so.remove = function(/* ... */) {
-			return writeDomainList('proxy_list', 'proxy_domain_list_checksum', '');
-		}
-		so.validate = function(section_id, value) {
-			if (section_id && value)
-				for (let i of value.split('\n'))
-					if (i && !stubValidator.apply('hostname', i))
-						return _('Expecting: %s').format(_('valid hostname'));
-
-			return true;
-		}
-		/* Proxy domain list end */
-
-		/* Direct domain list start */
-		ss.tab('direct_domain_list', _('Direct Domain List'));
-
-		so = ss.taboption('direct_domain_list', form.TextValue, '_direct_domain_list');
-		so.rows = 10;
-		so.monospace = true;
-		so.datatype = 'hostname';
-		so.depends('homeproxy.config.routing_mode', 'bypass_mainland_china');
-		so.depends('homeproxy.config.routing_mode', 'global');
-		so.retain = true;
-		so.load = function(/* ... */) {
-			return L.resolveDefault(callReadDomainList('direct_list')).then((res) => {
-				return res.content;
-			}, {});
-		}
-		so.write = function(_section_id, value) {
-			return writeDomainList('direct_list', 'direct_domain_list_checksum', value);
-		}
-		so.remove = function(/* ... */) {
-			return writeDomainList('direct_list', 'direct_domain_list_checksum', '');
-		}
-		so.validate = function(section_id, value) {
-			if (section_id && value)
-				for (let i of value.split('\n'))
-					if (i && !stubValidator.apply('hostname', i))
-						return _('Expecting: %s').format(_('valid hostname'));
-
-			return true;
-		}
-		/* Direct domain list end */
 		/* ACL settings end */
+
+		/* Diversion settings start */
+		s.tab('diversion', _('Diversion Control'));
+
+		o = s.taboption('diversion', form.SectionValue, '_diversion', form.NamedSection, 'diversion', 'homeproxy');
+		o.depends('routing_mode', 'bypass_mainland_china');
+		o.depends('routing_mode', 'global');
+		ss = o.subsection;
+
+		function configureDomainList(option, id, section, checksumOption) {
+			option.rows = 12;
+			option.monospace = true;
+			option.rmempty = true;
+			option.retain = true;
+			option.load = function(/* ... */) {
+				return loadDomainList(id);
+			};
+			option.write = function(_section_id, value) {
+				stageDomainList(id, section, checksumOption, value);
+			};
+			option.remove = function(/* ... */) {
+				stageDomainList(id, section, checksumOption, '');
+			};
+			option.validate = function(_section_id, value) {
+				return parseDomainList(value).error || true;
+			};
+		}
+
+		ss.tab('direct_list', _('Direct List'));
+		so = ss.taboption('direct_list', form.TextValue, '_direct_list', null,
+			_('Domains in this list always use direct routing.'));
+		configureDomainList(so, 'direct', 'diversion', 'direct_list_checksum');
+
+		ss.tab('proxy_list', _('Proxy List'));
+		so = ss.taboption('proxy_list', form.TextValue, '_proxy_list', null,
+			_('Domains in this list always use the main node.'));
+		so.depends('homeproxy.config.routing_mode', 'bypass_mainland_china');
+		configureDomainList(so, 'proxy', 'diversion', 'proxy_list_checksum');
+
+		ss.tab('diversion_list', _('Diversion List'));
+		so = ss.taboption('diversion_list', form.SectionValue, '_domain_routes',
+			form.GridSection, 'domain_route', _('Diversion Groups'));
+		let domainRoutes = so.subsection;
+		domainRoutes.anonymous = true;
+		domainRoutes.addremove = true;
+		domainRoutes.addbtntitle = _('Add diversion group');
+		domainRoutes.nodescriptions = true;
+		let domainRouteSerial = 0;
+		function newDomainRouteId() {
+			let id;
+			do {
+				id = 'route_' + Date.now().toString(36) + (domainRouteSerial++).toString(36);
+			} while (uci.get('homeproxy', id) != null);
+			return id;
+		}
+
+		/* Keep diversion group IDs stable across UCI reloads so their files remain addressable. */
+		domainRoutes.handleAdd = function(/* ev */) {
+			const config_name = this.uciconfig ?? this.map.config;
+			const section_id = this.map.data.add(config_name, this.sectiontype, newDomainRouteId());
+			const mapNode = this.getPreviousModalMap();
+			const prevMap = mapNode ? dom.findClassInstance(mapNode) : this.map;
+
+			prevMap.addedSection = section_id;
+			return this.renderMoreOptionsModal(section_id);
+		};
+
+		let dro = domainRoutes.option(form.Value, 'label', _('Name'));
+		dro.rmempty = false;
+
+		dro = domainRoutes.option(form.ListValue, 'node', _('Node'));
+		for (let i in proxy_nodes)
+			dro.value(i, proxy_nodes[i]);
+		dro.rmempty = false;
+		dro.textvalue = function(section_id) {
+			const value = this.cfgvalue(section_id);
+			return value != null ? (proxy_nodes[value] || value) : null;
+		};
+
+		dro = domainRoutes.option(form.TextValue, '_domain_list', _('Domain List'),
+			_('Entries containing a dot use domain suffix matching; other entries use keyword matching.'));
+		dro.modalonly = true;
+		dro.rows = 12;
+		dro.monospace = true;
+		dro.rmempty = true;
+		dro.load = function(section_id) {
+			return loadDomainList(section_id);
+		};
+		dro.write = function(section_id, value) {
+			stageDomainList(section_id, section_id, 'list_checksum', value);
+		};
+		dro.remove = function(section_id) {
+			stageDomainList(section_id, section_id, 'list_checksum', '');
+		};
+		dro.validate = function(_section_id, value) {
+			return parseDomainList(value).error || true;
+		};
+
+		const removeDomainRoute = domainRoutes.handleRemove;
+		domainRoutes.handleRemove = function(section_id, ev) {
+			delete pendingDomainLists[section_id];
+			return removeDomainRoute.call(this, section_id, ev).then(() => {
+				const lists = {};
+				lists[section_id] = '';
+				const routingMode = uci.get('homeproxy', 'config', 'routing_mode') || 'bypass_mainland_china';
+				return callWriteDomainLists(lists, routingMode);
+			}).then((result) => {
+				if (!result.result)
+					throw new Error(result.error || _('Failed to save domain lists.'));
+				domainListCache[section_id] = '';
+			});
+		};
+		/* Diversion settings end */
 
 		return m.render();
 	}

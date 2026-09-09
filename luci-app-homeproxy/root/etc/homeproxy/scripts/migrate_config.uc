@@ -140,8 +140,12 @@ for (let pair in [
 
 deleteOptions('control', [
 	'lan_proxy_mode', 'lan_direct_ipv6_ips', 'lan_proxy_ipv6_ips',
-	'lan_global_proxy_ipv6_ips', 'lan_gaming_mode_ipv6_ips'
+	'lan_global_proxy_ipv6_ips', 'lan_gaming_mode_ipv6_ips',
+	'direct_domain_list_checksum', 'proxy_domain_list_checksum'
 ]);
+
+if (isEmpty(uci.get(uciconfig, 'diversion')))
+	uci.set(uciconfig, 'diversion', 'homeproxy');
 
 for (let sectionType in ['routing_node', 'routing_rule', 'dns_server', 'dns_rule', 'ruleset'])
 	deleteSections(sectionType);
@@ -187,8 +191,8 @@ if (subscriptionUserAgent === 'v2rayN/7.23.4' ||
 setDefault('infra', 'ntp_server', 'nil');
 if (isEmpty(uci.get(uciconfig, 'infra', 'udp_timeout')))
 	uci.set(uciconfig, 'infra', 'udp_timeout', '300');
-setDefault('config', 'main_urltest_interval', '90');
-setDefault('config', 'main_urltest_tolerance', '50');
+setDefault('config', 'main_urltest_interval', '120');
+setDefault('config', 'main_urltest_tolerance', '60');
 setDefault('config', 'main_urltest_interrupt_exist_connections', '0');
 setDefault('config', 'log_level', 'warn');
 setDefault('config', 'tcpip_stack', 'mixed');

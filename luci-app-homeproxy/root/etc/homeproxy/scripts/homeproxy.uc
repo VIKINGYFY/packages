@@ -4,7 +4,8 @@
  * Copyright (C) 2023 ImmortalWrt.org
  */
 
-import { popen } from 'fs';
+import { glob, popen, readfile } from 'fs';
+import { md5 } from 'digest';
 import { urldecode_params } from 'luci.http';
 
 /* Global variables start */
@@ -89,6 +90,98 @@ export function normalizeList(value) {
 	if (isEmpty(value))
 		return [];
 	return (type(value) === 'array') ? value : [value];
+};
+
+export function normalizeDomainList(content) {
+	let domains = [], seen = {};
+
+	for (let domain in split(content || '', /[\r\n]+/)) {
+		domain = lc(replace(trim(domain), /^\.+|\.+$/g, ''));
+		if (!domain || (domain in seen))
+			continue;
+
+		seen[domain] = true;
+		push(domains, domain);
+	}
+
+	return domains;
+};
+
+function domainListPath(id) {
+	if (id === 'direct')
+		return `${HP_DIR}/resources/direct_list.txt`;
+	if (id === 'proxy')
+		return `${HP_DIR}/resources/proxy_list.txt`;
+	return `${HP_DIR}/resources/diversion/${id}.txt`;
+};
+
+/* Resolve resources left by anonymous UCI sections from older releases. */
+export function resolveDomainListPath(id, checksum) {
+	const path = domainListPath(id);
+	if (readfile(path) !== null || !checksum || !match(id, /^cfg[0-9a-f]+$/))
+		return path;
+
+	let matchPath = null;
+	for (let candidate in glob(`${HP_DIR}/resources/diversion/*.txt`)) {
+		const content = readfile(candidate);
+		if (content !== null && md5(content) === checksum) {
+			if (matchPath !== null)
+				return path;
+			matchPath = candidate;
+		}
+	}
+
+	return matchPath || path;
+};
+
+export function splitDomainList(domains) {
+	let suffixes = [], keywords = [];
+	for (let domain in domains)
+		push(match(domain, /\./) ? suffixes : keywords, domain);
+	return { suffixes, keywords };
+};
+
+function domainSuffixOverlap(left, right) {
+	function endsWithDomain(value, suffix) {
+		const offset = length(value) - length(suffix);
+		return offset >= 0 && substr(value, offset) === suffix &&
+			(offset === 0 || substr(value, offset - 1, 1) === '.');
+	}
+
+	return endsWithDomain(left, right) || endsWithDomain(right, left);
+}
+
+export function findDomainGroupConflict(groups) {
+	let entries = [];
+	for (let group in groups) {
+		for (let suffix in group.suffixes)
+			push(entries, { group: group.id, type: 'suffix', value: suffix });
+		for (let keyword in group.keywords)
+			push(entries, { group: group.id, type: 'keyword', value: keyword });
+	}
+
+	for (let i = 0; i < length(entries); i++) {
+		for (let j = 0; j < i; j++) {
+			const left = entries[i], right = entries[j];
+			if (left.group === right.group)
+				continue;
+
+			let overlap;
+			if (left.type === 'keyword' || right.type === 'keyword') {
+				const keyword = left.type === 'keyword' ? left.value : right.value;
+				const other = left.type === 'keyword' ? right.value : left.value;
+				overlap = index(other, keyword) >= 0 ||
+					(right.type === 'keyword' && index(keyword, other) >= 0);
+			} else {
+				overlap = domainSuffixOverlap(left.value, right.value);
+			}
+
+			if (overlap)
+				return { left, right };
+		}
+	}
+
+	return null;
 };
 
 export function resolveLanPolicy(uci, config) {
@@ -206,12 +299,12 @@ export function reconcileUrltestNodes(uci, config, logger) {
 	};
 };
 
-export function hasForceProxyRules(uci, config, proxyDomainList) {
+export function hasForceProxyRules(uci, config, hasDomainProxySuffixes) {
 	const lanPolicy = resolveLanPolicy(uci, config);
 	if (lanPolicy.mode === 'global')
 		return false;
 
-	if (!isEmpty(proxyDomainList))
+	if (hasDomainProxySuffixes)
 		return true;
 
 	let options = [

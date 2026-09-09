@@ -4,7 +4,7 @@
 
 include $(TOPDIR)/rules.mk
 
-LUCI_TITLE:=为 ARM64/AMD64 设计的现代 ImmortalWRT 代理平台。 Powered by Sing-Box/TUN/AI Edition
+LUCI_TITLE:=The modern ImmortalWRT proxy platform for ARM64/AMD64. Powered by Sing-Box/TUN/AI Edition
 LUCI_PKGARCH:=all
 LUCI_DEPENDS:= \
 	+luci-base \
@@ -20,8 +20,8 @@ LUCI_DEPENDS:= \
 LUCI_EXTRA_DEPENDS:=sing-box (>=1.14.0)
 
 PKG_NAME:=luci-app-homeproxy
-PKG_VERSION:=20260908
-PKG_RELEASE:=7
+PKG_VERSION:=20260909
+PKG_RELEASE:=3
 PKG_PO_VERSION:=$(PKG_VERSION)-r$(PKG_RELEASE)
 
 define Package/luci-app-homeproxy/conffiles
@@ -32,6 +32,7 @@ define Package/luci-app-homeproxy/conffiles
 /etc/homeproxy/ruleset/
 /etc/homeproxy/resources/direct_list.txt
 /etc/homeproxy/resources/proxy_list.txt
+/etc/homeproxy/resources/diversion/
 endef
 
 include $(TOPDIR)/feeds/luci/luci.mk

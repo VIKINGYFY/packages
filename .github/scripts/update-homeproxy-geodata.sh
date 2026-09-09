@@ -7,17 +7,14 @@ REPO_ROOT="${REPO_ROOT:-$(cd -- "$SCRIPT_DIR/../.." && pwd)}"
 RESOURCES_DIR="$REPO_ROOT/luci-app-homeproxy/root/etc/homeproxy/resources"
 DASHBOARD_DIR="$REPO_ROOT/luci-app-homeproxy/root/etc/homeproxy/dashboard"
 
-IP_REPO="${IP_REPO:-Loyalsoldier/surge-rules}"
-IP_BRANCH="${IP_BRANCH:-release}"
-GEOSITE_REPO="${GEOSITE_REPO:-SagerNet/sing-geosite}"
-GEOSITE_BRANCH="${GEOSITE_BRANCH:-rule-set-unstable}"
-IP_SOURCE="${IP_SOURCE:-https://cdn.jsdelivr.net/gh/${IP_REPO}@${IP_BRANCH}/cncidr.txt}"
-GEOSITE_SOURCE="${GEOSITE_SOURCE:-https://cdn.jsdelivr.net/gh/${GEOSITE_REPO}@${GEOSITE_BRANCH}/geosite-cn.srs}"
-IP_VERSION_URL="${IP_VERSION_URL:-https://github.com/${IP_REPO}/releases/latest}"
-GEOSITE_VERSION_URL="${GEOSITE_VERSION_URL:-https://github.com/${GEOSITE_REPO}/releases/latest}"
+GEOIP_SOURCE="${GEOIP_SOURCE:-https://cdn.jsdelivr.net/gh/SagerNet/sing-geoip@rule-set/geoip-cn.srs}"
+GEOIP_VERSION_URL="${GEOIP_VERSION_URL:-https://github.com/SagerNet/sing-geoip/releases/latest}"
+GEOSITE_SOURCE="${GEOSITE_SOURCE:-https://cdn.jsdelivr.net/gh/SagerNet/sing-geosite@rule-set-unstable/geosite-cn.srs}"
+GEOSITE_VERSION_URL="${GEOSITE_VERSION_URL:-https://github.com/SagerNet/sing-geosite/releases/latest}"
 DASHBOARD_SOURCE="${DASHBOARD_SOURCE:-https://codeload.github.com/SagerNet/sing-box-dashboard/zip/refs/heads/gh-pages}"
 DASHBOARD_VERSION_URL="${DASHBOARD_VERSION_URL:-https://github.com/SagerNet/sing-box-dashboard/commits/gh-pages.atom}"
 USER_AGENT="${USER_AGENT:-HomeProxy resource preset}"
+SING_BOX="${SING_BOX:-}"
 
 TEMP_DIR="$(mktemp -d)" || {
 	echo "Failed to prepare temporary resource directory." >&2
@@ -79,6 +76,17 @@ download() {
 		test -s "$2"
 }
 
+validate_rule_set() {
+	local rule_set="$1"
+
+	[[ -s "$rule_set" ]] || return 1
+	[[ "$(head -c 3 "$rule_set")" == SRS ]] || return 1
+	if [[ -n "$SING_BOX" && -x "$SING_BOX" ]]; then
+		"$SING_BOX" rule-set decompile "$rule_set" \
+			-o "$TEMP_DIR/$(basename "$rule_set").json" >/dev/null 2>&1 || return 1
+	fi
+}
+
 normalize_dashboard_javascript() {
 	local dashboard_root="$1"
 	local file
@@ -96,67 +104,38 @@ normalize_dashboard_javascript() {
 
 mkdir -p -- "$RESOURCES_DIR" "$DASHBOARD_DIR"
 update_failed=0
-ip_version=""
+geoip_version=""
 geosite_version=""
 dashboard_version=""
 
-ip_ready=1
-ip_version="$(fetch_release_version "$IP_VERSION_URL")" || ip_ready=0
-if [[ "$ip_ready" -eq 1 ]] && ! download "${IP_SOURCE}?v=${ip_version}" "$TEMP_DIR/cncidr.txt"; then
-	ip_ready=0
+geoip_ready=1
+geoip_version="$(fetch_release_version "$GEOIP_VERSION_URL")" || geoip_ready=0
+if [[ "$geoip_ready" -eq 1 ]] && \
+	! download "${GEOIP_SOURCE}?v=${geoip_version}" "$TEMP_DIR/geoip_cn.srs"; then
+	geoip_ready=0
 fi
-if [[ "$ip_ready" -eq 1 ]] && ! awk -F, \
-	-v ipv4="$TEMP_DIR/china_ip4.txt" -v ipv6="$TEMP_DIR/china_ip6.txt" '
-	$1 == "IP-CIDR" { print $2 > ipv4 }
-	$1 == "IP-CIDR6" { print $2 > ipv6 }
-' "$TEMP_DIR/cncidr.txt"; then
-	ip_ready=0
+if [[ "$geoip_ready" -eq 1 ]] && ! validate_rule_set "$TEMP_DIR/geoip_cn.srs"; then
+	geoip_ready=0
 fi
-[[ "$ip_ready" -eq 0 || -s "$TEMP_DIR/china_ip4.txt" ]] || ip_ready=0
-[[ "$ip_ready" -eq 0 || -s "$TEMP_DIR/china_ip6.txt" ]] || ip_ready=0
-if [[ "$ip_ready" -eq 1 ]] && ! awk '
-	BEGIN {
-		print "{\"version\":5,\"rules\":[{\"ip_cidr\":["
-		first = 1
-	}
-	NF {
-		printf "%s\"%s\"", first ? "" : ",", $0
-		first = 0
-	}
-	END { print "]}]}" }
-' "$TEMP_DIR/china_ip4.txt" "$TEMP_DIR/china_ip6.txt" > "$TEMP_DIR/geoip_cn.json"; then
-	ip_ready=0
+if [[ "$geoip_ready" -eq 1 ]] && \
+	! printf '%s\n' "$geoip_version" > "$TEMP_DIR/geoip_cn.ver"; then
+	geoip_ready=0
 fi
-[[ "$ip_ready" -eq 0 || -s "$TEMP_DIR/geoip_cn.json" ]] || ip_ready=0
-if [[ "$ip_ready" -eq 1 ]] && ! jq -e '
-	.version == 5 and
-	(.rules | type == "array" and length == 1) and
-	(.rules[0].ip_cidr |
-		type == "array" and length > 0 and
-		all(.[]; type == "string" and test("/[0-9]+$")))
-' "$TEMP_DIR/geoip_cn.json" >/dev/null; then
-	ip_ready=0
+if [[ "$geoip_ready" -eq 1 ]] && \
+	! install -m 0644 "$TEMP_DIR/geoip_cn.srs" "$RESOURCES_DIR/geoip_cn.srs"; then
+	geoip_ready=0
 fi
-if [[ "$ip_ready" -eq 1 ]]; then
-	printf '%s\n' "$ip_version" > "$TEMP_DIR/china_ip4.ver"
-	printf '%s\n' "$ip_version" > "$TEMP_DIR/china_ip6.ver"
-	ip_data_changed=1
-	if cmp -s "$TEMP_DIR/china_ip4.txt" "$RESOURCES_DIR/china_ip4.txt" && \
-	   cmp -s "$TEMP_DIR/china_ip6.txt" "$RESOURCES_DIR/china_ip6.txt"; then
-		ip_data_changed=0
-	fi
-	for file in china_ip4.txt china_ip4.ver china_ip6.txt china_ip6.ver geoip_cn.json; do
-		install -m 0644 "$TEMP_DIR/$file" "$RESOURCES_DIR/$file" || ip_ready=0
-	done
+if [[ "$geoip_ready" -eq 1 ]] && \
+	! install -m 0644 "$TEMP_DIR/geoip_cn.ver" "$RESOURCES_DIR/geoip_cn.ver"; then
+	geoip_ready=0
 fi
-if [[ "$ip_ready" -eq 1 ]]; then
-	if [[ "$ip_data_changed" -eq 0 ]]; then
-		echo "HomeProxy resources: china_ip $ip_version (CIDR data unchanged)"
-	else
-		echo "HomeProxy resources: china_ip $ip_version (CIDR data updated)"
-	fi
+if [[ "$geoip_ready" -eq 1 ]]; then
+	rm -f -- "$RESOURCES_DIR/china_ip4.txt" "$RESOURCES_DIR/china_ip4.ver" \
+		"$RESOURCES_DIR/china_ip6.txt" "$RESOURCES_DIR/china_ip6.ver" \
+		"$RESOURCES_DIR/geoip_cn.json"
+	echo "HomeProxy resources: geoip_cn $geoip_version"
 else
-	warn "Failed to update HomeProxy IP resources; continuing."
+	warn "Failed to update HomeProxy geoip resource; continuing."
 	update_failed=1
 fi
 
@@ -164,7 +143,7 @@ geosite_ready=1
 geosite_version="$(fetch_release_version "$GEOSITE_VERSION_URL")" || geosite_ready=0
 if [[ "$geosite_ready" -eq 1 ]] && \
 	download "${GEOSITE_SOURCE}?v=${geosite_version}" "$TEMP_DIR/geosite_cn.srs" && \
-	[[ "$(dd if="$TEMP_DIR/geosite_cn.srs" bs=1 count=3 status=none)" == SRS ]] && \
+	validate_rule_set "$TEMP_DIR/geosite_cn.srs" && \
 	printf '%s\n' "$geosite_version" > "$TEMP_DIR/geosite_cn.ver" && \
 	install -m 0644 "$TEMP_DIR/geosite_cn.srs" "$RESOURCES_DIR/geosite_cn.srs" && \
 	install -m 0644 "$TEMP_DIR/geosite_cn.ver" "$RESOURCES_DIR/geosite_cn.ver"; then
@@ -218,7 +197,7 @@ if [[ "$dashboard_ready" -ne 1 ]]; then
 	update_failed=1
 fi
 
-resource_version="${geosite_version:-${ip_version:-${dashboard_version:-unknown}}}"
+resource_version="${geosite_version:-${geoip_version:-${dashboard_version:-unknown}}}"
 set_output version "$resource_version"
 if [[ "$update_failed" -ne 0 ]]; then
 	echo "HomeProxy resource update failed; refusing to commit partial data." >&2

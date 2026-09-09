@@ -7,11 +7,13 @@
 
 'use strict';
 
-import { lstat, open, popen, readfile, writefile } from 'fs';
+import { lstat, open, popen, readfile, rename, unlink, writefile } from 'fs';
 import { cursor } from 'uci';
 
 import {
-	HP_DIR, RUN_DIR, isBinary, removeBlankAttrs, renderEndpoint, renderOutbound, shellQuote
+	HP_DIR, RUN_DIR, findDomainGroupConflict, isBinary, normalizeDomainList,
+	removeBlankAttrs, renderEndpoint, renderOutbound, resolveDomainListPath,
+	shellQuote, splitDomainList, validation
 } from '/etc/homeproxy/scripts/homeproxy.uc';
 
 function hasKernelModule(kmod) {
@@ -41,37 +43,114 @@ const CONNECTION_SITES = {
 	youtube: 'https://www.youtube.com/'
 };
 
+function validDomainListId(id) {
+	return type(id) === 'string' && match(id, /^[A-Za-z0-9_]+$/);
+}
+
+function normalizeDomainContent(content) {
+	if (isBinary(content))
+		return null;
+
+	for (let domain in split(content || '', /[\r\n]+/)) {
+		domain = trim(domain);
+		if (domain && !replace(domain, /^\.+|\.+$/g, ''))
+			return null;
+	}
+
+	let domains = normalizeDomainList(content);
+	for (let domain in domains)
+		if (!validation('hostname', domain))
+			return null;
+	return length(domains) ? join('\n', domains) + '\n' : '';
+}
+
+function validateDomainLists(changes, routingMode) {
+	const uci = cursor();
+	uci.load('homeproxy');
+
+	let groups = [], seen = {};
+	function appendGroup(id, checksum) {
+		if (id in seen)
+			return;
+		seen[id] = true;
+
+		const content = (id in changes) ? changes[id] : readfile(resolveDomainListPath(id, checksum));
+		const domains = normalizeDomainList(content);
+		if (length(domains))
+			push(groups, { id, ...splitDomainList(domains) });
+	}
+
+	appendGroup('direct');
+	if (routingMode === 'bypass_mainland_china')
+		appendGroup('proxy');
+	uci.foreach('homeproxy', 'domain_route', (section) =>
+		appendGroup(section['.name'], section.list_checksum));
+	for (let id in keys(changes))
+		if (!(id in ['direct', 'proxy']))
+			appendGroup(id);
+
+	return findDomainGroupConflict(groups);
+}
+
 const methods = {
-	acllist_read: {
-		args: { type: 'type' },
+	domainlist_read: {
+		args: { id: 'id' },
 		call: function(req) {
-			if (index(['direct_list', 'proxy_list'], req.args?.type) === -1)
+			const id = req.args?.id;
+			if (!validDomainListId(id))
 				return { content: null, error: 'illegal type' };
 
-			const filecontent = readfile(`${HP_DIR}/resources/${req.args?.type}.txt`);
+			const uci = cursor();
+			uci.load('homeproxy');
+			const section = uci.get_all('homeproxy', id);
+			const filecontent = readfile(resolveDomainListPath(id, section?.list_checksum));
 			return { content: filecontent };
 		}
 	},
-	acllist_write: {
-		args: { type: 'type', content: 'content' },
+	domainlist_write: {
+		args: { lists: {}, routing_mode: 'routing_mode' },
 		call: function(req) {
-			if (index(['direct_list', 'proxy_list'], req.args?.type) === -1)
-				return { result: false, error: 'illegal type' };
+			const lists = req.args?.lists;
+			const routingMode = req.args?.routing_mode;
+			if (type(lists) !== 'object' || !(routingMode in ['bypass_mainland_china', 'global']))
+				return { result: false, error: 'invalid domain list request' };
 
-			const file = `${HP_DIR}/resources/${req.args?.type}.txt`;
-			let content = (type(req.args?.content) === 'string') ? req.args.content : '';
+			let changes = {};
+			for (let id in keys(lists)) {
+				if (!validDomainListId(id) || type(lists[id]) !== 'string')
+					return { result: false, error: 'illegal domain list identifier' };
 
-			/* Sanitize content */
-			if (content) {
-				content = trim(content);
-				content = replace(content, /\r\n?/g, '\n');
-				if (!match(content, /\n$/))
-					content += '\n';
+				const content = normalizeDomainContent(lists[id]);
+				if (content === null)
+					return { result: false, error: `invalid domain in list ${id}` };
+				changes[id] = content;
 			}
 
-			system(`mkdir -p ${HP_DIR}/resources`);
-			if (writefile(file, content) === null)
-				return { result: false, error: 'failed to write domain list' };
+			const conflict = validateDomainLists(changes, routingMode);
+			if (conflict)
+				return {
+					result: false,
+					error: `domain ${conflict.left.value} conflicts with ${conflict.right.value}`
+				};
+
+			system(`mkdir -p ${HP_DIR}/resources/diversion`);
+			let staged = [];
+			for (let id in keys(changes)) {
+				const file = resolveDomainListPath(id), temporary = file + '.new';
+				if (writefile(temporary, changes[id]) === null) {
+					for (let path in staged)
+						unlink(path.temporary);
+					return { result: false, error: 'failed to write domain list' };
+				}
+				push(staged, { file, temporary });
+			}
+
+			for (let path in staged)
+				if (!rename(path.temporary, path.file)) {
+					for (let pending in staged)
+						unlink(pending.temporary);
+					return { result: false, error: 'failed to install domain list' };
+				}
 
 			return { result: true };
 		}

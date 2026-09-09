@@ -63,7 +63,7 @@ jobs:
           DEBIAN_FRONTEND: noninteractive
         run: |
           sudo apt-get -qq update
-          sudo apt-get -qq install --no-install-recommends curl jq unzip
+          sudo apt-get -qq install --no-install-recommends curl unzip
 
       - name: 检查并更新 HomeProxy 数据
         id: resources
