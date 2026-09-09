@@ -710,20 +710,7 @@ function parse_uri(uri) {
 
 			break;
 		case 'ss':
-			/* "Lovely" Shadowrocket format */
-			const ss_suri = split(uri[1], '#');
-			let ss_slabel = '';
-			if (length(ss_suri) <= 2) {
-				if (length(ss_suri) === 2)
-					ss_slabel = '#' + urlencode(ss_suri[1]);
-				if (decodeBase64Str(ss_suri[0]))
-					uri[1] = decodeBase64Str(ss_suri[0]) + ss_slabel;
-			}
-
-			/* Legacy format is not supported, it should be never appeared in modern subscriptions */
-			/* https://github.com/shadowsocks/shadowsocks-org/commit/78ca46cd6859a4e9475953ed34a2d301454f579e */
-
-			/* SIP002 format https://shadowsocks.org/guide/sip002.html */
+			/* SIP002 format https://shadowsocks.org/doc/sip002.html */
 			url = parseURL('http://' + uri[1]) || {};
 
 			let ss_userinfo = {};

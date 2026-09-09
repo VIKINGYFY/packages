@@ -196,17 +196,7 @@ function parseShareLink(uri, features) {
 			break;
 		case 'ss':
 			try {
-				/* "Lovely" Shadowrocket format */
-				try {
-					let suri = uri[1].split('#'), slabel = '';
-					if (suri.length <= 2) {
-						if (suri.length === 2)
-							slabel = '#' + suri[1];
-						uri[1] = hp.decodeBase64Str(suri[0]) + slabel;
-					}
-				} catch(e) { }
-
-				/* SIP002 format https://shadowsocks.org/guide/sip002.html */
+				/* SIP002 format https://shadowsocks.org/doc/sip002.html */
 				url = new URL('http://' + uri[1]);
 
 				let userinfo;
@@ -241,20 +231,7 @@ function parseShareLink(uri, features) {
 					shadowsocks_plugin_opts: plugin_opts
 				};
 			} catch(e) {
-				/* Legacy format https://github.com/shadowsocks/shadowsocks-org/commit/78ca46cd6859a4e9475953ed34a2d301454f579e */
-				uri = uri[1].split('@');
-				if (uri.length < 2)
-					return null;
-				else if (uri.length > 2)
-					uri = [ uri.slice(0, -1).join('@'), uri.slice(-1).toString() ];
-
-				config = {
-					type: 'shadowsocks',
-					address: uri[1].split(':')[0],
-					port: uri[1].split(':')[1],
-					shadowsocks_encrypt_method: uri[0].split(':')[0],
-					password: uri[0].split(':').slice(1).join(':')
-				};
+				return null;
 			}
 
 			break;

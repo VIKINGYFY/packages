@@ -25,7 +25,7 @@
 			},
 			"ubus": {
 				"luci.homeproxy": [
-					"certificate_write", "domainlist_write", "log_clean", "resources_update"
+					"certificate_write", "domainlist_remove", "domainlist_write", "log_clean", "resources_update"
 				]
 			},
 			"uci": [ "homeproxy" ]

@@ -14,7 +14,7 @@ import { cursor } from 'uci';
 import {
 	createNodeLabelRegistry, filterExistingNodes, findDomainGroupConflict,
 	hasForceProxyRules, isEmpty, normalizeDomainList, normalizeList, parseURL,
-	resolveDomainListPath, resolveLanPolicy, splitDomainList,
+	domainListPath, resolveLanPolicy, splitDomainList,
 	reserveUniqueLabel, strToBool, strToInt, strToTime,
 	removeBlankAttrs, renderEndpoint, renderOutbound, validation, HP_DIR, RUN_DIR
 } from 'homeproxy';
@@ -96,7 +96,7 @@ const dns_default_strategy = (ipv6_support !== '1') ? 'ipv4_only' : null;
 let domain_groups = [];
 
 function add_domain_group(id, kind, node) {
-	const domains = normalizeDomainList(readfile(resolveDomainListPath(id)));
+	const domains = normalizeDomainList(readfile(domainListPath(id)));
 	if (!length(domains))
 		return;
 
@@ -113,7 +113,7 @@ uci.foreach(uciconfig, 'domain_route', (cfg) => {
 	if (!match(id, /^[A-Za-z0-9_]+$/) || (id in ['direct', 'proxy']))
 		die(`Invalid diversion group identifier ${id}.`);
 
-	const domains = normalizeDomainList(readfile(resolveDomainListPath(id, cfg.list_checksum)));
+	const domains = normalizeDomainList(readfile(domainListPath(id)));
 	if (!length(domains))
 		return;
 

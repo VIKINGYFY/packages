@@ -4,8 +4,7 @@
  * Copyright (C) 2023 ImmortalWrt.org
  */
 
-import { glob, popen, readfile } from 'fs';
-import { md5 } from 'digest';
+import { popen, readfile } from 'fs';
 import { urldecode_params } from 'luci.http';
 
 /* Global variables start */
@@ -107,31 +106,12 @@ export function normalizeDomainList(content) {
 	return domains;
 };
 
-function domainListPath(id) {
+export function domainListPath(id) {
 	if (id === 'direct')
 		return `${HP_DIR}/resources/direct_list.txt`;
 	if (id === 'proxy')
 		return `${HP_DIR}/resources/proxy_list.txt`;
 	return `${HP_DIR}/resources/diversion/${id}.txt`;
-};
-
-/* Resolve resources left by anonymous UCI sections from older releases. */
-export function resolveDomainListPath(id, checksum) {
-	const path = domainListPath(id);
-	if (readfile(path) !== null || !checksum || !match(id, /^cfg[0-9a-f]+$/))
-		return path;
-
-	let matchPath = null;
-	for (let candidate in glob(`${HP_DIR}/resources/diversion/*.txt`)) {
-		const content = readfile(candidate);
-		if (content !== null && md5(content) === checksum) {
-			if (matchPath !== null)
-				return path;
-			matchPath = candidate;
-		}
-	}
-
-	return matchPath || path;
 };
 
 export function splitDomainList(domains) {

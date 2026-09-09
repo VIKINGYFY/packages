@@ -33,6 +33,13 @@ const callWriteDomainLists = rpc.declare({
 	expect: { '': {} }
 });
 
+const callRemoveDomainList = rpc.declare({
+	object: 'luci.homeproxy',
+	method: 'domainlist_remove',
+	params: ['id'],
+	expect: { '': {} }
+});
+
 function parseDomainList(value) {
 	let suffixes = [], keywords = [], normalized = [], seen = Object.create(null);
 	for (let item of (value || '').replace(/\r\n?/g, '\n').split('\n')) {
@@ -176,14 +183,13 @@ return view.extend({
 			});
 		}
 
-		function stageDomainList(id, section, checksumOption, value) {
+		function stageDomainList(id, value) {
 			const parsed = parseDomainList(value);
 			if (parsed.error)
 				throw new TypeError(parsed.error);
 
 			pendingDomainLists[id] = parsed.content;
 			domainListCache[id] = parsed.content;
-			uci.set('homeproxy', section, checksumOption, hp.calcStringMD5(parsed.content));
 		}
 
 		function domainListContent(id) {
@@ -597,7 +603,7 @@ return view.extend({
 		o.depends('routing_mode', 'global');
 		ss = o.subsection;
 
-		function configureDomainList(option, id, section, checksumOption) {
+		function configureDomainList(option, id) {
 			option.rows = 12;
 			option.monospace = true;
 			option.rmempty = true;
@@ -606,10 +612,10 @@ return view.extend({
 				return loadDomainList(id);
 			};
 			option.write = function(_section_id, value) {
-				stageDomainList(id, section, checksumOption, value);
+				stageDomainList(id, value);
 			};
 			option.remove = function(/* ... */) {
-				stageDomainList(id, section, checksumOption, '');
+				stageDomainList(id, '');
 			};
 			option.validate = function(_section_id, value) {
 				return parseDomainList(value).error || true;
@@ -619,17 +625,17 @@ return view.extend({
 		ss.tab('direct_list', _('Direct List'));
 		so = ss.taboption('direct_list', form.TextValue, '_direct_list', null,
 			_('Domains in this list always use direct routing.'));
-		configureDomainList(so, 'direct', 'diversion', 'direct_list_checksum');
+		configureDomainList(so, 'direct');
 
 		ss.tab('proxy_list', _('Proxy List'));
 		so = ss.taboption('proxy_list', form.TextValue, '_proxy_list', null,
 			_('Domains in this list always use the main node.'));
 		so.depends('homeproxy.config.routing_mode', 'bypass_mainland_china');
-		configureDomainList(so, 'proxy', 'diversion', 'proxy_list_checksum');
+		configureDomainList(so, 'proxy');
 
 		ss.tab('diversion_list', _('Diversion List'));
 		so = ss.taboption('diversion_list', form.SectionValue, '_domain_routes',
-			form.GridSection, 'domain_route', _('Diversion Groups'));
+			form.GridSection, 'domain_route', null);
 		let domainRoutes = so.subsection;
 		domainRoutes.anonymous = true;
 		domainRoutes.addremove = true;
@@ -677,10 +683,10 @@ return view.extend({
 			return loadDomainList(section_id);
 		};
 		dro.write = function(section_id, value) {
-			stageDomainList(section_id, section_id, 'list_checksum', value);
+			stageDomainList(section_id, value);
 		};
 		dro.remove = function(section_id) {
-			stageDomainList(section_id, section_id, 'list_checksum', '');
+			stageDomainList(section_id, '');
 		};
 		dro.validate = function(_section_id, value) {
 			return parseDomainList(value).error || true;
@@ -690,10 +696,7 @@ return view.extend({
 		domainRoutes.handleRemove = function(section_id, ev) {
 			delete pendingDomainLists[section_id];
 			return removeDomainRoute.call(this, section_id, ev).then(() => {
-				const lists = {};
-				lists[section_id] = '';
-				const routingMode = uci.get('homeproxy', 'config', 'routing_mode') || 'bypass_mainland_china';
-				return callWriteDomainLists(lists, routingMode);
+				return callRemoveDomainList(section_id);
 			}).then((result) => {
 				if (!result.result)
 					throw new Error(result.error || _('Failed to save domain lists.'));

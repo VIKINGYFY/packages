@@ -11,8 +11,8 @@ import { lstat, open, popen, readfile, rename, unlink, writefile } from 'fs';
 import { cursor } from 'uci';
 
 import {
-	HP_DIR, RUN_DIR, findDomainGroupConflict, isBinary, normalizeDomainList,
-	removeBlankAttrs, renderEndpoint, renderOutbound, resolveDomainListPath,
+	HP_DIR, RUN_DIR, domainListPath, findDomainGroupConflict, isBinary,
+	normalizeDomainList, removeBlankAttrs, renderEndpoint, renderOutbound,
 	shellQuote, splitDomainList, validation
 } from '/etc/homeproxy/scripts/homeproxy.uc';
 
@@ -69,12 +69,12 @@ function validateDomainLists(changes, routingMode) {
 	uci.load('homeproxy');
 
 	let groups = [], seen = {};
-	function appendGroup(id, checksum) {
+	function appendGroup(id) {
 		if (id in seen)
 			return;
 		seen[id] = true;
 
-		const content = (id in changes) ? changes[id] : readfile(resolveDomainListPath(id, checksum));
+		const content = (id in changes) ? changes[id] : readfile(domainListPath(id));
 		const domains = normalizeDomainList(content);
 		if (length(domains))
 			push(groups, { id, ...splitDomainList(domains) });
@@ -83,8 +83,7 @@ function validateDomainLists(changes, routingMode) {
 	appendGroup('direct');
 	if (routingMode === 'bypass_mainland_china')
 		appendGroup('proxy');
-	uci.foreach('homeproxy', 'domain_route', (section) =>
-		appendGroup(section['.name'], section.list_checksum));
+	uci.foreach('homeproxy', 'domain_route', (section) => appendGroup(section['.name']));
 	for (let id in keys(changes))
 		if (!(id in ['direct', 'proxy']))
 			appendGroup(id);
@@ -100,10 +99,7 @@ const methods = {
 			if (!validDomainListId(id))
 				return { content: null, error: 'illegal type' };
 
-			const uci = cursor();
-			uci.load('homeproxy');
-			const section = uci.get_all('homeproxy', id);
-			const filecontent = readfile(resolveDomainListPath(id, section?.list_checksum));
+			const filecontent = readfile(domainListPath(id));
 			return { content: filecontent };
 		}
 	},
@@ -136,7 +132,7 @@ const methods = {
 			system(`mkdir -p ${HP_DIR}/resources/diversion`);
 			let staged = [];
 			for (let id in keys(changes)) {
-				const file = resolveDomainListPath(id), temporary = file + '.new';
+				const file = domainListPath(id), temporary = file + '.new';
 				if (writefile(temporary, changes[id]) === null) {
 					for (let path in staged)
 						unlink(path.temporary);
@@ -151,6 +147,25 @@ const methods = {
 						unlink(pending.temporary);
 					return { result: false, error: 'failed to install domain list' };
 				}
+
+			return { result: true };
+		}
+	},
+	domainlist_remove: {
+		args: { id: 'id' },
+		call: function(req) {
+			const id = req.args?.id;
+			if (!validDomainListId(id) || id in ['direct', 'proxy'])
+				return { result: false, error: 'illegal domain list identifier' };
+
+			const file = domainListPath(id);
+			for (let path in [file, file + '.new']) {
+				if (readfile(path) === null)
+					continue;
+				unlink(path);
+				if (readfile(path) !== null)
+					return { result: false, error: 'failed to remove domain list' };
+			}
 
 			return { result: true };
 		}
