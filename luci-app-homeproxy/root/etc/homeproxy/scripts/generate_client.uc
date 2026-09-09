@@ -29,7 +29,8 @@ uci.load(uciconfig);
 
 const uciinfra = 'infra',
       ucimain = 'config',
-      ucicontrol = 'control';
+      ucicontrol = 'control',
+      ucitalscale = 'tailscale';
 
 const ucinode = 'node';
 
@@ -81,6 +82,26 @@ const ipv6_support = uci.get(uciconfig, ucimain, 'ipv6_support') || '0';
 
 const main_node = uci.get(uciconfig, ucimain, 'main_node') || 'nil';
 
+const tailscale_tag = 'tailscale-out';
+const tailscale_enabled = uci.get(uciconfig, ucitalscale, 'enabled') === '1';
+const tailscale_auth_key = uci.get(uciconfig, ucitalscale, 'auth_key');
+const tailscale_control_url = uci.get(uciconfig, ucitalscale, 'control_url');
+const tailscale_hostname = uci.get(uciconfig, ucitalscale, 'hostname');
+const tailscale_accept_routes = uci.get(uciconfig, ucitalscale, 'accept_routes') === '1';
+const tailscale_exit_node = uci.get(uciconfig, ucitalscale, 'exit_node');
+const tailscale_exit_node_allow_lan_access =
+	uci.get(uciconfig, ucitalscale, 'exit_node_allow_lan_access') === '1';
+const tailscale_advertise_routes =
+	normalizeList(uci.get(uciconfig, ucitalscale, 'advertise_routes'));
+const tailscale_advertise_exit_node =
+	uci.get(uciconfig, ucitalscale, 'advertise_exit_node') === '1';
+const tailscale_listen_port = uci.get(uciconfig, ucitalscale, 'listen_port');
+
+if (tailscale_enabled && isEmpty(main_node))
+	die('Tailscale requires an enabled main node.');
+if (tailscale_enabled && !isEmpty(tailscale_exit_node) && tailscale_advertise_exit_node)
+	die('Tailscale cannot use and advertise an exit node at the same time.');
+
 let dns_server = uci.get(uciconfig, ucimain, 'dns_server');
 if (isEmpty(dns_server) || dns_server === 'wan')
 	dns_server = wan_dns;
@@ -118,6 +139,15 @@ uci.foreach(uciconfig, 'domain_route', (cfg) => {
 		return;
 
 	const split_domains = splitDomainList(domains);
+	if (cfg.node === 'tailscale') {
+		if (!tailscale_enabled) {
+			warn(`Diversion group ${id} selects disabled Tailscale; using the main node.\n`);
+			push(domain_groups, { id, kind: 'main', ...split_domains });
+			return;
+		}
+		push(domain_groups, { id, kind: 'tailscale', ...split_domains });
+		return;
+	}
 	if (isEmpty(cfg.node) || isEmpty(uci.get_all(uciconfig, cfg.node))) {
 		warn(`Diversion group ${id} selects an unavailable node; using the main node.\n`);
 		push(domain_groups, { id, kind: 'main', ...split_domains });
@@ -138,6 +168,8 @@ function domain_group_outbound_tag(group) {
 		return 'direct-out';
 	if (group.kind === 'main')
 		return 'main-out';
+	if (group.kind === 'tailscale')
+		return tailscale_tag;
 	if (group.node === main_node && main_node !== 'urltest')
 		return 'main-out';
 	return get_node_outbound_tag(group.node);
@@ -299,7 +331,7 @@ function get_control_matches() {
 	};
 }
 
-function add_control_pre_match_rules(rules, proxy_outbound) {
+function add_control_pre_match_policy_rules(rules, proxy_outbound) {
 	const control = get_control_matches();
 
 	if (control.restrict_to_list)
@@ -312,11 +344,15 @@ function add_control_pre_match_rules(rules, proxy_outbound) {
 		push_route(rules, tun_match(control.wan_proxy), proxy_outbound);
 	}
 	push_bypass(rules, tun_match(control.wan_direct));
+	return control;
+}
+
+function add_control_pre_match_fallback_rules(rules, control) {
 	push_bypass(rules, tun_match({ ip_is_private: true }));
 	push_bypass(rules, tun_match(control.bypass_ports));
 }
 
-function add_control_rules(rules, proxy_outbound) {
+function add_control_policy_rules(rules, proxy_outbound) {
 	const control = get_control_matches();
 
 	push_route(rules, control.direct_source, 'direct-out');
@@ -326,6 +362,10 @@ function add_control_rules(rules, proxy_outbound) {
 		push_route(rules, control.wan_proxy, proxy_outbound);
 	}
 	push_route(rules, control.wan_direct, 'direct-out');
+	return control;
+}
+
+function add_control_fallback_rules(rules, control) {
 	push(rules, { ip_is_private: true, action: 'route', outbound: 'direct-out' });
 	push_route(rules, control.bypass_ports, 'direct-out');
 }
@@ -446,6 +486,19 @@ if (!isEmpty(main_node)) {
 		...parse_dnsserver(dns_server, 'tcp')
 	});
 	config.dns.final = 'main-dns';
+
+	if (tailscale_enabled) {
+		push(config.dns.servers, {
+			type: 'tailscale',
+			tag: 'tailscale-dns',
+			endpoint: tailscale_tag
+		});
+		push(config.dns.rules, {
+			preferred_by: 'tailscale-dns',
+			action: 'route',
+			server: 'tailscale-dns'
+		});
+	}
 
 	let diversion_dns_servers = {};
 	function domain_group_dns_server(group) {
@@ -568,6 +621,24 @@ push(config.inbounds, {
 /* Outbound start */
 config.endpoints = [];
 
+if (tailscale_enabled)
+	push(config.endpoints, {
+		type: 'tailscale',
+		tag: tailscale_tag,
+		state_directory: HP_DIR + '/tailscale',
+		taildrop_directory: HP_DIR + '/tailscale/taildrop',
+		auth_key: tailscale_auth_key,
+		control_url: tailscale_control_url,
+		hostname: tailscale_hostname,
+		accept_routes: tailscale_accept_routes,
+		exit_node: tailscale_exit_node,
+		exit_node_allow_lan_access: !isEmpty(tailscale_exit_node) ?
+			tailscale_exit_node_allow_lan_access : null,
+		advertise_routes: tailscale_advertise_routes,
+		advertise_exit_node: tailscale_advertise_exit_node,
+		listen_port: strToInt(tailscale_listen_port)
+	});
+
 /* Default outbounds */
 config.outbounds = [
 	{
@@ -664,7 +735,7 @@ if (!isEmpty(main_node)) {
 	};
 
 	/* Native auto_redirect pre-match: handle device and address exceptions first. */
-	add_control_pre_match_rules(config.route.rules, 'main-out');
+	const pre_match_control = add_control_pre_match_policy_rules(config.route.rules, 'main-out');
 
 	for (let group in domain_groups) {
 		const outbound = domain_group_outbound_tag(group);
@@ -681,13 +752,19 @@ if (!isEmpty(main_node)) {
 		}
 	}
 
+	if (tailscale_enabled) {
+		push_route(config.route.rules, { inbound: tailscale_tag }, 'direct-out');
+		push_route(config.route.rules, { preferred_by: tailscale_tag }, tailscale_tag);
+	}
+	add_control_pre_match_fallback_rules(config.route.rules, pre_match_control);
+
 	if (routing_mode === 'bypass_mainland_china' && force_proxy_rules) {
 		push_bypass(config.route.rules, tun_match({ rule_set: 'geosite-cn' }));
 		push_bypass(config.route.rules, tun_match({ rule_set: 'geoip-cn' }));
 	}
 
 	push(config.route.rules, { action: 'sniff' });
-	add_control_rules(config.route.rules, 'main-out');
+	const control = add_control_policy_rules(config.route.rules, 'main-out');
 
 	for (let group in domain_groups) {
 		const outbound = domain_group_outbound_tag(group);
@@ -704,6 +781,10 @@ if (!isEmpty(main_node)) {
 				outbound
 			});
 	}
+
+	if (tailscale_enabled)
+		push_route(config.route.rules, { preferred_by: tailscale_tag }, tailscale_tag);
+	add_control_fallback_rules(config.route.rules, control);
 
 	if (routing_mode === 'bypass_mainland_china') {
 		push(config.route.rules, {

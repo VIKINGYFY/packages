@@ -193,7 +193,8 @@ export function reserveUniqueLabel(used, label, fallback) {
 export function createNodeLabelRegistry() {
 	return {
 		'direct-out': true,
-		'main-out': true
+		'main-out': true,
+		'tailscale-out': true
 	};
 };
 

@@ -124,6 +124,12 @@ setDefault('config', 'main_urltest_tolerance', '60');
 setDefault('config', 'main_urltest_interrupt_exist_connections', '0');
 setDefault('config', 'log_level', 'warn');
 setDefault('config', 'tcpip_stack', 'mixed');
+if (isEmpty(uci.get(uciconfig, 'tailscale')))
+	uci.set(uciconfig, 'tailscale', 'homeproxy');
+setDefault('tailscale', 'enabled', '0');
+setDefault('tailscale', 'accept_routes', '0');
+setDefault('tailscale', 'exit_node_allow_lan_access', '0');
+setDefault('tailscale', 'advertise_exit_node', '0');
 setDefault('control', 'lan_whitelist_mode', '0');
 setDefault('server', 'log_level', 'warn');
 

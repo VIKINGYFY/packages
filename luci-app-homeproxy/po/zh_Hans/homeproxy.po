@@ -53,6 +53,14 @@ msgstr "API 令牌"
 msgid "Accept any if empty."
 msgstr "留空则不校验。"
 
+#: luci-app-homeproxy/htdocs/luci-static/resources/view/homeproxy/client.js:755
+msgid "Accept routes"
+msgstr "接受路由"
+
+#: luci-app-homeproxy/htdocs/luci-static/resources/view/homeproxy/client.js:756
+msgid "Accept subnet routes advertised by other Tailscale nodes."
+msgstr "接受其他 Tailscale 节点通告的子网路由。"
+
 #: luci-app-homeproxy/htdocs/luci-static/resources/view/homeproxy/client.js:491
 msgid "Access Control"
 msgstr "访问控制"
@@ -85,6 +93,20 @@ msgstr "新增分流组"
 msgid "Address"
 msgstr "地址"
 
+#: luci-app-homeproxy/htdocs/luci-static/resources/view/homeproxy/client.js:799
+msgid "Advertise as exit node"
+msgstr "通告为出口节点"
+
+#: luci-app-homeproxy/htdocs/luci-static/resources/view/homeproxy/client.js:800
+msgid ""
+"Advertise this router as an exit node. Approval is still required on the "
+"coordination server."
+msgstr "将此路由器通告为出口节点，仍需在协调服务器上批准。"
+
+#: luci-app-homeproxy/htdocs/luci-static/resources/view/homeproxy/client.js:785
+msgid "Advertised routes"
+msgstr "通告路由"
+
 #: luci-app-homeproxy/htdocs/luci-static/resources/view/homeproxy/server.js:634
 msgid "AliDNS"
 msgstr "AliDNS"
@@ -96,6 +118,10 @@ msgstr "阿里 公共DNS (DoH)"
 #: luci-app-homeproxy/htdocs/luci-static/resources/view/homeproxy/client.js:409
 msgid "All ports"
 msgstr "所有端口"
+
+#: luci-app-homeproxy/htdocs/luci-static/resources/view/homeproxy/client.js:778
+msgid "Allow LAN access with exit node"
+msgstr "使用出口节点时允许访问 LAN"
 
 #: luci-app-homeproxy/htdocs/luci-static/resources/view/homeproxy/server.js:155
 msgid "Allow access from the Internet."
@@ -142,6 +168,11 @@ msgstr "备用 TLS 端口"
 msgid "An error occurred during updating subscriptions: %s."
 msgstr "更新订阅时发生错误：%s。"
 
+#: luci-app-homeproxy/htdocs/luci-static/resources/view/homeproxy/client.js:771
+#: luci-app-homeproxy/htdocs/luci-static/resources/view/homeproxy/client.js:807
+msgid "An exit node cannot be used and advertised at the same time."
+msgstr "不能同时使用和通告出口节点。"
+
 #: luci-app-homeproxy/htdocs/luci-static/resources/view/homeproxy/node.js:836
 #: luci-app-homeproxy/htdocs/luci-static/resources/view/homeproxy/server.js:159
 msgid "AnyTLS"
@@ -175,6 +206,10 @@ msgstr "认证超时"
 #: luci-app-homeproxy/htdocs/luci-static/resources/view/homeproxy/node.js:1183
 msgid "Authenticated length"
 msgstr "认证长度"
+
+#: luci-app-homeproxy/htdocs/luci-static/resources/view/homeproxy/client.js:723
+msgid "Authentication key"
+msgstr "认证密钥"
 
 #: luci-app-homeproxy/htdocs/luci-static/resources/view/homeproxy/node.js:957
 #: luci-app-homeproxy/htdocs/luci-static/resources/view/homeproxy/server.js:266
@@ -322,6 +357,15 @@ msgstr "连接状态"
 msgid "Connectivity"
 msgstr "通断"
 
+#: luci-app-homeproxy/htdocs/luci-static/resources/view/homeproxy/client.js:730
+msgid "Control server"
+msgstr "控制服务器"
+
+#: luci-app-homeproxy/htdocs/luci-static/resources/view/homeproxy/client.js:731
+msgid ""
+"Coordination server URL. Leave empty to use the official Tailscale service."
+msgstr "协调服务器 URL。留空使用 Tailscale 官方服务。"
+
 #: luci-app-homeproxy/htdocs/luci-static/resources/view/homeproxy/node.js:1784
 msgid "Cron expression"
 msgstr "定时任务表达式"
@@ -371,6 +415,12 @@ msgstr "默认包封装格式"
 #: luci-app-homeproxy/htdocs/luci-static/resources/view/homeproxy/server.js:600
 msgid "Default server name"
 msgstr "默认服务器名称"
+
+#: luci-app-homeproxy/htdocs/luci-static/resources/view/homeproxy/client.js:749
+msgid ""
+"Device name shown in the Tailscale network. The system hostname is used when "
+"empty."
+msgstr "Tailscale 网络中显示的设备名称。留空使用系统主机名。"
 
 #: luci-app-homeproxy/htdocs/luci-static/resources/view/homeproxy/node.js:835
 msgid "Direct"
@@ -435,7 +485,7 @@ msgstr "分流列表"
 msgid "Domain %s in %s conflicts with %s in %s."
 msgstr "域名 %s（%s）与 %s（%s）冲突。"
 
-#: luci-app-homeproxy/htdocs/luci-static/resources/view/homeproxy/client.js:676
+#: luci-app-homeproxy/htdocs/luci-static/resources/view/homeproxy/client.js:678
 msgid "Domain List"
 msgstr "域名列表"
 
@@ -565,6 +615,10 @@ msgstr "启用 TCP Brutal"
 msgid "Enable TCP Brutal congestion control algorithm."
 msgstr "启用 TCP Brutal 拥塞控制算法。"
 
+#: luci-app-homeproxy/htdocs/luci-static/resources/view/homeproxy/client.js:718
+msgid "Enable Tailscale"
+msgstr "启用 Tailscale"
+
 #: luci-app-homeproxy/htdocs/luci-static/resources/view/homeproxy/node.js:1588
 #: luci-app-homeproxy/htdocs/luci-static/resources/view/homeproxy/server.js:849
 msgid "Enable UDP fragmentation."
@@ -588,13 +642,18 @@ msgid ""
 "Enable the SUoT protocol, requires server support. Conflict with multiplex."
 msgstr "启用 SUoT 协议，需要服务端支持。与多路复用冲突。"
 
+#: luci-app-homeproxy/htdocs/luci-static/resources/view/homeproxy/client.js:719
+msgid ""
+"Enable the sing-box Tailscale endpoint. A main node must also be enabled."
+msgstr "启用 sing-box Tailscale 端点，同时必须启用主节点。"
+
 #: luci-app-homeproxy/htdocs/luci-static/resources/view/homeproxy/node.js:1029
 #: luci-app-homeproxy/htdocs/luci-static/resources/view/homeproxy/node.js:1165
 #: luci-app-homeproxy/htdocs/luci-static/resources/view/homeproxy/server.js:327
 msgid "Encrypt method"
 msgstr "加密方式"
 
-#: luci-app-homeproxy/htdocs/luci-static/resources/view/homeproxy/client.js:677
+#: luci-app-homeproxy/htdocs/luci-static/resources/view/homeproxy/client.js:679
 msgid ""
 "Entries containing a dot use domain suffix matching; other entries use "
 "keyword matching."
@@ -604,6 +663,17 @@ msgstr "包含点号的条目使用域名后缀匹配；其他条目使用关键
 #: luci-app-homeproxy/htdocs/luci-static/resources/view/homeproxy/status.js:302
 msgid "Error"
 msgstr "错误"
+
+#: luci-app-homeproxy/htdocs/luci-static/resources/view/homeproxy/client.js:762
+msgid "Exit node"
+msgstr "出口节点"
+
+#: luci-app-homeproxy/htdocs/luci-static/resources/view/homeproxy/client.js:763
+msgid ""
+"Exit node name or IP address. Public domains can use Tailscale diversion "
+"only when an exit node is available."
+msgstr ""
+"出口节点名称或 IP 地址。仅当出口节点可用时，公共域名才能使用 Tailscale 分流。"
 
 #: luci-app-homeproxy/htdocs/luci-static/resources/homeproxy.js:320
 #: luci-app-homeproxy/htdocs/luci-static/resources/homeproxy.js:354
@@ -623,6 +693,10 @@ msgstr "错误"
 #: luci-app-homeproxy/htdocs/luci-static/resources/view/homeproxy/client.js:389
 #: luci-app-homeproxy/htdocs/luci-static/resources/view/homeproxy/client.js:393
 #: luci-app-homeproxy/htdocs/luci-static/resources/view/homeproxy/client.js:417
+#: luci-app-homeproxy/htdocs/luci-static/resources/view/homeproxy/client.js:742
+#: luci-app-homeproxy/htdocs/luci-static/resources/view/homeproxy/client.js:744
+#: luci-app-homeproxy/htdocs/luci-static/resources/view/homeproxy/client.js:775
+#: luci-app-homeproxy/htdocs/luci-static/resources/view/homeproxy/client.js:793
 #: luci-app-homeproxy/htdocs/luci-static/resources/view/homeproxy/node.js:895
 #: luci-app-homeproxy/htdocs/luci-static/resources/view/homeproxy/node.js:983
 #: luci-app-homeproxy/htdocs/luci-static/resources/view/homeproxy/node.js:996
@@ -659,7 +733,7 @@ msgid "Failed to generate %s, error: %s."
 msgstr "生成 %s 失败，错误：%s。"
 
 #: luci-app-homeproxy/htdocs/luci-static/resources/view/homeproxy/client.js:244
-#: luci-app-homeproxy/htdocs/luci-static/resources/view/homeproxy/client.js:702
+#: luci-app-homeproxy/htdocs/luci-static/resources/view/homeproxy/client.js:704
 msgid "Failed to save domain lists."
 msgstr "保存域名列表失败。"
 
@@ -827,6 +901,10 @@ msgstr "主机密钥"
 msgid "Host key algorithms"
 msgstr "主机密钥算法"
 
+#: luci-app-homeproxy/htdocs/luci-static/resources/view/homeproxy/client.js:748
+msgid "Hostname"
+msgstr "主机名"
+
 #: luci-app-homeproxy/htdocs/luci-static/resources/view/homeproxy/server.js:353
 msgid ""
 "How long the server should wait for the client to send the authentication "
@@ -985,6 +1063,10 @@ msgstr "无效响应"
 msgid "JD"
 msgstr "京东"
 
+#: luci-app-homeproxy/htdocs/luci-static/resources/view/homeproxy/client.js:779
+msgid "Keep locally accessible subnets outside the selected exit node."
+msgstr "保持本地可访问子网不经过所选出口节点。"
+
 #: luci-app-homeproxy/htdocs/luci-static/resources/view/homeproxy/server.js:769
 msgid "Key path"
 msgstr "密钥路径"
@@ -992,6 +1074,12 @@ msgstr "密钥路径"
 #: luci-app-homeproxy/htdocs/luci-static/resources/view/homeproxy/client.js:513
 msgid "LAN IP Policy"
 msgstr "LAN 口策略"
+
+#: luci-app-homeproxy/htdocs/luci-static/resources/view/homeproxy/client.js:786
+msgid ""
+"LAN subnets advertised as reachable through this router. Routes must also be "
+"approved by the coordination server."
+msgstr "通告可通过此路由器访问的 LAN 子网，路由还必须由协调服务器批准。"
 
 #: luci-app-homeproxy/htdocs/luci-static/resources/view/homeproxy/node.js:828
 #: luci-app-homeproxy/htdocs/luci-static/resources/view/homeproxy/server.js:143
@@ -1047,6 +1135,7 @@ msgid "Listen interfaces"
 msgstr "监听接口"
 
 #: luci-app-homeproxy/htdocs/luci-static/resources/view/homeproxy/client.js:461
+#: luci-app-homeproxy/htdocs/luci-static/resources/view/homeproxy/client.js:811
 #: luci-app-homeproxy/htdocs/luci-static/resources/view/homeproxy/server.js:181
 msgid "Listen port"
 msgstr "监听端口"
@@ -1733,6 +1822,10 @@ msgstr "不强制执行 TLS。如未配置 TLS，将使用纯 HTTP 1.1。"
 msgid "TUIC"
 msgstr "TUIC"
 
+#: luci-app-homeproxy/htdocs/luci-static/resources/view/homeproxy/client.js:711
+msgid "Tailscale"
+msgstr "Tailscale"
+
 #: luci-app-homeproxy/htdocs/luci-static/resources/view/homeproxy/server.js:316
 msgid ""
 "Tell the client to use the BBR flow control algorithm instead of Hysteria CC."
@@ -1976,6 +2069,12 @@ msgstr "UDP over stream"
 msgid "UDP packet relay mode."
 msgstr "UDP 包中继模式。"
 
+#: luci-app-homeproxy/htdocs/luci-static/resources/view/homeproxy/client.js:812
+msgid ""
+"UDP port for WireGuard and peer-to-peer traffic. A port is selected "
+"automatically when empty."
+msgstr "WireGuard 和点对点流量的 UDP 监听端口。留空时自动选择端口。"
+
 #: luci-app-homeproxy/htdocs/luci-static/resources/view/homeproxy/node.js:1125
 msgid "UDP relay mode"
 msgstr "UDP 中继模式"
@@ -2072,9 +2171,19 @@ msgstr "上传密钥"
 msgid "Upload..."
 msgstr "上传..."
 
+#: luci-app-homeproxy/htdocs/luci-static/resources/view/homeproxy/client.js:795
+msgid "Use \"Advertise as exit node\" instead of a default route."
+msgstr "请使用“通告为出口节点”，不要填写默认路由。"
+
 #: luci-app-homeproxy/htdocs/luci-static/resources/view/homeproxy/server.js:590
 msgid "Use ACME TLS certificate issuer."
 msgstr "使用 ACME TLS 证书颁发机构。"
+
+#: luci-app-homeproxy/htdocs/luci-static/resources/view/homeproxy/client.js:724
+msgid ""
+"Used only when creating the node. Leave empty and open the login URL from "
+"the client log."
+msgstr "仅在创建设备时使用。留空后从客户端日志打开登录 URL。"
 
 #: luci-app-homeproxy/htdocs/luci-static/resources/view/homeproxy/node.js:1450
 #: luci-app-homeproxy/htdocs/luci-static/resources/view/homeproxy/server.js:555
@@ -2164,6 +2273,11 @@ msgstr "您的 %s 已成功上传。大小：%sB。"
 #: luci-app-homeproxy/htdocs/luci-static/resources/view/homeproxy/server.js:624
 msgid "ZeroSSL"
 msgstr "ZeroSSL"
+
+#: luci-app-homeproxy/htdocs/luci-static/resources/view/homeproxy/client.js:670
+#: luci-app-homeproxy/htdocs/luci-static/resources/view/homeproxy/client.js:674
+msgid "[Tailscale] Tailscale"
+msgstr "[Tailscale] Tailscale"
 
 #: luci-app-homeproxy/htdocs/luci-static/resources/view/homeproxy/node.js:1509
 #: luci-app-homeproxy/htdocs/luci-static/resources/view/homeproxy/server.js:766
@@ -2261,6 +2375,8 @@ msgstr "v3"
 msgid "valid DNS server address"
 msgstr "有效 DNS 服务器地址"
 
+#: luci-app-homeproxy/htdocs/luci-static/resources/view/homeproxy/client.js:742
+#: luci-app-homeproxy/htdocs/luci-static/resources/view/homeproxy/client.js:744
 #: luci-app-homeproxy/htdocs/luci-static/resources/view/homeproxy/node.js:1805
 #: luci-app-homeproxy/htdocs/luci-static/resources/view/homeproxy/node.js:1808
 msgid "valid URL"
@@ -2278,6 +2394,14 @@ msgstr "包含 %d 个字符的有效 base64 密钥"
 #: luci-app-homeproxy/htdocs/luci-static/resources/view/homeproxy/client.js:53
 msgid "valid hostname"
 msgstr "有效主机名"
+
+#: luci-app-homeproxy/htdocs/luci-static/resources/view/homeproxy/client.js:775
+msgid "valid hostname or IP address"
+msgstr "有效主机名或 IP 地址"
+
+#: luci-app-homeproxy/htdocs/luci-static/resources/view/homeproxy/client.js:793
+msgid "valid network in CIDR notation"
+msgstr "有效的 CIDR 网络"
 
 #: luci-app-homeproxy/htdocs/luci-static/resources/homeproxy.js:380
 msgid "valid port range (port1:port2)"

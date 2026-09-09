@@ -33,6 +33,12 @@ config homeproxy 'control'
 config homeproxy 'diversion'
 	option __warning 'DO NOT EDIT THIS SECTION, OR YOU ARE ON YOUR OWN!'
 
+config homeproxy 'tailscale'
+	option enabled '0'
+	option accept_routes '0'
+	option exit_node_allow_lan_access '0'
+	option advertise_exit_node '0'
+
 config homeproxy 'subscription'
 	option auto_update '0'
 	option allow_insecure '0'
