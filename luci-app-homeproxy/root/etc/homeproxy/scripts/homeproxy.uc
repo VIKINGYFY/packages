@@ -5,6 +5,7 @@
  */
 
 import { popen, readfile } from 'fs';
+import { md5 } from 'digest';
 import { urldecode_params } from 'luci.http';
 
 /* Global variables start */
@@ -355,7 +356,7 @@ export function renderEndpoint(node) {
 };
 
 export function renderV2RayTransport(node, server_mode) {
-	if (type(node) !== 'object' || isEmpty(node.transport))
+	if (type(node) !== 'object' || isEmpty(node.transport) || node.transport === 'tcp')
 		return null;
 
 	switch (node.transport) {
@@ -393,7 +394,7 @@ export function renderV2RayTransport(node, server_mode) {
 			early_data_header_name: node.websocket_early_data_header
 		};
 	default:
-		return null;
+		die(sprintf('Unsupported transport: %s (%s).', node.transport, node.label || node.type));
 	}
 };
 
@@ -421,7 +422,8 @@ export function renderOutbound(node) {
 			ech: (node.tls_ech === '1') ? {
 				enabled: true,
 				config: node.tls_ech_config,
-				config_path: node.tls_ech_config_path
+				config_path: node.tls_ech_config_path,
+				query_server_name: node.tls_ech_query_server_name
 			} : null,
 			utls: !isEmpty(tls_utls_value) ? {
 				enabled: true,
@@ -546,7 +548,7 @@ export function renderOutbound(node) {
 	case 'vless':
 		outbound.uuid = node.uuid;
 		outbound.flow = node.vless_flow;
-		outbound.packet_encoding = node.packet_encoding;
+		outbound.packet_encoding = node.packet_encoding === 'none' ? '' : node.packet_encoding;
 		outbound.transport = renderV2RayTransport(node);
 		break;
 	case 'vmess':
@@ -555,7 +557,7 @@ export function renderOutbound(node) {
 		outbound.security = node.vmess_encrypt;
 		outbound.global_padding = strToBool(node.vmess_global_padding);
 		outbound.authenticated_length = strToBool(node.vmess_authenticated_length);
-		outbound.packet_encoding = node.packet_encoding;
+		outbound.packet_encoding = node.packet_encoding === 'none' ? '' : node.packet_encoding;
 		outbound.transport = renderV2RayTransport(node);
 		break;
 	}
@@ -573,7 +575,8 @@ export function removeBlankAttrs(res) {
 		map(keys(res), (k) => {
 			if (type(res[k]) in ['array', 'object'])
 				content[k] = removeBlankAttrs(res[k]);
-			else if (res[k] !== null && res[k] !== '')
+			else if (res[k] !== null && (res[k] !== '' ||
+			    (k === 'packet_encoding' && res.type in ['vless', 'vmess'])))
 				content[k] = res[k];
 		});
 	} else if (type(res) === 'array') {
@@ -698,3 +701,50 @@ export function parseURL(url) {
 	return objurl;
 };
 /* String parser end */
+
+export function parseECHConfig(value) {
+	if (isEmpty(value) || value in ['0', 'false', 'none'])
+		return {};
+	const query = match(value, /^(([^+]+)\+)?((https|udp):\/\/.+)$/);
+	if (query) {
+		const server = parseURL(query[3]);
+		if (!server || server.username || server.password || server.hash ||
+		    (query[2] && !validateHostname(query[2])))
+			die('Invalid ECH DNS query settings.');
+		return { tls_ech: '1', tls_ech_query_server_name: query[2], tls_ech_query_server: query[3] };
+	}
+	if (!match(value, /^[A-Za-z0-9+\/]+={0,2}$/) || !length(b64dec(value) || ''))
+		die('Invalid ECH configuration.');
+	return {
+		tls_ech: '1',
+		tls_ech_config: ['-----BEGIN ECH CONFIGS-----', value, '-----END ECH CONFIGS-----']
+	};
+};
+
+export function addECHDNS(config, node, resolver) {
+	if (node.tls !== '1' || node.tls_ech !== '1' || isEmpty(node.tls_ech_query_server) ||
+	    !isEmpty(node.tls_ech_config) || !isEmpty(node.tls_ech_config_path))
+		return;
+	const server = parseURL(node.tls_ech_query_server);
+	const name = node.tls_ech_query_server_name || node.tls_sni || node.address;
+	if (!server || !(server.protocol in ['https', 'udp']) || !validateHostname(name))
+		die('Invalid ECH DNS query settings.');
+	const tag = 'ech-dns-' + md5(node.tls_ech_query_server);
+	config.dns.rules ||= [];
+	for (let rule in config.dns.rules)
+		if (rule.query_type?.[0] === 'HTTPS' && rule.domain?.[0] === name) {
+			if (rule.server !== tag)
+				die(sprintf('Conflicting ECH DNS servers for %s.', name));
+			return;
+		}
+	if (!length(filter(config.dns.servers, (item) => item.tag === tag)))
+		push(config.dns.servers, {
+			tag,
+			type: server.protocol,
+			server: server.hostname,
+			server_port: strToInt(server.port),
+			path: server.protocol === 'https' ? server.pathname + (server.search ? '?' + server.search : '') : null,
+			domain_resolver: resolver
+		});
+	unshift(config.dns.rules, { domain: [name], query_type: ['HTTPS'], action: 'route', server: tag });
+};

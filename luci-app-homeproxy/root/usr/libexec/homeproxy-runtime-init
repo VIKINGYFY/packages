@@ -6,6 +6,7 @@ clash_api_port="$(uci -q get homeproxy.infra.clash_api_port)"
 clash_api_port_initialized="$(uci -q get homeproxy.infra.clash_api_port_initialized)"
 main_node="$(uci -q get homeproxy.config.main_node)"
 dashboard_enabled="$(uci -q get homeproxy.config.dashboard_enabled)"
+tailscale_enabled="$(uci -q get homeproxy.tailscale.enabled)"
 changed=0
 
 mkdir -p /var/run/homeproxy
@@ -53,7 +54,7 @@ fi
 clash_api_port="$(initialize_port "$clash_api_port" 9090 "$clash_api_port_initialized" "$dashboard_port")"
 dashboard_port="$(initialize_port "$dashboard_port" 9095 "$dashboard_port_initialized" "$clash_api_port")"
 
-if [ "$main_node" = 'urltest' ] && [ "$dashboard_enabled" = '1' ] && \
+if [ "$main_node" = 'urltest' ] && { [ "$dashboard_enabled" = '1' ] || [ "$tailscale_enabled" = '1' ]; } && \
    [ "$clash_api_port" = "$dashboard_port" ]; then
 	dashboard_port="$(random_port "$clash_api_port")"
 fi

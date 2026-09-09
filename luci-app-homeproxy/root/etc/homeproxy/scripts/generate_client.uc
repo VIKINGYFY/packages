@@ -12,7 +12,7 @@ import { connect } from 'ubus';
 import { cursor } from 'uci';
 
 import {
-	createNodeLabelRegistry, filterExistingNodes, findDomainGroupConflict,
+	addECHDNS, createNodeLabelRegistry, filterExistingNodes, findDomainGroupConflict,
 	hasForceProxyRules, isEmpty, normalizeDomainList, normalizeList, parseURL,
 	domainListPath, resolveLanPolicy, splitDomainList,
 	reserveUniqueLabel, strToBool, strToInt, strToTime,
@@ -130,6 +130,8 @@ if (routing_mode === 'bypass_mainland_china')
 	add_domain_group('proxy', 'main');
 
 uci.foreach(uciconfig, 'domain_route', (cfg) => {
+	if (cfg.enabled === '0')
+		return;
 	const id = cfg['.name'];
 	if (!match(id, /^[A-Za-z0-9_]+$/) || (id in ['direct', 'proxy']))
 		die(`Invalid diversion group identifier ${id}.`);
@@ -668,6 +670,7 @@ if (!isEmpty(main_node)) {
 		} else {
 			const outbound = generate_outbound(node);
 			if (outbound) {
+				addECHDNS(config, node, 'default-dns');
 				outbound.tag = tag || get_node_outbound_tag(section_id);
 				push(config.outbounds, outbound);
 			}
@@ -833,18 +836,18 @@ if (enable_clash_api || enable_cache_file) {
 /* Experimental end */
 
 /* Services */
-if (dashboard_enabled)
+if (dashboard_enabled || tailscale_enabled)
 	config.services = [
 		{
 			type: 'api',
 			tag: 'api',
-			listen: '::',
+			listen: dashboard_enabled ? '::' : '127.0.0.1',
 			listen_port: dashboard_port,
 			secret: dashboard_secret,
-			dashboard: {
+			dashboard: dashboard_enabled ? {
 				enabled: true,
 				path: dashboard_path
-			}
+			} : null
 		}
 	];
 

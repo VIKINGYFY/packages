@@ -75,6 +75,22 @@ function validateCronExpression(_section_id, value) {
 	return _('Minutes (0-59), hours (0-23), days (1-31), months (1-12), weekdays (0-6).');
 }
 
+function parseECHConfig(value) {
+	if (!value || ['0', 'false', 'none'].includes(value))
+		return {};
+	const query = value.match(/^(?:([^+]+)\+)?((?:https|udp):\/\/.+)$/);
+	if (query) {
+		const server = new URL(query[2]);
+		if (!server.hostname || server.username || server.password || server.hash ||
+		    (query[1] && !/^[A-Za-z0-9_][A-Za-z0-9_.-]*[A-Za-z0-9]$/.test(query[1])))
+			throw new TypeError(_('Invalid ECH DNS query settings.'));
+		return { tls_ech: '1', tls_ech_query_server_name: query[1], tls_ech_query_server: query[2] };
+	}
+	if (!/^[A-Za-z0-9+\/]+={0,2}$/.test(value) || !hp.decodeBase64Str(value))
+		throw new TypeError(_('Invalid ECH configuration.'));
+	return { tls_ech: '1', tls_ech_config: ['-----BEGIN ECH CONFIGS-----', value, '-----END ECH CONFIGS-----'] };
+}
+
 function parseShareLink(uri, features) {
 	let config, url, params;
 
@@ -253,11 +269,22 @@ function parseShareLink(uri, features) {
 				transport: params.get('type') !== 'tcp' ? params.get('type') : null,
 				tls: '1',
 				tls_insecure: (params.get('insecure') === '1' || params.get('allowInsecure') === '1') ? '1' : '0',
-				tls_sni: params.get('sni')
+				tls_sni: params.get('sni'),
+				tls_alpn: params.get('alpn') ? params.get('alpn').split(',') : null,
+				tls_utls: features.with_utls ? params.get('fp') : null,
+				...parseECHConfig(params.get('ech'))
 			};
 			switch (params.get('type')) {
 			case 'grpc':
 				config.grpc_servicename = params.get('serviceName');
+				break;
+			case 'http':
+				config.http_host = params.get('host') ? decodeURIComponent(params.get('host')).split(',') : null;
+				config.http_path = params.get('path') ? decodeURIComponent(params.get('path')) : null;
+				break;
+			case 'httpupgrade':
+				config.httpupgrade_host = params.get('host') ? decodeURIComponent(params.get('host')) : null;
+				config.http_path = params.get('path') ? decodeURIComponent(params.get('path')) : null;
 				break;
 			case 'ws':
 				config.ws_host = params.get('host') ? decodeURIComponent(params.get('host')) : null;
@@ -306,8 +333,8 @@ function parseShareLink(uri, features) {
 				return null;
 			else if (params.get('type') === 'quic' && ((params.get('quicSecurity') && params.get('quicSecurity') !== 'none') || !features.with_quic))
 				return null;
-			/* Check if uuid and type exist */
-			if (!url.username || !params.get('type'))
+			/* Check if uuid exists; omitted transport means TCP. */
+			if (!url.username)
 				return null;
 
 			config = {
@@ -325,7 +352,8 @@ function parseShareLink(uri, features) {
 				tls_reality_public_key: params.get('pbk') ? decodeURIComponent(params.get('pbk')) : null,
 				tls_reality_short_id: params.get('sid'),
 				tls_utls: features.with_utls ? params.get('fp') : null,
-				vless_flow: ['tls', 'reality'].includes(params.get('security')) ? params.get('flow') : null
+				vless_flow: ['tls', 'reality'].includes(params.get('security')) ? params.get('flow') : null,
+				...parseECHConfig(params.get('ech'))
 			};
 			switch (params.get('type')) {
 			case 'grpc':
@@ -334,6 +362,7 @@ function parseShareLink(uri, features) {
 			case 'http':
 			case 'tcp':
 				if (config.transport === 'http' || params.get('headerType') === 'http') {
+					config.transport = 'http';
 					config.http_host = params.get('host') ? decodeURIComponent(params.get('host')).split(',') : null;
 					config.http_path = params.get('path') ? decodeURIComponent(params.get('path')) : null;
 				}
@@ -386,7 +415,8 @@ function parseShareLink(uri, features) {
 				tls: uri.tls === 'tls' ? '1' : '0',
 				tls_sni: uri.sni || uri.host,
 				tls_alpn: uri.alpn ? uri.alpn.split(',') : null,
-				tls_utls: features.with_utls ? uri.fp : null
+				tls_utls: features.with_utls ? uri.fp : null,
+				...parseECHConfig(uri.ech)
 			};
 			switch (uri.net) {
 			case 'grpc':
@@ -420,6 +450,9 @@ function parseShareLink(uri, features) {
 	}
 
 	if (config) {
+		if (['vless', 'vmess', 'trojan'].includes(config.type) && config.transport &&
+		    !['tcp', 'http', 'ws', 'grpc', 'httpupgrade', 'quic'].includes(config.transport))
+			throw new TypeError(_('Unsupported transport: %s.').format(config.transport));
 		if (!config.address || !config.port)
 			return null;
 		else if (!config.label)
@@ -1317,9 +1350,14 @@ function renderNodeSettings(section, data, features, main_node, node_latency_row
 	/* WebSocket config end */
 
 	o = s.option(form.ListValue, 'packet_encoding', _('Packet encoding'));
-	o.value('', _('None'));
+	o.value('none', _('None'));
 	o.value('packetaddr', _('packet addr (v2ray-core v5+)'));
 	o.value('xudp', _('XUDP (Xray-core)'));
+	o.rmempty = false;
+	o.cfgvalue = function(section_id) {
+		const value = uci.get('homeproxy', section_id, 'packet_encoding');
+		return value == null ? (uci.get('homeproxy', section_id, 'type') === 'vless' ? 'xudp' : 'none') : (value || 'none');
+	};
 	o.depends('type', 'vless');
 	o.depends('type', 'vmess');
 	o.modalonly = true;
@@ -1536,6 +1574,28 @@ function renderNodeSettings(section, data, features, main_node, node_latency_row
 	o.depends('tls_ech', '1');
 	o.modalonly = true;
 
+	o = s.option(form.Value, 'tls_ech_query_server_name', _('ECH query domain'),
+		_('Domain used to query ECH records. The TLS server name is used when empty.'));
+	o.datatype = 'hostname';
+	o.depends('tls_ech', '1');
+	o.modalonly = true;
+
+	o = s.option(form.Value, 'tls_ech_query_server', _('ECH DNS server'),
+		_('DNS server used only to obtain ECH records. Supports https:// and udp:// URLs.'));
+	o.depends('tls_ech', '1');
+	o.modalonly = true;
+	o.validate = function(_section_id, value) {
+		if (!value)
+			return true;
+		try {
+			const url = new URL(value);
+			return (['https:', 'udp:'].includes(url.protocol) && url.hostname &&
+				!url.username && !url.password && !url.hash) || _('Invalid ECH DNS query settings.');
+		} catch (e) {
+			return _('Invalid ECH DNS query settings.');
+		}
+	};
+
 	o = s.option(form.Button, '_upload_ech_config', _('Upload ECH config'),
 		_('<strong>Save your configuration before uploading files!</strong>'));
 	o.inputstyle = 'action';
@@ -1703,7 +1763,7 @@ return view.extend({
 
 								let allow_insecure = uci.get(data[0], 'subscription', 'allow_insecure');
 								let packet_encoding = uci.get(data[0], 'subscription', 'packet_encoding');
-								let imported_node = 0;
+								let imported_node = 0, import_errors = [];
 								input_links.forEach((l) => {
 									let sid = null;
 									try {
@@ -1721,16 +1781,18 @@ return view.extend({
 										});
 										imported_node++;
 									} catch (e) {
+										if (e.message && !import_errors.includes(e.message))
+											import_errors.push(e.message);
 										if (sid)
 											uci.remove(data[0], sid);
 									}
 								});
 
 								if (imported_node === 0)
-									ui.addNotification(null, E('p', _('No valid share link found.')));
+									ui.addNotification(null, E('p', _('No valid share link found.') + ' ' + import_errors.join(' ')));
 								else
 									ui.addNotification(null, E('p', _('Successfully imported %s nodes of total %s.').format(
-										imported_node, input_links.length)));
+										imported_node, input_links.length) + ' ' + import_errors.join(' ')));
 
 								return uci.save()
 									.then(L.bind(this.map.load, this.map))
@@ -1854,9 +1916,15 @@ return view.extend({
 		o.onchange = allowInsecureConfirm;
 
 		o = s.taboption('subscription', form.ListValue, 'packet_encoding', _('Default packet encoding'));
-		o.value('', _('None'));
+		o.value('none', _('None'));
 		o.value('packetaddr', _('packet addr (v2ray-core v5+)'));
 		o.value('xudp', _('XUDP (Xray-core)'));
+		o.default = 'xudp';
+		o.rmempty = false;
+		o.cfgvalue = function(section_id) {
+		const value = uci.get('homeproxy', section_id, 'packet_encoding');
+		return value == null ? 'xudp' : (value || 'none');
+	};
 
 		o = s.taboption('subscription', form.Button, '_save_subscriptions', _('Save subscriptions settings'),
 			_('NOTE: Save current settings before updating subscriptions.'));

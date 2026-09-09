@@ -13,7 +13,7 @@
 				"luci.homeproxy": [
 					"connection_check", "current_node_get", "domainlist_read",
 					"node_latency_test", "resources_get",
-					"singbox_generator", "singbox_get_features"
+					"singbox_generator", "singbox_get_features", "tailscale_status"
 				]
 			},
 			"uci": [ "homeproxy" ]

@@ -15,7 +15,7 @@ import { cursor } from 'uci';
 import { urldecode, urlencode } from 'luci.http';
 
 import {
-	wGET, decodeBase64Str, getTime, isEmpty, parseURL,
+	wGET, decodeBase64Str, getTime, isEmpty, parseECHConfig, parseURL,
 	reconcileUrltestNodes, reserveUniqueLabel, synchronizeNodeLabels,
 	validation, HP_DIR, RUN_DIR
 } from 'homeproxy';
@@ -284,6 +284,8 @@ function apply_transport_opts(config, proxy) {
 		config.httpupgrade_host = get_header_host(httpupgrade_opts.headers) || httpupgrade_opts.host;
 		config.http_path = normalize_first(httpupgrade_opts.path);
 		break;
+	default:
+		config.transport = network;
 	}
 }
 
@@ -566,7 +568,7 @@ function parse_mihomo_proxy(proxy) {
 		return null;
 	}
 
-	return has_required_hysteria_bandwidth(config) ? config : null;
+	return config;
 }
 
 function parse_uri(uri) {
@@ -574,9 +576,8 @@ function parse_uri(uri) {
 
 	if (type(uri) === 'object') {
 		if (uri.nodetype === 'mihomo') {
-			return parse_mihomo_proxy(uri);
-		}
-		if (uri.nodetype === 'sip008') {
+			config = parse_mihomo_proxy(uri);
+		} else if (uri.nodetype === 'sip008') {
 			/* https://shadowsocks.org/guide/sip008.html */
 			config = {
 				label: uri.remarks,
@@ -757,11 +758,22 @@ function parse_uri(uri) {
 				transport: (params.type !== 'tcp') ? params.type : null,
 				tls: '1',
 				tls_insecure: (params.insecure === '1' || params.allowInsecure === '1') ? '1' : '0',
-				tls_sni: params.sni
+				tls_sni: params.sni,
+				tls_alpn: params.alpn ? split(params.alpn, ',') : null,
+				tls_utls: sing_features.with_utls ? params.fp : null,
+				...parseECHConfig(params.ech)
 			};
 			switch(params.type) {
 			case 'grpc':
 				config.grpc_servicename = params.serviceName;
+				break;
+			case 'http':
+				config.http_host = params.host ? split(urldecode(params.host), ',') : null;
+				config.http_path = params.path ? urldecode(params.path) : null;
+				break;
+			case 'httpupgrade':
+				config.httpupgrade_host = params.host ? urldecode(params.host) : null;
+				config.http_path = params.path ? urldecode(params.path) : null;
 				break;
 			case 'ws':
 				config.ws_host = params.host ? urldecode(params.host) : null;
@@ -835,7 +847,8 @@ function parse_uri(uri) {
 				tls_reality_public_key: params.pbk ? urldecode(params.pbk) : null,
 				tls_reality_short_id: params.sid,
 				tls_utls: sing_features.with_utls ? params.fp : null,
-				vless_flow: (params.security in ['tls', 'reality']) ? params.flow : null
+				vless_flow: (params.security in ['tls', 'reality']) ? params.flow : null,
+				...parseECHConfig(params.ech)
 			};
 			switch(params.type) {
 			case 'grpc':
@@ -844,6 +857,7 @@ function parse_uri(uri) {
 			case 'http':
 			case 'tcp':
 				if (params.type === 'http' || params.headerType === 'http') {
+					config.transport = 'http';
 					config.http_host = params.host ? split(urldecode(params.host), ',') : null;
 					config.http_path = params.path ? urldecode(params.path) : null;
 				}
@@ -915,7 +929,8 @@ function parse_uri(uri) {
 				tls: (uri.tls === 'tls') ? '1' : '0',
 				tls_sni: uri.sni || uri.host,
 				tls_alpn: uri.alpn ? split(uri.alpn, ',') : null,
-				tls_utls: sing_features.with_utls ? uri.fp : null
+				tls_utls: sing_features.with_utls ? uri.fp : null,
+				...parseECHConfig(uri.ech)
 			};
 			switch (uri.net) {
 			case 'grpc':
@@ -949,6 +964,11 @@ function parse_uri(uri) {
 	}
 
 	if (!isEmpty(config)) {
+		if (config.type in ['vless', 'vmess', 'trojan'] && !isEmpty(config.transport) &&
+		    !(config.transport in ['tcp', 'http', 'ws', 'grpc', 'httpupgrade', 'quic'])) {
+			log(sprintf('Skipping unsupported %s transport: %s (%s).', config.type, config.transport, config.label || config.address));
+			return null;
+		}
 		if (!has_required_hysteria_bandwidth(config))
 			return null;
 

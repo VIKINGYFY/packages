@@ -163,7 +163,6 @@ function getConnectionStatus() {
 		E('div', { 'class': 'cbi-section' }, [ table ])
 	]);
 
-	window.setTimeout(runAllTests, 0);
 	return view;
 }
 

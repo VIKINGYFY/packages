@@ -88,6 +88,8 @@ uci.foreach(uciconfig, 'domain_route', (section) =>
 	deleteOptions(section['.name'], ['list_checksum']));
 
 uci.foreach(uciconfig, 'node', (section) => {
+	if (section.type in ['vless', 'vmess'] && section.packet_encoding === '')
+		uci.set(uciconfig, section['.name'], 'packet_encoding', 'none');
 	for (let pair in [
 		['hysteria_recv_window_conn', 'hysteria_stream_receive_window'],
 		['hysteria_revc_window', 'hysteria_connection_receive_window'],
@@ -110,6 +112,8 @@ uci.foreach(uciconfig, 'server', (section) => {
 });
 
 deleteOptions('subscription', ['latency_test_mode']);
+if (uci.get(uciconfig, 'subscription', 'packet_encoding') === '')
+	uci.set(uciconfig, 'subscription', 'packet_encoding', 'none');
 
 const subscriptionUserAgent = uci.get(uciconfig, 'subscription', 'user_agent');
 if (subscriptionUserAgent === 'v2rayN/7.23.4' ||
