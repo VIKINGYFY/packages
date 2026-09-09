@@ -129,8 +129,8 @@ uci.foreach(uciconfig, 'domain_route', (cfg) => {
 const domain_group_conflict = findDomainGroupConflict(domain_groups);
 if (domain_group_conflict)
 	die(`Domain rule ${domain_group_conflict.left.value} conflicts with ${domain_group_conflict.right.value}.`);
-const has_domain_proxy_suffixes = length(filter(domain_groups, (group) =>
-	group.kind !== 'direct' && length(group.suffixes)
+const has_domain_proxy_rules = length(filter(domain_groups, (group) =>
+	group.kind !== 'direct' && (length(group.suffixes) || length(group.keywords))
 )) > 0;
 
 function domain_group_outbound_tag(group) {
@@ -162,7 +162,7 @@ const dashboard_enabled = uci.get(uciconfig, ucimain, 'dashboard_enabled') === '
       !isEmpty(readfile(dashboard_path + '/index.html')),
       dashboard_port = strToInt(uci.get(uciconfig, ucimain, 'dashboard_port')),
       dashboard_secret = uci.get(uciconfig, ucimain, 'dashboard_secret');
-const force_proxy_rules = hasForceProxyRules(uci, uciconfig, has_domain_proxy_suffixes);
+const force_proxy_rules = hasForceProxyRules(uci, uciconfig, has_domain_proxy_rules);
 const fast_bypass_mainland = routing_mode === 'bypass_mainland_china' && !force_proxy_rules;
 /* UCI config end */
 
@@ -667,14 +667,18 @@ if (!isEmpty(main_node)) {
 	add_control_pre_match_rules(config.route.rules, 'main-out');
 
 	for (let group in domain_groups) {
-		if (!length(group.suffixes))
-			continue;
+		const outbound = domain_group_outbound_tag(group);
+		for (let type in ['suffix', 'keyword']) {
+			const domains = type === 'suffix' ? group.suffixes : group.keywords;
+			if (!length(domains))
+				continue;
 
-		const match_rule = tun_match({ rule_set: domain_rule_set_tag(group, 'suffix') });
-		if (group.kind === 'direct')
-			push_bypass(config.route.rules, match_rule);
-		else
-			push_route(config.route.rules, match_rule, domain_group_outbound_tag(group));
+			const match_rule = tun_match({ rule_set: domain_rule_set_tag(group, type) });
+			if (group.kind === 'direct')
+				push_bypass(config.route.rules, match_rule);
+			else
+				push_route(config.route.rules, match_rule, outbound);
+		}
 	}
 
 	if (routing_mode === 'bypass_mainland_china' && force_proxy_rules) {

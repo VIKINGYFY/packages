@@ -279,12 +279,12 @@ export function reconcileUrltestNodes(uci, config, logger) {
 	};
 };
 
-export function hasForceProxyRules(uci, config, hasDomainProxySuffixes) {
+export function hasForceProxyRules(uci, config, hasDomainProxyRules) {
 	const lanPolicy = resolveLanPolicy(uci, config);
 	if (lanPolicy.mode === 'global')
 		return false;
 
-	if (hasDomainProxySuffixes)
+	if (hasDomainProxyRules)
 		return true;
 
 	let options = [
