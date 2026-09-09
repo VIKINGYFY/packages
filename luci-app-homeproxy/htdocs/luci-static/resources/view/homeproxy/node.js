@@ -932,10 +932,26 @@ function renderNodeSettings(section, data, features, main_node, node_latency_row
 
 	o = s.option(form.Value, 'hysteria_hop_interval', _('Hop interval'),
 		_('Port hopping interval in seconds.'));
-	o.datatype = 'uinteger';
+	o.datatype = 'and(uinteger,min(5))';
 	o.placeholder = '30';
 	o.depends({'type': 'hysteria', 'hysteria_hopping_port': /[\s\S]/});
 	o.depends({'type': 'hysteria2', 'hysteria_hopping_port': /[\s\S]/});
+	o.modalonly = true;
+
+	o = s.option(form.Value, 'hysteria_hop_interval_max', _('Maximum hop interval'),
+		_('Maximum port hopping interval in seconds. The actual interval is randomly chosen between the hop interval (30 seconds by default) and this value. Leave empty to use a fixed interval.'));
+	o.datatype = 'and(uinteger,min(5))';
+	o.depends({'type': 'hysteria2', 'hysteria_hopping_port': /[\s\S]/});
+	o.validate = function(section_id, value) {
+		if (!value)
+			return true;
+
+		const interval = this.section.formvalue(section_id, 'hysteria_hop_interval') || '30';
+		if (Number(value) < Number(interval))
+			return _('Must be greater than or equal to the hop interval.');
+
+		return true;
+	};
 	o.modalonly = true;
 
 	o = s.option(form.ListValue, 'hysteria_network', _('Network'));

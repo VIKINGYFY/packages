@@ -481,6 +481,10 @@ export function renderOutbound(node) {
 	case 'hysteria2':
 		outbound.server_ports = node.hysteria_hopping_port;
 		outbound.hop_interval = strToTime(node.hysteria_hop_interval);
+		if (node.type === 'hysteria2' && !isEmpty(node.hysteria_hopping_port) && !isEmpty(node.hysteria_hop_interval_max)) {
+			outbound.hop_interval = strToTime(node.hysteria_hop_interval || '30');
+			outbound.hop_interval_max = strToTime(node.hysteria_hop_interval_max);
+		}
 		outbound.up_mbps = strToInt(node.hysteria_up_mbps);
 		outbound.down_mbps = strToInt(node.hysteria_down_mbps);
 		outbound.network = node.hysteria_network;
