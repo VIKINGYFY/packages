@@ -43,18 +43,6 @@ for (let path in glob(`${HP_DIR}/resources/diversion/*.txt`))
 	migrateDomainList(path, `${HP_DIR}/diversion/${substr(path, length(`${HP_DIR}/resources/diversion/`))}`);
 rmdir(`${HP_DIR}/resources/diversion`);
 
-/* Prefer the installed rules when both paths exist; old downloads are disposable. */
-for (let name in ['geoip_cn.srs', 'geoip_cn.ver', 'geosite_cn.srs', 'geosite_cn.ver']) {
-	const source = `${HP_DIR}/resources/${name}`, target = `${HP_DIR}/diversion/${name}`;
-	if (!stat(source))
-		continue;
-	if (!stat(`${HP_DIR}/diversion`) && !mkdir(`${HP_DIR}/diversion`))
-		die('HomeProxy: failed to create the diversion directory.\n');
-	if (!(stat(target) ? unlink(source) : rename(source, target)))
-		die('HomeProxy: failed to migrate rule resources.\n');
-}
-rmdir(`${HP_DIR}/resources`);
-
 const uci = cursor();
 const uciconfig = 'homeproxy';
 uci.load(uciconfig);

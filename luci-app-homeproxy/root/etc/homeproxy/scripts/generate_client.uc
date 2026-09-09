@@ -385,13 +385,13 @@ function add_mainland_rule_sets(rule_sets) {
 		type: 'local',
 		tag: 'geoip-cn',
 		format: 'binary',
-		path: HP_DIR + '/diversion/geoip_cn.srs'
+		path: HP_DIR + '/resources/geoip_cn.srs'
 	});
 	push(rule_sets, {
 		type: 'local',
 		tag: 'geosite-cn',
 		format: 'binary',
-		path: HP_DIR + '/diversion/geosite_cn.srs'
+		path: HP_DIR + '/resources/geosite_cn.srs'
 	});
 }
 

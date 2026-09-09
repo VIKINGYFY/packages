@@ -21,7 +21,7 @@ LUCI_EXTRA_DEPENDS:=sing-box (>=1.14.0)
 
 PKG_NAME:=luci-app-homeproxy
 PKG_VERSION:=20260910
-PKG_RELEASE:=2
+PKG_RELEASE:=4
 PKG_PO_VERSION:=$(PKG_VERSION)-r$(PKG_RELEASE)
 
 define Package/luci-app-homeproxy/conffiles
@@ -31,6 +31,7 @@ define Package/luci-app-homeproxy/conffiles
 /etc/homeproxy/dashboard/
 /etc/homeproxy/ruleset/
 /etc/homeproxy/tailscale/
+/etc/homeproxy/resources/
 /etc/homeproxy/diversion/
 endef
 
