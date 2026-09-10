@@ -684,7 +684,7 @@ if (!isEmpty(main_node)) {
 		if (!length(urltest_nodes))
 			die('Main URLTest group has no available nodes.');
 		const main_urltest_interval = uci.get(uciconfig, ucimain, 'main_urltest_interval') || '120';
-		const main_urltest_tolerance = uci.get(uciconfig, ucimain, 'main_urltest_tolerance');
+		const main_urltest_tolerance = uci.get(uciconfig, ucimain, 'main_urltest_tolerance') || '60';
 		const main_urltest_interrupt = uci.get(uciconfig, ucimain, 'main_urltest_interrupt_exist_connections') || '0';
 
 		push(config.outbounds, {

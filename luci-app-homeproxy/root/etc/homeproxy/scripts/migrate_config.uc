@@ -96,7 +96,7 @@ deleteOptions('config', [
 ]);
 
 deleteOptions('infra', [
-	'china_dns_port', 'redirect_port', 'tun_mark', 'tun_gso',
+	'china_dns_port', 'dns_redirect', 'redirect_port', 'tun_mark', 'tun_gso',
 	'tproxy_port', 'table_mark', 'self_mark', 'tproxy_mark',
 	'sniff_override', 'github_token'
 ]);

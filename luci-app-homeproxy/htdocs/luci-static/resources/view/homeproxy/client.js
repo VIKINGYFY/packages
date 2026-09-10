@@ -334,7 +334,7 @@ return view.extend({
 		o = s.taboption('routing', form.Value, 'main_urltest_interval', _('Test interval'),
 			_('The test interval in seconds.'));
 		o.datatype = 'uinteger';
-		o.placeholder = '90';
+		o.placeholder = '120';
 		o.depends({ routing_mode: 'bypass_mainland_china', main_node: 'urltest' });
 		o.depends({ routing_mode: 'global', main_node: 'urltest' });
 		o.retain = true;
@@ -342,7 +342,7 @@ return view.extend({
 		o = s.taboption('routing', form.Value, 'main_urltest_tolerance', _('Test tolerance'),
 			_('The test tolerance in milliseconds.'));
 		o.datatype = 'uinteger';
-		o.placeholder = '50';
+		o.placeholder = '60';
 		o.depends({ routing_mode: 'bypass_mainland_china', main_node: 'urltest' });
 		o.depends({ routing_mode: 'global', main_node: 'urltest' });
 		o.retain = true;
