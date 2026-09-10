@@ -14,14 +14,15 @@ GEOSITE_VERSION_URL="${GEOSITE_VERSION_URL:-https://github.com/SagerNet/sing-geo
 DASHBOARD_SOURCE="${DASHBOARD_SOURCE:-https://codeload.github.com/SagerNet/sing-box-dashboard/zip/refs/heads/gh-pages}"
 DASHBOARD_VERSION_URL="${DASHBOARD_VERSION_URL:-https://github.com/SagerNet/sing-box-dashboard/commits/gh-pages.atom}"
 USER_AGENT="${USER_AGENT:-HomeProxy resource preset}"
-SING_BOX="${SING_BOX:-}"
 
-TEMP_DIR="$(mktemp -d)" || {
+TMP_DIR="$(mktemp -d)" || {
 	echo "Failed to prepare temporary resource directory." >&2
 	exit 1
 }
 DASHBOARD_STAGE="${DASHBOARD_DIR}.new.$$"
-trap 'rm -rf -- "$TEMP_DIR" "$DASHBOARD_STAGE"' EXIT INT TERM
+trap 'rm -rf -- "$TMP_DIR" "$DASHBOARD_STAGE" "$RESOURCES_DIR/.update.$$.tmp"' EXIT
+trap 'exit 130' INT
+trap 'exit 143' TERM
 
 warn() {
 	echo "WARNING: $*" >&2
@@ -55,14 +56,14 @@ fetch_dashboard_version() {
 	feed="$(curl -fsSL --compressed --retry 3 --retry-all-errors \
 		--retry-delay 1 --connect-timeout 10 --max-time 30 \
 		-A "$USER_AGENT" "$DASHBOARD_VERSION_URL")" || return 1
-	version="$(awk -F '[<>]' '
+	version="$(printf '%s\n' "$feed" | awk -F '[<>]' '
 		/<updated>/ {
 			version = $3
 			gsub(/[-:TZ]/, "", version)
 			print version
 			exit
 		}
-	' <<<"$feed")"
+	')"
 	case "$version" in
 		??????????????) case "$version" in *[!0-9]*) return 1 ;; esac ;;
 		*) return 1 ;;
@@ -77,14 +78,44 @@ download() {
 }
 
 validate_rule_set() {
-	local rule_set="$1"
+	# Download checks cover transfer errors; only check the SRS envelope here.
+	[[ "$(head -c 3 "$1" 2>/dev/null)" == SRS && $(wc -c < "$1") -gt 4 ]]
+}
 
-	[[ -s "$rule_set" ]] || return 1
-	[[ "$(head -c 3 "$rule_set")" == SRS ]] || return 1
-	if [[ -n "$SING_BOX" && -x "$SING_BOX" ]]; then
-		"$SING_BOX" rule-set decompile "$rule_set" \
-			-o "$TEMP_DIR/$(basename "$rule_set").json" >/dev/null 2>&1 || return 1
+versioned_url() {
+	case "$1" in
+	http://*|https://*) printf '%s?v=%s' "$1" "$2" ;;
+	*) printf '%s' "$1" ;;
+	esac
+}
+
+install_rule_set() {
+	local source_file="$1" version="$2" resource="$3"
+	local stage_dir="$RESOURCES_DIR/.update.$$.tmp"
+
+	mkdir -p "$stage_dir" &&
+		cp "$source_file" "$stage_dir/$resource.srs" &&
+		printf '%s\n' "$version" > "$stage_dir/$resource.ver" &&
+		chmod 0644 "$stage_dir/$resource.srs" "$stage_dir/$resource.ver" &&
+		mv -f "$stage_dir/$resource.srs" "$RESOURCES_DIR/$resource.srs" &&
+		mv -f "$stage_dir/$resource.ver" "$RESOURCES_DIR/$resource.ver"
+}
+
+update_rule_set() {
+	local resource="$1" source_url="$2" version_url="$3"
+	local version old_version
+
+	version="$(fetch_release_version "$version_url")" || return 1
+	resource_version="$version"
+	old_version="$(cat "$RESOURCES_DIR/$resource.ver" 2>/dev/null)"
+	if [ "$old_version" = "$version" ] && validate_rule_set "$RESOURCES_DIR/$resource.srs"; then
+		echo "HomeProxy resources: $resource $version (current)"
+		return 0
 	fi
+	download "$(versioned_url "$source_url" "$version")" "$TMP_DIR/$resource.srs" &&
+		validate_rule_set "$TMP_DIR/$resource.srs" &&
+		install_rule_set "$TMP_DIR/$resource.srs" "$version" "$resource" || return 1
+	echo "HomeProxy resources: $resource $version"
 }
 
 normalize_dashboard_javascript() {
@@ -95,111 +126,61 @@ normalize_dashboard_javascript() {
 		# Preserve the JSON editor's two-space indent without trailing whitespace.
 		# shellcheck disable=SC2016
 		sed -i -E 's/^(`\+[^`]+\+`)  $/\1\\x20\\x20/' "$file" || return 1
-		if grep -nE '[[:blank:]]+$' "$file" >&2; then
-			echo "Unsupported trailing whitespace remains in dashboard JavaScript: $file" >&2
-			return 1
-		fi
 	done < <(find "$dashboard_root" -type f -name '*.js' -print0)
 }
 
-mkdir -p -- "$RESOURCES_DIR" "$DASHBOARD_DIR"
-update_failed=0
-geoip_version=""
-geosite_version=""
-dashboard_version=""
+update_dashboard() {
+	local version old_version index source_dir=""
+	local backup_dir="${DASHBOARD_DIR}.old.$$"
 
-geoip_ready=1
-geoip_version="$(fetch_release_version "$GEOIP_VERSION_URL")" || geoip_ready=0
-if [[ "$geoip_ready" -eq 1 ]] && \
-	! download "${GEOIP_SOURCE}?v=${geoip_version}" "$TEMP_DIR/geoip_cn.srs"; then
-	geoip_ready=0
-fi
-if [[ "$geoip_ready" -eq 1 ]] && ! validate_rule_set "$TEMP_DIR/geoip_cn.srs"; then
-	geoip_ready=0
-fi
-if [[ "$geoip_ready" -eq 1 ]] && \
-	! printf '%s\n' "$geoip_version" > "$TEMP_DIR/geoip_cn.ver"; then
-	geoip_ready=0
-fi
-if [[ "$geoip_ready" -eq 1 ]] && \
-	! install -m 0644 "$TEMP_DIR/geoip_cn.srs" "$RESOURCES_DIR/geoip_cn.srs"; then
-	geoip_ready=0
-fi
-if [[ "$geoip_ready" -eq 1 ]] && \
-	! install -m 0644 "$TEMP_DIR/geoip_cn.ver" "$RESOURCES_DIR/geoip_cn.ver"; then
-	geoip_ready=0
-fi
-if [[ "$geoip_ready" -eq 1 ]]; then
-	rm -f -- "$RESOURCES_DIR/china_ip4.txt" "$RESOURCES_DIR/china_ip4.ver" \
-		"$RESOURCES_DIR/china_ip6.txt" "$RESOURCES_DIR/china_ip6.ver" \
-		"$RESOURCES_DIR/geoip_cn.json"
-	echo "HomeProxy resources: geoip_cn $geoip_version"
-else
-	warn "Failed to update HomeProxy geoip resource; continuing."
-	update_failed=1
-fi
-
-geosite_ready=1
-geosite_version="$(fetch_release_version "$GEOSITE_VERSION_URL")" || geosite_ready=0
-if [[ "$geosite_ready" -eq 1 ]] && \
-	download "${GEOSITE_SOURCE}?v=${geosite_version}" "$TEMP_DIR/geosite_cn.srs" && \
-	validate_rule_set "$TEMP_DIR/geosite_cn.srs" && \
-	printf '%s\n' "$geosite_version" > "$TEMP_DIR/geosite_cn.ver" && \
-	install -m 0644 "$TEMP_DIR/geosite_cn.srs" "$RESOURCES_DIR/geosite_cn.srs" && \
-	install -m 0644 "$TEMP_DIR/geosite_cn.ver" "$RESOURCES_DIR/geosite_cn.ver"; then
-	echo "HomeProxy resources: geosite_cn $geosite_version"
-else
-	warn "Failed to update HomeProxy geosite; continuing."
-	update_failed=1
-fi
-
-dashboard_ready=1
-dashboard_version="$(fetch_dashboard_version)" || dashboard_ready=0
-if [[ "$dashboard_ready" -eq 1 ]] && \
-	! download "${DASHBOARD_SOURCE}?v=${dashboard_version}" "$TEMP_DIR/dashboard.zip"; then
-	dashboard_ready=0
-fi
-if [[ "$dashboard_ready" -eq 1 ]] && ! unzip -q "$TEMP_DIR/dashboard.zip" -d "$TEMP_DIR/dashboard"; then
-	dashboard_ready=0
-fi
-dashboard_source_dir=""
-if [[ "$dashboard_ready" -eq 1 ]]; then
-	for dashboard_index in "$TEMP_DIR/dashboard/index.html" "$TEMP_DIR"/dashboard/*/index.html; do
-		if [[ -f "$dashboard_index" ]]; then
-			dashboard_source_dir="${dashboard_index%/index.html}"
+	version="$(fetch_dashboard_version)" || return 1
+	old_version="$(cat "$DASHBOARD_DIR/dashboard.ver" 2>/dev/null)"
+	if [ "$old_version" = "$version" ] && [ -s "$DASHBOARD_DIR/index.html" ]; then
+		echo "HomeProxy dashboard: $version (current)"
+		return 0
+	fi
+	download "$(versioned_url "$DASHBOARD_SOURCE" "$version")" "$TMP_DIR/dashboard.zip" &&
+		unzip -q "$TMP_DIR/dashboard.zip" -d "$TMP_DIR/dashboard" || return 1
+	for index in "$TMP_DIR/dashboard/index.html" "$TMP_DIR"/dashboard/*/index.html; do
+		if [ -s "$index" ]; then
+			source_dir="${index%/index.html}"
 			break
 		fi
 	done
-	[[ -f "$dashboard_source_dir/index.html" ]] || dashboard_ready=0
-fi
-if [[ "$dashboard_ready" -eq 1 ]]; then
-	rm -rf -- "$DASHBOARD_STAGE"
-	if mkdir -p -- "$DASHBOARD_STAGE" && \
-		cp -a -- "$dashboard_source_dir/." "$DASHBOARD_STAGE/" && \
-		normalize_dashboard_javascript "$DASHBOARD_STAGE" && \
-		printf '%s\n' "$dashboard_version" > "$DASHBOARD_STAGE/dashboard.ver"; then
-		rm -f -- "$DASHBOARD_STAGE/.etag"
-		chmod -R a+rX "$DASHBOARD_STAGE"
-	else
-		dashboard_ready=0
+	[ -n "$source_dir" ] || return 1
+	mkdir -p "$DASHBOARD_STAGE" &&
+		cp -a "$source_dir/." "$DASHBOARD_STAGE/" &&
+		rm -f "$DASHBOARD_STAGE/.etag" &&
+		normalize_dashboard_javascript "$DASHBOARD_STAGE" &&
+		printf '%s\n' "$version" > "$DASHBOARD_STAGE/dashboard.ver" &&
+		chmod -R a+rX "$DASHBOARD_STAGE" || return 1
+	mv "$DASHBOARD_DIR" "$backup_dir" || return 1
+	if ! mv "$DASHBOARD_STAGE" "$DASHBOARD_DIR"; then
+		mv "$backup_dir" "$DASHBOARD_DIR" || warn "Unable to restore the dashboard; backup retained at $backup_dir."
+		return 1
 	fi
+	rm -rf "$backup_dir"
+	echo "HomeProxy dashboard: $version"
+}
+
+mkdir -p "$RESOURCES_DIR" "$DASHBOARD_DIR" || exit 1
+update_failed=0
+resource_version=""
+if ! update_rule_set geoip_cn "$GEOIP_SOURCE" "$GEOIP_VERSION_URL"; then
+	warn "Failed to update HomeProxy geoip resource; continuing."
+	update_failed=1
 fi
-if [[ "$dashboard_ready" -eq 1 ]]; then
-	rm -rf -- "$DASHBOARD_DIR"
-	if mv -- "$DASHBOARD_STAGE" "$DASHBOARD_DIR"; then
-		echo "HomeProxy dashboard: $dashboard_version"
-	else
-		dashboard_ready=0
-	fi
+if ! update_rule_set geosite_cn "$GEOSITE_SOURCE" "$GEOSITE_VERSION_URL"; then
+	warn "Failed to update HomeProxy geosite; continuing."
+	update_failed=1
 fi
-if [[ "$dashboard_ready" -ne 1 ]]; then
+if ! update_dashboard; then
 	warn "Failed to update HomeProxy dashboard; continuing."
 	update_failed=1
 fi
 
-resource_version="${geosite_version:-${geoip_version:-${dashboard_version:-unknown}}}"
-set_output version "$resource_version"
 if [[ "$update_failed" -ne 0 ]]; then
 	echo "HomeProxy resource update failed; refusing to commit partial data." >&2
 	exit 1
 fi
+set_output version "$resource_version"
