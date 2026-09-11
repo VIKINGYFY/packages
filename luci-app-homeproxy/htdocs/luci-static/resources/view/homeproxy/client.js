@@ -203,7 +203,9 @@ return view.extend({
 			if (Object.prototype.hasOwnProperty.call(pendingDomainLists, id))
 				return Promise.resolve(pendingDomainLists[id]);
 
-			return L.resolveDefault(callReadDomainList(id), {}).then((res) => {
+			return callReadDomainList(id).then((res) => {
+				if (res.error)
+					throw new Error(res.error);
 				domainListCache[id] = res.content || '';
 				return domainListCache[id];
 			});
@@ -256,28 +258,50 @@ return view.extend({
 			return routingMode;
 		}
 
-		const saveMap = m.save;
-		m.save = function(cb, silent) {
-			return saveMap.call(this, () => Promise.resolve(
-				typeof cb === 'function' ? cb() : null
-			).then(() => {
-				const routingMode = validateDomainLists();
-				const ids = Object.keys(pendingDomainLists);
-				if (!ids.length)
-					return null;
+		function configureDomainListSave(map) {
+			const saveMap = map.save;
+			map.save = function(cb, silent) {
+				return saveMap.call(this, () => Promise.resolve(
+					typeof cb === 'function' ? cb() : null
+				).then(() => {
+					/* Include unopened group editors in cross-list validation. */
+					const ids = ['direct', 'proxy'];
+					uci.sections('homeproxy', 'domain_route', (section) => {
+						ids.push(section['.name']);
+					});
+					return Promise.all(ids.map(loadDomainList));
+				}).then(() => {
+					const routingMode = validateDomainLists();
+					const ids = Object.keys(pendingDomainLists);
+					if (!ids.length)
+						return null;
 
-				const lists = Object.assign({}, pendingDomainLists);
-				const groupStates = {};
-				uci.sections('homeproxy', 'domain_route', (section) => {
-					groupStates[section['.name']] = section.enabled === '0' ? '0' : '1';
+					const lists = Object.assign({}, pendingDomainLists);
+					const groupStates = {};
+					uci.sections('homeproxy', 'domain_route', (section) => {
+						groupStates[section['.name']] = section.enabled === '0' ? '0' : '1';
+					});
+					return callWriteDomainLists(lists, routingMode, groupStates).then((result) => {
+						if (!result.result)
+							throw new Error(result.error || _('Failed to save domain lists.'));
+						for (let id of ids) {
+							const builtin = id === 'direct' || id === 'proxy';
+							const section = builtin ? 'diversion' : id;
+							const option = builtin ? id + '_list_checksum' : 'list_checksum';
+							const checksum = hp.calcStringMD5(lists[id]);
+							if (uci.get('homeproxy', section, option) !== checksum)
+								uci.set('homeproxy', section, option, checksum);
+						}
+						pendingDomainLists = Object.create(null);
+					});
+				}), silent).catch((error) => {
+					if (silent)
+						ui.addNotification(null, E('p', {}, error.message), 'error');
+					throw error;
 				});
-				return callWriteDomainLists(lists, routingMode, groupStates).then((result) => {
-					if (!result.result)
-						throw new Error(result.error || _('Failed to save domain lists.'));
-					pendingDomainLists = Object.create(null);
-				});
-			}), silent);
-		};
+			};
+		}
+		configureDomainListSave(m);
 
 		s = m.section(form.TypedSection);
 		s.render = function () {
@@ -673,6 +697,9 @@ return view.extend({
 		domainRoutes.addremove = true;
 		domainRoutes.addbtntitle = _('Add diversion group');
 		domainRoutes.nodescriptions = true;
+		domainRoutes.addModalOptions = function(section) {
+			configureDomainListSave(section.map);
+		};
 		let domainRouteSerial = 0;
 		function newDomainRouteId() {
 			let id;

@@ -116,9 +116,6 @@ deleteOptions('control', [
 
 if (isEmpty(uci.get(uciconfig, 'diversion')))
 	uci.set(uciconfig, 'diversion', 'homeproxy');
-deleteOptions('diversion', ['direct_list_checksum', 'proxy_list_checksum']);
-uci.foreach(uciconfig, 'domain_route', (section) =>
-	deleteOptions(section['.name'], ['list_checksum']));
 
 uci.foreach(uciconfig, 'node', (section) => {
 	if (section.type in ['vless', 'vmess'] && section.packet_encoding === '')
