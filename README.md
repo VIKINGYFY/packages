@@ -10,6 +10,11 @@
 
 这是一个个人自用的 OpenWrt/ImmortalWrt 插件分享仓库。插件以实际使用需求为导向，并借助 AI 完成维护、适配、审计和自动化，因此统一标记为 **AI Edition**。
 
+## 软件包下载
+
+- [ARM64 软件包](https://github.com/VIKINGYFY/packages/releases/tag/apk-packages-arm64)
+- [AMD64 软件包](https://github.com/VIKINGYFY/packages/releases/tag/apk-packages-amd64)
+
 ## 插件简介
 
 | 插件 | 版本 | 简介 | 源码来源 |
