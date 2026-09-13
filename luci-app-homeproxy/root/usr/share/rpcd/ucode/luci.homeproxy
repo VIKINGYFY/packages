@@ -489,6 +489,8 @@ const methods = {
 			const probe_parallelism = 16;
 			const hpuci = cursor();
 			hpuci.load('homeproxy');
+			const dns_strategy = hpuci.get('homeproxy', 'config', 'ipv6_support') === '1' ?
+				'prefer_ipv6' : 'prefer_ipv4';
 			const reserved_controller_port = int(hpuci.get('homeproxy', 'infra', 'clash_api_port')) || 0;
 
 			const formatResult = (node, state, latency_ms, err) => ({
@@ -544,14 +546,15 @@ const methods = {
 				const config = {
 					log: { disabled: true },
 					dns: {
-						servers: [{ type: 'local', tag: 'local-dns' }]
+						servers: [{ type: 'local', tag: 'local-dns' }],
+						strategy: dns_strategy
 					},
 					outbounds: [{ type: 'direct', tag: 'direct-out' }],
 					endpoints: [],
 					route: {
 						final: 'direct-out',
 						auto_detect_interface: true,
-						default_domain_resolver: 'local-dns'
+						default_domain_resolver: { server: 'local-dns', strategy: dns_strategy }
 					},
 					experimental: {
 						clash_api: {
@@ -563,7 +566,7 @@ const methods = {
 				try {
 					for (let entry in entries) {
 						push(entry.endpoint ? config.endpoints : config.outbounds, entry.outbound);
-						addECHDNS(config, entry.section, 'local-dns');
+						addECHDNS(config, entry.section, { server: 'local-dns', strategy: dns_strategy });
 					}
 				} catch (e) {
 					return { error: e.message };

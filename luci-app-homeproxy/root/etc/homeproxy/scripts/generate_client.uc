@@ -112,7 +112,7 @@ if (routing_mode === 'bypass_mainland_china') {
 	if (isEmpty(china_dns_server) || type(china_dns_server) !== 'string' || china_dns_server === 'wan')
 		china_dns_server = wan_dns;
 }
-const dns_default_strategy = (ipv6_support !== '1') ? 'ipv4_only' : null;
+const dns_default_strategy = (ipv6_support === '1') ? 'prefer_ipv6' : 'prefer_ipv4';
 
 let domain_groups = [];
 
@@ -450,7 +450,7 @@ if (!isEmpty(ntp_server))
 		enabled: true,
 		server: ntp_server,
 		detour: 'direct-out',
-		domain_resolver: 'default-dns',
+		domain_resolver: { server: 'default-dns', strategy: dns_default_strategy },
 	};
 
 /* DNS start */
@@ -482,7 +482,7 @@ if (!isEmpty(main_node)) {
 		tag: 'main-dns',
 		domain_resolver: {
 			server: 'default-dns',
-			strategy: (ipv6_support !== '1') ? 'ipv4_only' : null
+			strategy: dns_default_strategy
 		},
 		detour: 'main-out',
 		...parse_dnsserver(dns_server, 'tcp')
@@ -519,7 +519,7 @@ if (!isEmpty(main_node)) {
 			tag,
 			domain_resolver: {
 				server: 'default-dns',
-				strategy: (ipv6_support !== '1') ? 'ipv4_only' : null
+				strategy: dns_default_strategy
 			},
 			detour: outbound,
 			...parse_dnsserver(dns_server, 'tcp')
@@ -551,7 +551,7 @@ if (!isEmpty(main_node)) {
 			tag: 'china-dns',
 			domain_resolver: {
 				server: 'default-dns',
-				strategy: (ipv6_support !== '1') ? 'prefer_ipv4' : null
+				strategy: dns_default_strategy
 			},
 			detour: null,
 			...parse_dnsserver(china_dns_server)
@@ -608,7 +608,7 @@ push(config.inbounds, {
 	tag: 'tun-in',
 
 	interface_name: tun_name,
-	address: (ipv6_support === '1') ? [tun_addr4, tun_addr6] : [tun_addr4],
+	address: [tun_addr4, tun_addr6],
 	mtu: strToInt(tun_mtu),
 	auto_route: true,
 	auto_redirect: true,
@@ -670,7 +670,7 @@ if (!isEmpty(main_node)) {
 		} else {
 			const outbound = generate_outbound(node);
 			if (outbound) {
-				addECHDNS(config, node, 'default-dns');
+				addECHDNS(config, node, { server: 'default-dns', strategy: dns_default_strategy });
 				outbound.tag = tag || get_node_outbound_tag(section_id);
 				push(config.outbounds, outbound);
 			}
@@ -734,7 +734,7 @@ if (!isEmpty(main_node)) {
 	/* Avoid DNS loop */
 	config.route.default_domain_resolver = {
 		server: (routing_mode === 'bypass_mainland_china') ? 'china-dns' : 'default-dns',
-		strategy: (ipv6_support !== '1') ? 'prefer_ipv4' : null
+		strategy: dns_default_strategy
 	};
 
 	/* Native auto_redirect pre-match: handle device and address exceptions first. */

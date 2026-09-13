@@ -398,20 +398,19 @@ return view.extend({
 				if (!value)
 					return _('Expecting: %s').format(_('non-empty value'));
 
-				let ipv6_support = this.section.formvalue(section_id, 'ipv6_support');
 				try {
 					let url = new URL(value.replace(/^.*:\/\//, 'http://'));
 					if (stubValidator.apply('hostname', url.hostname))
 						return true;
 					else if (stubValidator.apply('ip4addr', url.hostname))
 						return true;
-					else if ((ipv6_support === '1') && stubValidator.apply('ip6addr', url.hostname.match(/^\[(.+)\]$/)?.[1]))
+					else if (stubValidator.apply('ip6addr', url.hostname.match(/^\[(.+)\]$/)?.[1]))
 						return true;
 					else
 						return _('Expecting: %s').format(_('valid DNS server address'));
 				} catch(e) {}
 
-				if (!stubValidator.apply((ipv6_support === '1') ? 'ipaddr' : 'ip4addr', value))
+				if (!stubValidator.apply('ipaddr', value))
 					return _('Expecting: %s').format(_('valid DNS server address'));
 			}
 
