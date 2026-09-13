@@ -292,7 +292,7 @@ jobs:
             echo "源提交：$SOURCE_SHA"
             echo "最新整合包：$ARCHIVE_NAME"
             echo
-            echo '每个 APK 包名仅保留最近 3 个版本。'
+            echo '每个 APK 包名仅保留最新版本。'
             echo 'ZIP 仅包含本平台每个软件包的最新版本。'
           } > "$notes_file"
 
@@ -313,10 +313,10 @@ jobs:
               --notes-file "$notes_file"
           fi
 
-      - name: 每个软件包保留三个版本
+      - name: 每个软件包仅保留最新版本
         run: |
           .github/scripts/prune-apk-release.sh \
-            "$RELEASE_TAG" 3 "$RUNNER_TEMP/latest-apk-assets.tsv"
+            "$RELEASE_TAG" 1 "$RUNNER_TEMP/latest-apk-assets.tsv"
 
       - name: 发布 ${{ matrix.platform_name }} 最新整合包
         env:

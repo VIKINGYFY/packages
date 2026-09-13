@@ -167,7 +167,7 @@ mapfile -t package_dirs < <(ci_discover_packages)
 	echo
 	echo 'CI 每日检查受维护的上游项目，仅在发现更新时继续构建、提交和发布。软件包目录通过 Makefile 自动发现；新增或删除软件包后，构建范围和发布资产清理会自动调整，LuCI 插件列表也会自动更新。'
 	echo
-	echo 'APK 发布按 ARM64 和 AMD64 分开维护；每个包名保留最近三个版本，并提供包含各软件包最新版的整合包。axonhub 核心发布仅保留最新版，发布说明包含上游最近三次提交信息。'
+	echo 'APK 发布按 ARM64 和 AMD64 分开维护；每个包名仅保留最新版本，并提供包含各软件包最新版的整合包。axonhub 核心发布仅保留最新版，发布说明包含上游最近三次提交信息。'
 	echo
 	echo '## License'
 	echo

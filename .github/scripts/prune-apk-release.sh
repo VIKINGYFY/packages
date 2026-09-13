@@ -15,7 +15,7 @@ SCRIPT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
 source "$SCRIPT_DIR/ci-common.sh"
 REPO_ROOT="$CI_REPO_ROOT"
 RELEASE_TAG="$1"
-KEEP="${2:-3}"
+KEEP="${2:-1}"
 LATEST_ASSETS_FILE="${3:-}"
 
 [[ "$KEEP" =~ ^[1-9][0-9]*$ ]] || {
