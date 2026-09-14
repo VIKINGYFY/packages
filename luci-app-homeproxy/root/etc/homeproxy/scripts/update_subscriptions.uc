@@ -27,7 +27,6 @@ const uciconfig = 'homeproxy';
 uci.load(uciconfig);
 
 const uciinfra = 'infra',
-      ucimain = 'config',
       ucinode = 'node',
       ucisubscription = 'subscription';
 
@@ -1216,16 +1215,6 @@ function main() {
 
 	reconcileUrltestNodes(uci, uciconfig, (message) => log(message));
 
-	const current_main_node = uci.get(uciconfig, ucimain, 'main_node') || 'nil';
-	if (current_main_node !== 'nil' && current_main_node !== 'urltest' &&
-	    uci.get(uciconfig, current_main_node) !== ucinode) {
-		const first_server = uci.get_first(uciconfig, ucinode);
-		uci.set(uciconfig, ucimain, 'main_node', first_server || 'nil');
-		if (first_server)
-			log('Main node is gone, switching to the first node.');
-		else
-			log('No available node, disabling the client.');
-	}
 	const config_changed = !isEmpty(uci.changes(uciconfig));
 	if (config_changed && uci.commit(uciconfig) !== true)
 		die('failed to commit subscription changes');

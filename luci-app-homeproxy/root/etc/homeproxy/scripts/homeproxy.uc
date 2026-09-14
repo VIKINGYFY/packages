@@ -262,13 +262,22 @@ export function reconcileUrltestNodes(uci, config, logger) {
 	}
 
 	const mainNodes = reconcileList('config', 'main_urltest_nodes');
-	if (uci.get(config, 'config', 'main_node') === 'urltest' && !length(mainNodes)) {
+	const mainNode = uci.get(config, 'config', 'main_node');
+	if (mainNode === 'urltest' && !length(mainNodes)) {
 		const fallback = uci.get_first(config, 'node') || 'nil';
 		uci.set(config, 'config', 'main_node', fallback);
 		changed = true;
 		log((fallback === 'nil') ?
 			'Main URLTest group is empty; disabling the client.' :
 			sprintf('Main URLTest group is empty; switching to node %s.', fallback));
+	} else if (mainNode && mainNode !== 'nil' && mainNode !== 'urltest' &&
+		uci.get(config, mainNode) !== 'node') {
+		const fallback = uci.get_first(config, 'node') || 'nil';
+		uci.set(config, 'config', 'main_node', fallback);
+		changed = true;
+		log((fallback === 'nil') ?
+			'Main node is unavailable; disabling the client.' :
+			sprintf('Main node %s is unavailable; switching to node %s.', mainNode, fallback));
 	}
 
 	return {
