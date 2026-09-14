@@ -104,7 +104,8 @@ deleteOptions('infra', [
 if (uci.get(uciconfig, 'config', 'routing_port') === 'all')
 	uci.delete(uciconfig, 'config', 'routing_port');
 
-moveOption('routing', 'tcpip_stack', 'config', 'tcpip_stack');
+deleteOptions('config', ['tcpip_stack']);
+deleteOptions('routing', ['tcpip_stack']);
 
 deleteOptions('control', [
 	'lan_proxy_mode', 'lan_direct_ipv6_ips', 'lan_proxy_ipv6_ips',
@@ -157,7 +158,7 @@ setDefault('config', 'main_urltest_interval', '120');
 setDefault('config', 'main_urltest_tolerance', '60');
 setDefault('config', 'main_urltest_interrupt_exist_connections', '0');
 setDefault('config', 'log_level', 'warn');
-setDefault('config', 'tcpip_stack', 'mixed');
+setDefault('config', 'multi_queue', '1');
 if (isEmpty(uci.get(uciconfig, 'tailscale')))
 	uci.set(uciconfig, 'tailscale', 'homeproxy');
 setDefault('tailscale', 'enabled', '0');

@@ -479,27 +479,12 @@ return view.extend({
 			return true;
 		}
 
-		o = s.taboption('routing', form.ListValue, 'tcpip_stack', _('TCP/IP stack'),
-			_('TCP/IP stack.'));
-		if (features.with_gvisor) {
-			o.value('mixed', 'Mixed');
-			o.value('gvisor', 'gVisor');
-		}
-		o.value('system', 'System');
-		o.default = 'mixed';
+		o = s.taboption('routing', form.Flag, 'multi_queue', _('TUN multi-queue'),
+			_('Enable TUN multi-queue to scale throughput with CPU cores. Requires the sing-tun TCP/IP stack.'));
+		o.default = o.enabled;
 		o.depends('routing_mode', 'bypass_mainland_china');
 		o.depends('routing_mode', 'global');
 		o.rmempty = false;
-		o.retain = true;
-		o.onchange = function(ev, section_id, value) {
-			let desc = ev.target.nextElementSibling;
-			if (value === 'mixed')
-				desc.innerHTML = _('Mixed <code>System</code> TCP stack and <code>gVisor</code> UDP stack.')
-			else if (value === 'gvisor')
-				desc.innerHTML = _('Based on Google/gVisor.');
-			else if (value === 'system')
-				desc.innerHTML = _('Less compatibility and sometimes better performance.');
-		}
 
 		o = s.taboption('routing', form.Flag, 'ipv6_support', _('IPv6 support'));
 		o.default = o.enabled;

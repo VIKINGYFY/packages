@@ -187,7 +187,7 @@ const tun_name = uci.get(uciconfig, uciinfra, 'tun_name') || 'singtun0';
 const tun_addr4 = uci.get(uciconfig, uciinfra, 'tun_addr4') || '172.19.0.1/30';
 const tun_addr6 = uci.get(uciconfig, uciinfra, 'tun_addr6') || 'fdfe:dcba:9876::1/126';
 const tun_mtu = uci.get(uciconfig, uciinfra, 'tun_mtu') || '9000';
-const tcpip_stack = uci.get(uciconfig, ucimain, 'tcpip_stack') || 'mixed';
+const multi_queue = uci.get(uciconfig, ucimain, 'multi_queue') === '1';
 const udp_timeout = uci.get(uciconfig, 'infra', 'udp_timeout');
 
 const log_level = uci.get(uciconfig, ucimain, 'log_level') || 'warn';
@@ -616,7 +616,7 @@ push(config.inbounds, {
 	route_exclude_address_set: fast_bypass_mainland ? ['geoip-cn'] : null,
 	include_interface: length(listen_interfaces) ? listen_interfaces : null,
 	udp_timeout: strToTime(udp_timeout),
-	stack: tcpip_stack
+	multi_queue
 });
 /* Inbound end */
 
