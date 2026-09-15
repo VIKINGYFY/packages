@@ -17,7 +17,7 @@ LUCI_DEPENDS:= \
 	+unzip \
 	+ucode-mod-digest \
 	+ucode-mod-math
-LUCI_EXTRA_DEPENDS:=sing-box (>=1.15.0)
+LUCI_EXTRA_DEPENDS:=sing-box (>=1.14.0)
 
 PKG_NAME:=luci-app-homeproxy
 PKG_VERSION:=20260914
