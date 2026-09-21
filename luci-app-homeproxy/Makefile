@@ -20,8 +20,8 @@ LUCI_DEPENDS:= \
 LUCI_EXTRA_DEPENDS:=sing-box (>=1.14.0)
 
 PKG_NAME:=luci-app-homeproxy
-PKG_VERSION:=20260914
-PKG_RELEASE:=2
+PKG_VERSION:=20260921
+PKG_RELEASE:=1
 PKG_PO_VERSION:=$(PKG_VERSION)-r$(PKG_RELEASE)
 
 define Package/luci-app-homeproxy/conffiles

@@ -479,13 +479,6 @@ return view.extend({
 			return true;
 		}
 
-		o = s.taboption('routing', form.Flag, 'multi_queue', _('TUN multi-queue'),
-			_('Enable TUN multi-queue to scale throughput with CPU cores. Requires the sing-tun TCP/IP stack.'));
-		o.default = o.enabled;
-		o.depends('routing_mode', 'bypass_mainland_china');
-		o.depends('routing_mode', 'global');
-		o.rmempty = false;
-
 		o = s.taboption('routing', form.Flag, 'ipv6_support', _('IPv6 support'));
 		o.default = o.enabled;
 		o.rmempty = false;
