@@ -116,9 +116,9 @@ validate_cron() {
 		validate_cron_field "$5" 0 6
 }
 
-reload_cron() {
-	/etc/init.d/cron reload >"/dev/null" 2>&1 ||
-		/etc/init.d/cron restart >"/dev/null" 2>&1
+notify_cron() {
+	# Restarting crond from its own job can terminate the entire update process.
+	printf '%s\n' 'root' >> "$(dirname "$CRON_FILE")/cron.update"
 }
 
 configure_subscription_cron() {
@@ -170,7 +170,7 @@ configure_subscription_cron() {
 	fi
 	lock -u "$CRON_LOCK"
 
-	[ "$changed" -eq 0 ] || reload_cron
+	[ "$changed" -eq 0 ] || notify_cron
 }
 
 sync_subscription_cron() {
