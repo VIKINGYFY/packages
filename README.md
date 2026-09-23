@@ -28,7 +28,7 @@
 
 | 软件包 | 版本 | 源码来源 |
 | --- | --- | --- |
-| `axonhub` | `20260923-r1` | [looplj/axonhub](https://github.com/looplj/axonhub) |
+| `axonhub` | `20260924-r1` | [looplj/axonhub](https://github.com/looplj/axonhub) |
 | `gecoosac` | `2.2.20251015-r1` | [www.cnrouter.com](http://www.cnrouter.com) |
 | `sing-box` | `1.15.0_alpha7-r1` | [SagerNet/sing-box](https://github.com/SagerNet/sing-box) |
 
