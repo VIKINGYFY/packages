@@ -207,13 +207,11 @@ start_service() {
 	local server_enabled
 	config_get_bool server_enabled "server" "enabled" "0"
 	local client_ready=0 server_ready=0
-	local dashboard_enabled dashboard_ready=0
+	local dashboard_enabled
 	config_get_bool dashboard_enabled "config" "dashboard_enabled" "0"
 	if [ "$dashboard_enabled" = "1" ]; then
 		rm -f "$DASHBOARD_DIR/.etag"
-		if [ -s "$DASHBOARD_DIR/index.html" ]; then
-			dashboard_ready=1
-		elif [ "$outbound_node" != "nil" ]; then
+		if [ ! -s "$DASHBOARD_DIR/index.html" ] && [ "$outbound_node" != "nil" ]; then
 			log "Client dashboard files are unavailable; update resources before opening the dashboard."
 		fi
 	fi
@@ -267,13 +265,15 @@ start_service() {
 		return 1
 	fi
 
-	case "$client_ready:$routing_mode" in
-	"1:bypass_mainland_china")
+	# The cache file persists Clash API state, so provision it whenever the
+	# generated client configuration enables it instead of tying it to a mode.
+	local cache_file_enabled=0
+	if [ "$client_ready" -eq 1 ] && grep -q '"cache_file"' "$RUN_DIR/sing-box-c.json"; then
+		cache_file_enabled=1
 		mkdir -p "$CACHE_DIR"
 		touch "$CACHE_PATH"
 		chown -R sing-box:sing-box "$CACHE_DIR"
-		;;
-	esac
+	fi
 
 	# Prepare firewall before sing-box inserts native TUN auto-redirect rules.
 	local firewall_ready=1
@@ -327,23 +327,11 @@ start_service() {
 
 		# QUIC-GO GSO is broken on kernel 6.6 currently
 		uname -r | grep -Eq "^6\.6" && procd_set_param env "QUIC_GO_DISABLE_GSO"="true"
-		if [ -x "/sbin/ujail" ] && [ "$dashboard_ready" -ne 1 ] && \
-		   ! grep -Eq '"type": "(wireguard|tun)"' "$RUN_DIR/sing-box-c.json"; then
-			procd_add_jail "sing-box-c" log procfs
-			procd_add_jail_mount "$RUN_DIR/sing-box-c.json"
-			procd_add_jail_mount_rw "$RUN_DIR/sing-box-c.log"
-			[ "$routing_mode" != "bypass_mainland_china" ] || procd_add_jail_mount_rw "$CACHE_PATH"
-			[ "$routing_mode" != "bypass_mainland_china" ] || procd_add_jail_mount "$HP_DIR/resources/"
-			procd_add_jail_mount "$HP_DIR/diversion/"
-			procd_add_jail_mount "$HP_DIR/certs/"
-			procd_add_jail_mount "/etc/ssl/"
-			procd_add_jail_mount "/etc/localtime"
-			procd_add_jail_mount "/etc/TZ"
-			procd_set_param capabilities "/etc/capabilities/homeproxy.json"
-			procd_set_param no_new_privs 1
-			procd_set_param user sing-box
-			procd_set_param group sing-box
-		fi
+		# The client always creates a TUN inbound with auto_route and
+		# auto_redirect, so it cannot run inside the ujail setup used for the
+		# server instance below: the jail would need /dev/net/tun plus the
+		# netlink access sing-box uses to install its nftables redirect rules.
+		# The client is therefore started outside a jail by design.
 
 		procd_set_param limits core="unlimited"
 		procd_set_param limits nofile="1000000 1000000"

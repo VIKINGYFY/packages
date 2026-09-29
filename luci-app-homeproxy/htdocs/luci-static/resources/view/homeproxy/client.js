@@ -609,10 +609,7 @@ return view.extend({
 		so = ss.taboption('wan_ip_policy', form.DynamicList, 'wan_proxy_ipv6_ips', _('Global Proxy IPv6 addresses'),
 			_('IPv6 addresses in this option are forced to use global proxy routing.'));
 		so.datatype = 'or(ip6addr, cidr6)';
-		so.depends({
-			'homeproxy.config.routing_mode': 'bypass_mainland_china',
-			'homeproxy.config.ipv6_support': '1'
-		});
+		so.depends('homeproxy.config.routing_mode', 'bypass_mainland_china');
 		so.retain = true;
 
 		so = ss.taboption('wan_ip_policy', form.DynamicList, 'wan_direct_ipv4_ips', _('Global Direct IPv4 addresses'),
@@ -622,7 +619,6 @@ return view.extend({
 		so = ss.taboption('wan_ip_policy', form.DynamicList, 'wan_direct_ipv6_ips', _('Global Direct IPv6 addresses'),
 			_('IPv6 addresses in this option are forced to use global direct routing.'));
 		so.datatype = 'or(ip6addr, cidr6)';
-		so.depends('homeproxy.config.ipv6_support', '1');
 		so.retain = true;
 		/* WAN IP policy end */
 

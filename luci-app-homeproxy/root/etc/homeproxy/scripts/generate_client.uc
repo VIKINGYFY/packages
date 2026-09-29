@@ -362,6 +362,13 @@ function add_control_pre_match_fallback_rules(rules, control) {
 function add_control_policy_rules(rules, proxy_outbound) {
 	const control = get_control_matches();
 
+	/* A `bypass` rule without `outbound` only matches in auto-redirect pre-match
+	   and is skipped for established or non-auto-redirect connections, so list
+	   mode needs a normal-path counterpart: otherwise traffic from devices that
+	   are not in either list falls through to the proxied final outbound. */
+	if (control.restrict_to_list)
+		push_route(rules, tun_unlisted_match(control.listed_source), 'direct-out');
+
 	push_route(rules, control.direct_source, 'direct-out');
 
 	if (proxy_outbound) {
