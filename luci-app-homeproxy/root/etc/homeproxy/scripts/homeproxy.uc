@@ -514,6 +514,10 @@ export function renderOutbound(node) {
 		outbound.password = node.password;
 		outbound.plugin = node.shadowsocks_plugin;
 		outbound.plugin_opts = node.shadowsocks_plugin_opts;
+		outbound.udp_over_tcp = (node.udp_over_tcp === '1' && node.multiplex !== '1') ? {
+			enabled: true,
+			version: strToInt(node.udp_over_tcp_version)
+		} : null;
 		break;
 	case 'shadowtls':
 		outbound.password = node.password;

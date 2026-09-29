@@ -113,6 +113,9 @@ if (routing_mode === 'bypass_mainland_china') {
 		china_dns_server = wan_dns;
 }
 const dns_default_strategy = (ipv6_support === '1') ? 'prefer_ipv6' : 'prefer_ipv4';
+/* Budget for the proxied probe query: the sing-box default of 10s is far too long
+   to stall on when the main DNS is unreachable, since the probe falls back anyway. */
+const dns_evaluate_timeout = '3s';
 
 let domain_groups = [];
 
@@ -188,7 +191,9 @@ const tun_addr4 = uci.get(uciconfig, uciinfra, 'tun_addr4') || '172.19.0.1/30';
 const tun_addr6 = uci.get(uciconfig, uciinfra, 'tun_addr6') || 'fdfe:dcba:9876::1/126';
 const tun_mtu = uci.get(uciconfig, uciinfra, 'tun_mtu') || '9000';
 const multi_queue = uci.get(uciconfig, ucimain, 'multi_queue') === '1';
-const udp_timeout = uci.get(uciconfig, 'infra', 'udp_timeout');
+const udp_timeout_option = uci.get(uciconfig, uciinfra, 'udp_timeout');
+/* 5m is sing-box's default, so only pass through an explicit override. */
+const udp_timeout = (udp_timeout_option !== '300') ? strToTime(udp_timeout_option) : null;
 
 const log_level = uci.get(uciconfig, ucimain, 'log_level') || 'warn';
 const dashboard_path = HP_DIR + '/dashboard';
@@ -462,18 +467,11 @@ config.dns = {
 			type: 'udp',
 			server: wan_dns,
 			detour: null
-		},
-		{
-			tag: 'system-dns',
-			type: 'local',
-			detour: null
 		}
 	],
 	rules: [],
 	reverse_mapping: true,
-	strategy: dns_default_strategy,
-	disable_cache: false,
-	disable_expire: false
+	strategy: dns_default_strategy
 };
 
 if (!isEmpty(main_node)) {
@@ -487,7 +485,8 @@ if (!isEmpty(main_node)) {
 		detour: 'main-out',
 		...parse_dnsserver(dns_server, 'tcp')
 	});
-	config.dns.final = 'main-dns';
+	/* Bypass mode resolves everything unmatched through the mainland server. */
+	config.dns.final = (routing_mode === 'bypass_mainland_china') ? 'china-dns' : 'main-dns';
 
 	if (tailscale_enabled) {
 		push(config.dns.servers, {
@@ -564,7 +563,8 @@ if (!isEmpty(main_node)) {
 		});
 		push(config.dns.rules, {
 			action: 'evaluate',
-			server: 'main-dns'
+			server: 'main-dns',
+			timeout: dns_evaluate_timeout
 		});
 		push(config.dns.rules, {
 			rule_set: 'geoip-cn',
@@ -575,10 +575,6 @@ if (!isEmpty(main_node)) {
 		push(config.dns.rules, {
 			match_response: true,
 			action: 'respond'
-		});
-		push(config.dns.rules, {
-			action: 'route',
-			server: 'china-dns'
 		});
 	}
 }
@@ -599,7 +595,7 @@ push(config.inbounds, {
 	tag: 'mixed-in',
 	listen: '::',
 	listen_port: int(mixed_port),
-	udp_timeout: strToTime(udp_timeout),
+	udp_timeout,
 	set_system_proxy: false
 });
 
@@ -612,10 +608,9 @@ push(config.inbounds, {
 	mtu: strToInt(tun_mtu),
 	auto_route: true,
 	auto_redirect: true,
-	dns_mode: 'hijack',
 	route_exclude_address_set: fast_bypass_mainland ? ['geoip-cn'] : null,
 	include_interface: length(listen_interfaces) ? listen_interfaces : null,
-	udp_timeout: strToTime(udp_timeout),
+	udp_timeout,
 	multi_queue
 });
 /* Inbound end */
@@ -819,18 +814,19 @@ if (!isEmpty(main_node)) {
 /* Routing rules end */
 
 /* Experimental start */
+/* The cache file only persists Clash API state such as the clash mode and the
+   selected group member, so it is only worth writing while the API is enabled. */
 const enable_clash_api = main_node === 'urltest';
-const enable_cache_file = routing_mode === 'bypass_mainland_china';
-if (enable_clash_api || enable_cache_file) {
+if (enable_clash_api) {
 	config.experimental = {
-		clash_api: enable_clash_api ? {
+		clash_api: {
 			external_controller: `127.0.0.1:${clash_api_port}`
-		} : null,
-		cache_file: enable_cache_file ? {
+		},
+		cache_file: {
 			enabled: true,
 			path: HP_DIR + '/cache/cache.db',
 			store_dns: false
-		} : null
+		}
 	};
 }
 /* Experimental end */
