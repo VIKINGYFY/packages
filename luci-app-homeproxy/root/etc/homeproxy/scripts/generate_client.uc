@@ -13,7 +13,7 @@ import { cursor } from 'uci';
 
 import {
 	addECHDNS, createNodeLabelRegistry, filterExistingNodes, findDomainGroupConflict,
-	hasForceProxyRules, isEmpty, normalizeDomainList, normalizeList, parseURL,
+	isEmpty, normalizeDomainList, normalizeList, parseURL,
 	domainListPath, resolveLanPolicy, splitDomainList,
 	reserveUniqueLabel, strToBool, strToInt, strToTime,
 	removeBlankAttrs, renderEndpoint, renderOutbound, validation, HP_DIR, RUN_DIR
@@ -172,9 +172,6 @@ uci.foreach(uciconfig, 'domain_route', (cfg) => {
 const domain_group_conflict = findDomainGroupConflict(domain_groups);
 if (domain_group_conflict)
 	die(`Domain rule ${domain_group_conflict.left.value} conflicts with ${domain_group_conflict.right.value}.`);
-const has_domain_proxy_rules = length(filter(domain_groups, (group) =>
-	group.kind !== 'direct' && (length(group.suffixes) || length(group.keywords))
-)) > 0;
 
 function domain_group_outbound_tag(group) {
 	if (group.kind === 'direct')
@@ -209,8 +206,6 @@ const dashboard_enabled = uci.get(uciconfig, ucimain, 'dashboard_enabled') === '
       !isEmpty(readfile(dashboard_path + '/index.html')),
       dashboard_port = strToInt(uci.get(uciconfig, ucimain, 'dashboard_port')),
       dashboard_secret = uci.get(uciconfig, ucimain, 'dashboard_secret');
-const force_proxy_rules = hasForceProxyRules(uci, uciconfig, has_domain_proxy_rules);
-const fast_bypass_mainland = routing_mode === 'bypass_mainland_china' && !force_proxy_rules;
 /* UCI config end */
 
 /* Config helper start */
@@ -291,8 +286,16 @@ function push_route(rules, match_rule, outbound, invert) {
 function push_bypass(rules, match_rule) {
 	if (!match_rule)
 		return;
+	/* A socket routed through the TUN fallback table can already have a TUN
+	   source address, notably with source-specific IPv6 WAN defaults. Kernel
+	   bypass cannot restore a WAN source; leave these flows to normal routing. */
 	push(rules, {
-		...match_rule,
+		type: 'logical',
+		mode: 'and',
+		rules: [
+			match_rule,
+			{ source_ip_cidr: [tun_addr4, tun_addr6], invert: true }
+		],
 		action: 'bypass'
 	});
 }
@@ -614,7 +617,6 @@ push(config.inbounds, {
 	mtu: strToInt(tun_mtu),
 	auto_route: true,
 	auto_redirect: true,
-	route_exclude_address_set: fast_bypass_mainland ? ['geoip-cn'] : null,
 	include_interface: length(listen_interfaces) ? listen_interfaces : null,
 	udp_timeout,
 	multi_queue
@@ -761,7 +763,7 @@ if (!isEmpty(main_node)) {
 	}
 	add_control_pre_match_fallback_rules(config.route.rules, pre_match_control);
 
-	if (routing_mode === 'bypass_mainland_china' && force_proxy_rules) {
+	if (routing_mode === 'bypass_mainland_china') {
 		push_bypass(config.route.rules, tun_match({ rule_set: 'geosite-cn' }));
 		push_bypass(config.route.rules, tun_match({ rule_set: 'geoip-cn' }));
 	}

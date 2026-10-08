@@ -286,30 +286,6 @@ export function reconcileUrltestNodes(uci, config, logger) {
 	};
 };
 
-export function hasForceProxyRules(uci, config, hasDomainProxyRules) {
-	const lanPolicy = resolveLanPolicy(uci, config);
-	if (lanPolicy.mode === 'global')
-		return false;
-
-	if (hasDomainProxyRules)
-		return true;
-
-	/* Rule Proxy devices (lan_auto_proxy_*) still resolve mainland traffic to
-	   direct-out, so they do not conflict with the kernel mainland fast path.
-	   Only forced-proxy targets, which must send mainland traffic through the
-	   proxy, require dropping it. */
-	const options = [
-		'lan_proxy_ipv4_ips', 'lan_proxy_mac_addrs',
-		'wan_proxy_ipv4_ips', 'wan_proxy_ipv6_ips'
-	];
-
-	for (let option in options)
-		if (!isEmpty(uci.get(config, 'control', option)))
-			return true;
-
-	return false;
-};
-
 export function strToBool(str) {
 	return (str === '1') || null;
 };
