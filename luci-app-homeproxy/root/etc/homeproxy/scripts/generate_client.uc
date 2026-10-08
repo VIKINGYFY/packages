@@ -113,6 +113,14 @@ if (routing_mode === 'bypass_mainland_china') {
 		china_dns_server = wan_dns;
 }
 const dns_default_strategy = (ipv6_support === '1') ? 'prefer_ipv6' : 'prefer_ipv4';
+
+function make_domain_resolver(server) {
+	return {
+		server: server || 'default-dns',
+		strategy: dns_default_strategy
+	};
+}
+
 /* Budget for the proxied probe query: the sing-box default of 10s is far too long
    to stall on when the main DNS is unreachable, since the probe falls back anyway. */
 const dns_evaluate_timeout = '3s';
@@ -462,7 +470,7 @@ if (!isEmpty(ntp_server))
 		enabled: true,
 		server: ntp_server,
 		detour: 'direct-out',
-		domain_resolver: { server: 'default-dns', strategy: dns_default_strategy },
+		domain_resolver: make_domain_resolver(),
 	};
 
 /* DNS start */
@@ -485,10 +493,7 @@ if (!isEmpty(main_node)) {
 	/* Main DNS */
 	push(config.dns.servers, {
 		tag: 'main-dns',
-		domain_resolver: {
-			server: 'default-dns',
-			strategy: dns_default_strategy
-		},
+		domain_resolver: make_domain_resolver(),
 		detour: 'main-out',
 		...parse_dnsserver(dns_server, 'tcp')
 	});
@@ -523,10 +528,7 @@ if (!isEmpty(main_node)) {
 		diversion_dns_servers[outbound] = tag;
 		push(config.dns.servers, {
 			tag,
-			domain_resolver: {
-				server: 'default-dns',
-				strategy: dns_default_strategy
-			},
+			domain_resolver: make_domain_resolver(),
 			detour: outbound,
 			...parse_dnsserver(dns_server, 'tcp')
 		});
@@ -555,10 +557,7 @@ if (!isEmpty(main_node)) {
 	if (routing_mode === 'bypass_mainland_china') {
 		push(config.dns.servers, {
 			tag: 'china-dns',
-			domain_resolver: {
-				server: 'default-dns',
-				strategy: dns_default_strategy
-			},
+			domain_resolver: make_domain_resolver(),
 			detour: null,
 			...parse_dnsserver(china_dns_server)
 		});
@@ -672,7 +671,7 @@ if (!isEmpty(main_node)) {
 		} else {
 			const outbound = generate_outbound(node);
 			if (outbound) {
-				addECHDNS(config, node, { server: 'default-dns', strategy: dns_default_strategy });
+				addECHDNS(config, node, make_domain_resolver());
 				outbound.tag = tag || get_node_outbound_tag(section_id);
 				push(config.outbounds, outbound);
 			}
@@ -734,10 +733,9 @@ config.route.default_http_client = 'direct-http';
 /* Routing rules */
 if (!isEmpty(main_node)) {
 	/* Avoid DNS loop */
-	config.route.default_domain_resolver = {
-		server: (routing_mode === 'bypass_mainland_china') ? 'china-dns' : 'default-dns',
-		strategy: dns_default_strategy
-	};
+	config.route.default_domain_resolver = make_domain_resolver(
+		(routing_mode === 'bypass_mainland_china') ? 'china-dns' : 'default-dns'
+	);
 
 	/* Native auto_redirect pre-match: handle device and address exceptions first. */
 	const pre_match_control = add_control_pre_match_policy_rules(config.route.rules, 'main-out');

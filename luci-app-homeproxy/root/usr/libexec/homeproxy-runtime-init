@@ -41,13 +41,13 @@ sing_box_minor="${sing_box_version#*.}"
 sing_box_minor="${sing_box_minor%%.*}"
 case "$sing_box_major:$sing_box_minor" in
 *[!0-9:]*|:*)
-	log "HomeProxy requires sing-box 1.14 or newer."
+	log "HomeProxy requires sing-box 1.15 or newer."
 	exit 1
 	;;
 esac
 if [ "$sing_box_major" -lt 1 ] || \
-   { [ "$sing_box_major" -eq 1 ] && [ "$sing_box_minor" -lt 14 ]; }; then
-	log "HomeProxy requires sing-box 1.14 or newer; found $sing_box_version."
+   { [ "$sing_box_major" -eq 1 ] && [ "$sing_box_minor" -lt 15 ]; }; then
+	log "HomeProxy requires sing-box 1.15 or newer; found $sing_box_version."
 	exit 1
 fi
 
