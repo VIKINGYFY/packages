@@ -4,7 +4,7 @@
 
 # 高质量<付费>中转站
 
-[LiBwrt-Ai](https://api.zipimg.cn/register?aff=LR7FSZ2ZZ4D3)
+[LiBwrt-Ai](https://api.zipimg.cn/register?aff=FFPS3UMJ8HJD)
 
 # imm-packages · AI Edition
 
