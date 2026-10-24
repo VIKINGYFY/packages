@@ -11,22 +11,19 @@ files on failure and preserve the previously published file until rename.
 Propagate streaming Close failures. Add explicit local directory removal
 for whole-record GC while preserving the other storage backend paths.
 
-Base-Commit: a946fca495c52344ed073abb6c3562b9ff728b12
+Base-Commit: 6c137e3162c20c4663437233ae3bf56f0724d7db
 
 ---
 
 --- a/internal/server/biz/data_storage.go
 +++ b/internal/server/biz/data_storage.go
-@@ -1,6 +1,7 @@
- package biz
+@@ -2,4 +2,5 @@ package biz
  
  import (
 +	"bytes"
  	"context"
  	"crypto/tls"
- 	"errors"
-@@ -576,10 +577,8 @@ func (s *DataStorageService) SaveData(ct
- 
+@@ -577,8 +578,6 @@ func (s *DataStorageService) SaveData(ct
  		if ds.Type == datastorage.TypeFs {
  			key = filepath.FromSlash(key)
 -			err = fs.MkdirAll(filepath.Dir(key), 0o777)
@@ -37,9 +34,7 @@ Base-Commit: a946fca495c52344ed073abb6c3562b9ff728b12
 +			return err
  		} else if ds.Type == datastorage.TypeWebdav {
  			// For WebDAV, remove leading slash to avoid 405 error on some servers (e.g., Synology)
- 			key = strings.TrimPrefix(key, "/")
-@@ -640,9 +639,11 @@ func (s *DataStorageService) SaveDataFro
- 
+@@ -641,7 +640,9 @@ func (s *DataStorageService) SaveDataFro
  		if ds.Type == datastorage.TypeFs {
  			key = filepath.FromSlash(key)
 -			if err := fs.MkdirAll(filepath.Dir(key), 0o777); err != nil {
@@ -51,9 +46,7 @@ Base-Commit: a946fca495c52344ed073abb6c3562b9ff728b12
 +			return key, n, nil
  		} else if ds.Type == datastorage.TypeWebdav {
  			// For WebDAV, remove leading slash to avoid 405 error on some servers (e.g., Synology)
- 			key = strings.TrimPrefix(key, "/")
-@@ -660,13 +661,15 @@ func (s *DataStorageService) SaveDataFro
- 		if err != nil {
+@@ -661,11 +662,13 @@ func (s *DataStorageService) SaveDataFro
  			return "", 0, fmt.Errorf("failed to create file: %w, key: %s", err, key)
  		}
 -		defer f.Close()
@@ -69,9 +62,7 @@ Base-Commit: a946fca495c52344ed073abb6c3562b9ff728b12
 +		}
  		return key, n, nil
  	default:
- 		return "", 0, fmt.Errorf("unsupported storage type: %s", ds.Type)
-@@ -717,6 +720,69 @@ func (s *DataStorageService) DeleteData(
- 	}
+@@ -718,4 +721,67 @@ func (s *DataStorageService) DeleteData(
  }
  
 +// DeleteDataDirectory removes one exclusively owned local payload directory.
@@ -139,4 +130,3 @@ Base-Commit: a946fca495c52344ed073abb6c3562b9ff728b12
 +
  // LoadData loads data from the specified data storage.
  // For database storage, it expects the data to be passed directly.
- // For file system storage, it reads the data from the file.

@@ -10,14 +10,13 @@ The initialized cleanup state contains all five resources; use their
 configured values directly when opening manual cleanup instead of
 substituting unrelated runtime retention values.
 
-Base-Commit: a946fca495c52344ed073abb6c3562b9ff728b12
+Base-Commit: 6c137e3162c20c4663437233ae3bf56f0724d7db
 
 ---
 
 --- a/frontend/src/features/system/components/storage-policy-settings.tsx
 +++ b/frontend/src/features/system/components/storage-policy-settings.tsx
-@@ -94,11 +94,11 @@ function groupBodyPreviewItems(items: Gc
- }
+@@ -95,9 +95,9 @@ function groupBodyPreviewItems(items: Gc
  
  const DEFAULT_CLEANUP_OPTIONS: CleanupOption[] = [
 -  { resourceType: 'requests', enabled: false, cleanupDays: 3 },
@@ -32,18 +31,14 @@ Base-Commit: a946fca495c52344ed073abb6c3562b9ff728b12
 +  { resourceType: 'response_chunks', enabled: true, cleanupDays: 1 },
  ];
  
- function ensureCleanupOptions(options: CleanupOption[]): CleanupOption[] {
-@@ -120,7 +120,7 @@ function upsertCleanupOption(
-   patch: Partial<CleanupOption>
+@@ -121,5 +121,5 @@ function upsertCleanupOption(
  ): CleanupOption[] {
    if (!options.some((option) => option.resourceType === resourceType)) {
 -    return [...options, { resourceType, enabled: false, cleanupDays: 7, ...patch }];
 +    return [...options, { resourceType, enabled: true, cleanupDays: 1, ...patch }];
    }
  
-   return options.map((option) => (option.resourceType === resourceType ? { ...option, ...patch } : option));
-@@ -146,11 +146,11 @@ export function StoragePolicySettings()
-     cleanupOptions: ensureCleanupOptions(storagePolicy?.cleanupOptions ?? []),
+@@ -147,9 +147,9 @@ export function StoragePolicySettings()
    });
  
 -  const [manualRequestsDays, setManualRequestsDays] = useState(30);
@@ -58,9 +53,7 @@ Base-Commit: a946fca495c52344ed073abb6c3562b9ff728b12
 +  const [manualResponseChunksDays, setManualResponseChunksDays] = useState(1);
    const [previewItems, setPreviewItems] = useState<GcCleanupPreviewItem[]>([]);
    const [isPreviewLoading, setIsPreviewLoading] = useState(false);
-   const [previewFailed, setPreviewFailed] = useState(false);
-@@ -256,11 +256,11 @@ export function StoragePolicySettings()
-     }
+@@ -257,9 +257,9 @@ export function StoragePolicySettings()
  
      {
 -      const reqDays = cleanupOption(storagePolicyState.cleanupOptions, 'requests')?.cleanupDays || 30;
@@ -75,11 +68,9 @@ Base-Commit: a946fca495c52344ed073abb6c3562b9ff728b12
 +      const chunkDays = cleanupOption(storagePolicyState.cleanupOptions, 'response_chunks')!.cleanupDays;
        setManualRequestsDays(reqDays);
        setManualUsageLogsDays(usageDays);
-       setManualRequestBodiesDays(requestBodyDays);
 --- a/internal/server/biz/system_default.go
 +++ b/internal/server/biz/system_default.go
-@@ -12,28 +12,28 @@ func defaultCleanupOptions() []CleanupOp
- 	return []CleanupOption{
+@@ -13,26 +13,26 @@ func defaultCleanupOptions() []CleanupOp
  		{
  			ResourceType: CleanupResourceRequests,
 -			Enabled:      false,
@@ -116,11 +107,9 @@ Base-Commit: a946fca495c52344ed073abb6c3562b9ff728b12
 +			CleanupDays:  1,
  		},
  	}
- }
 --- a/internal/server/biz/system_test.go
 +++ b/internal/server/biz/system_test.go
-@@ -823,13 +823,13 @@ func TestMergeCleanupOptions(t *testing.
- 		}
+@@ -824,11 +824,11 @@ func TestMergeCleanupOptions(t *testing.
  
  		if opt.ResourceType == CleanupResourceRequestBodies {
 -			require.False(t, opt.Enabled)
@@ -136,4 +125,3 @@ Base-Commit: a946fca495c52344ed073abb6c3562b9ff728b12
 +			require.Equal(t, 1, opt.CleanupDays)
  		}
  	}
- }

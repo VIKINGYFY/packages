@@ -8,34 +8,29 @@ multi-connection WAL configuration and update the required module sums.
 
 Reference: https://www.sqlite.org/wal.html#walresetbug
 
-Base-Commit: a946fca495c52344ed073abb6c3562b9ff728b12
+Base-Commit: 6c137e3162c20c4663437233ae3bf56f0724d7db
 
 ---
 
 --- a/go.mod
 +++ b/go.mod
-@@ -76,7 +76,7 @@ require (
- 	google.golang.org/api v0.264.0
+@@ -77,5 +77,5 @@ require (
  	gopkg.in/natefinch/lumberjack.v2 v2.2.1
  	gopkg.in/yaml.v3 v3.0.1
 -	modernc.org/sqlite v1.40.1
 +	modernc.org/sqlite v1.46.2
  )
  
- require (
-@@ -228,7 +228,7 @@ require (
- 	google.golang.org/genproto/googleapis/rpc v0.0.0-20260831171406-18b4a7587f8a // indirect
+@@ -228,5 +228,5 @@ require (
  	google.golang.org/grpc v1.83.2 // indirect
  	google.golang.org/protobuf v1.36.12 // indirect
 -	modernc.org/libc v1.67.1 // indirect
 +	modernc.org/libc v1.70.0 // indirect
  	modernc.org/mathutil v1.7.1 // indirect
  	modernc.org/memory v1.11.0 // indirect
- )
 --- a/go.sum
 +++ b/go.sum
-@@ -1121,18 +1121,18 @@ honnef.co/go/tools v0.0.0-20190523083050
- honnef.co/go/tools v0.0.1-2019.2.3/go.mod h1:a3bituU0lyd329TUQxRnasdCoJDkEUEAqEt0JzvZhAg=
+@@ -1120,16 +1120,16 @@ honnef.co/go/tools v0.0.1-2019.2.3/go.mo
  modernc.org/cc/v4 v4.27.1 h1:9W30zRlYrefrDV2JE2O8VDtJ1yPGownxciz5rrbQZis=
  modernc.org/cc/v4 v4.27.1/go.mod h1:uVtb5OGqUKpoLWhqwNQo/8LwvoiEBLvZXIQ/SmO6mL0=
 -modernc.org/ccgo/v4 v4.30.1 h1:4r4U1J6Fhj98NKfSjnPUN7Ze2c6MnAdL0hWw6+LrJpc=
@@ -60,9 +55,7 @@ Base-Commit: a946fca495c52344ed073abb6c3562b9ff728b12
 +modernc.org/libc v1.70.0/go.mod h1:OVmxFGP1CI/Z4L3E0Q3Mf1PDE0BucwMkcXjjLntvHJo=
  modernc.org/mathutil v1.7.1 h1:GCZVGXdaN8gTqB1Mf/usp1Y/hSqgI2vAGGP4jZMCxOU=
  modernc.org/mathutil v1.7.1/go.mod h1:4p5IwJITfppl0G4sUEDtCr4DthTaT47/N3aT6MhfgJg=
- modernc.org/memory v1.11.0 h1:o4QC8aMQzmcwCK3t3Ux/ZHmwFPzE6hf2Y5LbkRs+hbI=
-@@ -1141,8 +1141,8 @@ modernc.org/opt v0.1.4 h1:2kNGMRiUjrp4Lc
- modernc.org/opt v0.1.4/go.mod h1:03fq9lsNfvkYSfxrfUhZCWPk1lm4cq4N+Bh//bEtgns=
+@@ -1140,6 +1140,6 @@ modernc.org/opt v0.1.4/go.mod h1:03fq9ls
  modernc.org/sortutil v1.2.1 h1:+xyoGf15mM3NMlPDnFqrteY07klSFxLElE2PVuWIJ7w=
  modernc.org/sortutil v1.2.1/go.mod h1:7ZI3a3REbai7gzCLcotuw9AC4VZVpYMjDzETGsSMqJE=
 -modernc.org/sqlite v1.40.1 h1:VfuXcxcUWWKRBuP8+BR9L7VnmusMgBNNnBYGEe9w/iY=
@@ -71,4 +64,3 @@ Base-Commit: a946fca495c52344ed073abb6c3562b9ff728b12
 +modernc.org/sqlite v1.46.2/go.mod h1:hWjRO6Tj/5Ik8ieqxQybiEOUXy0NJFNp2tpvVpKlvig=
  modernc.org/strutil v1.2.1 h1:UneZBkQA+DX2Rp35KcM69cSsNES9ly8mQWD71HKlOA0=
  modernc.org/strutil v1.2.1/go.mod h1:EHkiggD70koQxjVdSBM3JKM7k6L0FbGE5eymy9i3B9A=
- modernc.org/token v1.1.0 h1:Xl7Ap9dKaEs5kLoOQeQmPWevfnk/DM5qcLcYlA8ys6Y=

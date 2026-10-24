@@ -11,7 +11,7 @@ Serialize concurrent lookups to avoid duplicate reads. Mutations use
 direct authorized queries so credential or permission changes are read
 immediately, and no authorization result survives the operation.
 
-Base-Commit: a946fca495c52344ed073abb6c3562b9ff728b12
+Base-Commit: 6c137e3162c20c4663437233ae3bf56f0724d7db
 
 ---
 
@@ -99,20 +99,16 @@ Base-Commit: a946fca495c52344ed073abb6c3562b9ff728b12
 +}
 --- a/internal/server/gql/graphql.go
 +++ b/internal/server/gql/graphql.go
-@@ -138,6 +138,7 @@ func NewGraphqlHandlers(deps Dependencie
- 	})
+@@ -139,4 +139,5 @@ func NewGraphqlHandlers(deps Dependencie
  	gqlSrv.Use(&loggingTracer{})
  	gqlSrv.AroundOperations(apiKeyReadOnly)
 +	gqlSrv.AroundOperations(cacheChannelLookups)
  	skipTestChannelTransaction := entgql.SkipOperations("TestChannel", "TestChannelAPIKeys")
  	skipBulkImportTransaction := entgql.SkipIfHasFields("bulkImportChannels")
- 	gqlSrv.Use(entgql.Transactioner{
-@@ -225,7 +226,7 @@ var guidTypeToNodeType = map[string]stri
- 	ent.TypePrompt:                  prompt.Table,
+@@ -226,5 +227,5 @@ var guidTypeToNodeType = map[string]stri
  }
  
 -func getNilableChannel(ctx context.Context, client *ent.Client, channelID int) (*ent.Channel, error) {
 +func loadNilableChannel(ctx context.Context, client *ent.Client, channelID int) (*ent.Channel, error) {
  	if channelID == 0 {
  		return nil, nil
- 	}

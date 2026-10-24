@@ -9,44 +9,37 @@ Use the configuration loaded at startup for batch size and timeout,
 validate it when constructing the worker, and remove runtime default-value
 fallbacks. Update the existing GC fixtures to provide explicit settings.
 
-Base-Commit: a946fca495c52344ed073abb6c3562b9ff728b12
+Base-Commit: 6c137e3162c20c4663437233ae3bf56f0724d7db
 
 ---
 
 --- a/conf/conf.go
 +++ b/conf/conf.go
-@@ -300,6 +300,7 @@ func setDefaults(v *viper.Viper) {
- 	v.SetDefault("metrics.exporter.insecure", false)
+@@ -330,4 +330,5 @@ func setDefaults(v *viper.Viper) {
  
  	// GC defaults
 +	v.SetDefault("gc.enabled", true)
  	v.SetDefault("gc.cron", "0 2 * * *") // Daily at 2:00 AM
  	v.SetDefault("gc.vacuum_enabled", true)
- 	v.SetDefault("gc.vacuum_full", false)
 --- a/config.example.yml
 +++ b/config.example.yml
-@@ -162,6 +162,8 @@ metrics:
- 
+@@ -174,4 +174,6 @@ metrics:
  # Garbage Collection configuration
  gc:
 +  enabled: true                  # Enable scheduled cleanup (env: AXONHUB_GC_ENABLED)
 +                                 # Manual cleanup remains available when disabled
    cron: "0 2 * * *"              # Cron expression for GC execution (env: AXONHUB_GC_CRON)
                                   # This example runs daily at 2:00 AM
-                                  # Format: minute hour day month day_of_week
 --- a/internal/server/gc/gc.go
 +++ b/internal/server/gc/gc.go
-@@ -26,8 +26,6 @@ import (
- 	"github.com/looplj/axonhub/internal/server/scheduler"
+@@ -27,6 +27,4 @@ import (
  )
  
 -var defaultBatchSize = 500
 -
  var ErrCleanupInProgress = errors.New("cleanup already running")
  
- type TriggerGcCleanupInput struct {
-@@ -46,7 +44,8 @@ type GcCleanupPreviewItem struct {
- }
+@@ -47,5 +45,6 @@ type GcCleanupPreviewItem struct {
  
  type Config struct {
 -	BatchSize     int           `json:"batch_size" yaml:"batch_size" conf:"batch_size" validate:"gte=0,lte=10000"`
@@ -54,9 +47,7 @@ Base-Commit: a946fca495c52344ed073abb6c3562b9ff728b12
 +	BatchSize     int           `json:"batch_size" yaml:"batch_size" conf:"batch_size" validate:"gt=0,lte=10000"`
  	BatchInterval time.Duration `json:"batch_interval" yaml:"batch_interval" conf:"batch_interval" validate:"gte=0"`
  	Timeout       time.Duration `json:"timeout" yaml:"timeout" conf:"timeout" validate:"gt=0"`
- 	CRON          string        `json:"cron" yaml:"cron" conf:"cron" validate:"required"`
-@@ -72,7 +71,13 @@ type Params struct {
- 	Client             *ent.Client
+@@ -73,5 +72,11 @@ type Params struct {
  }
  
 -func NewWorker(params Params) *Worker {
@@ -69,9 +60,7 @@ Base-Commit: a946fca495c52344ed073abb6c3562b9ff728b12
 +	}
  	w := &Worker{
  		SystemService:      params.SystemService,
- 		DataStorageService: params.DataStorageService,
-@@ -80,10 +85,14 @@ func NewWorker(params Params) *Worker {
- 		Config:             params.Config,
+@@ -81,8 +86,12 @@ func NewWorker(params Params) *Worker {
  	}
  
 -	return w
@@ -85,9 +74,7 @@ Base-Commit: a946fca495c52344ed073abb6c3562b9ff728b12
 +	}
  	return s.RegisterWithError(ctx, scheduler.TaskSpec{
  		Name:        "gc",
- 		Description: "Garbage collection — cleanup old requests, stored bodies, traces, usage logs, and channel probes",
-@@ -118,10 +127,7 @@ func (w *Worker) deleteInBatches(ctx con
- 
+@@ -119,8 +128,5 @@ func (w *Worker) deleteInBatches(ctx con
  // getBatchSize returns the appropriate batch size for cleanup operations.
  func (w *Worker) getBatchSize() int {
 -	if w.Config.BatchSize > 0 {
@@ -97,9 +84,7 @@ Base-Commit: a946fca495c52344ed073abb6c3562b9ff728b12
 +	return w.Config.BatchSize
  }
  
- // waitForBatch yields between batches and honors cancellation even when pacing is disabled.
-@@ -155,11 +161,7 @@ func (w *Worker) runCleanup(ctx context.
- }
+@@ -156,9 +162,5 @@ func (w *Worker) runCleanup(ctx context.
  
  func (w *Worker) runCleanupLocked(ctx context.Context, manual bool, manualDays map[string]int) (result error) {
 -	timeout := w.Config.Timeout
@@ -110,29 +95,23 @@ Base-Commit: a946fca495c52344ed073abb6c3562b9ff728b12
 +	ctx, cancel := context.WithTimeout(ctx, w.Config.Timeout)
  	defer cancel()
  	started := time.Now()
- 	log.Info(ctx, "Starting cleanup process", log.Bool("manual", manual), log.Time("started_at", started))
 --- a/internal/server/gc/gc_bodies_test.go
 +++ b/internal/server/gc/gc_bodies_test.go
-@@ -238,6 +238,7 @@ func setupBodyCleanupWorker(t *testing.T
- 	require.NoError(t, err)
+@@ -239,4 +239,5 @@ func setupBodyCleanupWorker(t *testing.T
  
  	worker := &Worker{
 +		Config:             Config{BatchSize: 500, Timeout: 10 * time.Minute, Enabled: true},
  		SystemService:      systemService,
  		DataStorageService: dataStorageService,
- 		Ent:                client,
-@@ -578,6 +579,7 @@ func TestCleanupRequestBodies_PostgresIm
- 	require.NoError(t, err)
+@@ -579,4 +580,5 @@ func TestCleanupRequestBodies_PostgresIm
  
  	worker := &Worker{
 +		Config:             Config{BatchSize: 500, Timeout: 10 * time.Minute, Enabled: true},
  		SystemService:      systemService,
  		DataStorageService: dataStorageService,
- 		Ent:                client,
 --- a/internal/server/gc/gc_test.go
 +++ b/internal/server/gc/gc_test.go
-@@ -23,27 +23,10 @@ import (
- )
+@@ -24,25 +24,8 @@ import (
  
  func TestWorker_getBatchSize(t *testing.T) {
 -	worker := &Worker{
@@ -162,17 +141,13 @@ Base-Commit: a946fca495c52344ed073abb6c3562b9ff728b12
 +	require.Equal(t, 20, worker.getBatchSize())
  }
  
- func TestWorker_cleanupRequestExternalStorageDeletesFsArtifacts(t *testing.T) {
-@@ -198,6 +181,7 @@ func setupWorkerWithFSStorage(t *testing
- 	require.NoError(t, err)
+@@ -199,4 +182,5 @@ func setupWorkerWithFSStorage(t *testing
  
  	worker := &Worker{
 +		Config:             Config{BatchSize: 500, Timeout: 10 * time.Minute, Enabled: true},
  		SystemService:      systemService,
  		DataStorageService: dataStorageService,
- 		Ent:                client,
-@@ -301,13 +285,7 @@ func TestWorker_cleanupChannelProbesDele
- 	ctx := authz.WithTestBypass(context.Background())
+@@ -302,11 +286,5 @@ func TestWorker_cleanupChannelProbesDele
  	ctx = ent.NewContext(ctx, client)
  
 -	originalBatchSize := defaultBatchSize
@@ -185,4 +160,3 @@ Base-Commit: a946fca495c52344ed073abb6c3562b9ff728b12
 +	worker := &Worker{Ent: client, Config: Config{CRON: "0 0 * * *", BatchSize: 2}}
  	oldTimestamp := time.Now().AddDate(0, 0, -5).Unix()
  	recentTimestamp := time.Now().Unix()
- 
