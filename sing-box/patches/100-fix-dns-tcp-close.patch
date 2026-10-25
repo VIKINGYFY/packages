@@ -136,15 +136,15 @@ close callbacks in the existing callers.
  
 --- a/service/resolved/service.go
 +++ b/service/resolved/service.go
-@@ -7,7 +7,6 @@ import (
+@@ -6,7 +6,6 @@ import (
+ 	"context"
  	"net"
- 	"strings"
  	"sync"
 -	"time"
  
  	"github.com/sagernet/sing-box/adapter"
  	boxService "github.com/sagernet/sing-box/adapter/service"
-@@ -133,14 +132,12 @@ func (i *Service) NewConnection(ctx cont
+@@ -132,14 +131,12 @@ func (i *Service) NewConnection(ctx cont
  	metadata.Inbound = i.Tag()
  	metadata.InboundType = i.Type()
  	metadata.Destination = M.Socksaddr{}

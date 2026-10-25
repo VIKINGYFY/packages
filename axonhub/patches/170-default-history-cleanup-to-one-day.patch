@@ -10,7 +10,7 @@ The initialized cleanup state contains all five resources; use their
 configured values directly when opening manual cleanup instead of
 substituting unrelated runtime retention values.
 
-Base-Commit: 6c137e3162c20c4663437233ae3bf56f0724d7db
+Base-Commit: 66ad2fc37ce0f7683a52a9238e8b38fc17e7ccef
 
 ---
 

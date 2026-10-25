@@ -9,7 +9,7 @@ Use the configuration loaded at startup for batch size and timeout,
 validate it when constructing the worker, and remove runtime default-value
 fallbacks. Update the existing GC fixtures to provide explicit settings.
 
-Base-Commit: 6c137e3162c20c4663437233ae3bf56f0724d7db
+Base-Commit: 66ad2fc37ce0f7683a52a9238e8b38fc17e7ccef
 
 ---
 
