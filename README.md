@@ -21,16 +21,16 @@
 | --- | --- | --- | --- |
 | `luci-app-axonhub` | `20261016-r1` | axonhub 核心的 LuCI 管理界面与 OpenWrt 集成。 | [looplj/axonhub](https://github.com/looplj/axonhub) |
 | `luci-app-gecoosac` | `20261016-r1` | gecoosac 核心的 LuCI 管理界面与 OpenWrt 集成。 | [www.cnrouter.com](http://www.cnrouter.com) |
-| `luci-app-homeproxy` | `20261024-r1` | sing-box 核心的 LuCI 管理界面与 OpenWrt 集成。 | [VIKINGYFY/packages](https://github.com/VIKINGYFY/packages) |
+| `luci-app-homeproxy` | `20261026-r3` | sing-box 核心的 LuCI 管理界面与 OpenWrt 集成。 | [VIKINGYFY/packages](https://github.com/VIKINGYFY/packages) |
 | `luci-app-wolultra` | `20261016-r1` | wol 功能的 LuCI 管理界面与 OpenWrt 集成。 | [VIKINGYFY/packages](https://github.com/VIKINGYFY/packages) |
 
 ## 核心与依赖来源
 
 | 软件包 | 版本 | 源码来源 |
 | --- | --- | --- |
-| `axonhub` | `20261024-r1` | [looplj/axonhub](https://github.com/looplj/axonhub) |
+| `axonhub` | `20261025-r1` | [looplj/axonhub](https://github.com/looplj/axonhub) |
 | `gecoosac` | `2.2.20251015-r1` | [www.cnrouter.com](http://www.cnrouter.com) |
-| `sing-box` | `1.15.0_alpha12-r2` | [SagerNet/sing-box](https://github.com/SagerNet/sing-box) |
+| `sing-box` | `1.15.0_alpha13-r1` | [SagerNet/sing-box](https://github.com/SagerNet/sing-box) |
 
 ## 自动维护
 
