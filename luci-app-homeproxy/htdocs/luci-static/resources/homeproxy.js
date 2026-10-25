@@ -103,6 +103,30 @@ return baseclass.extend({
 		});
 	},
 
+	getSubscriptionGroups(uciconfig) {
+		const groups = [], seen = Object.create(null);
+		const urls = uci.get(uciconfig, 'subscription', 'subscription_url');
+		for (const suburl of (Array.isArray(urls) ? urls : (urls ? [ urls ] : []))) {
+			const hash = this.calcStringMD5(suburl.replace(/#.*$/, ''));
+			if (seen[hash])
+				continue;
+			seen[hash] = true;
+
+			let title = suburl;
+			try {
+				const url = new URL(suburl);
+				title = url.hash ? url.hash.slice(1) : url.hostname;
+				if (url.hash) {
+					try {
+						title = decodeURIComponent(title);
+					} catch (e) { }
+				}
+			} catch (e) { }
+			groups.push({ hash, title });
+		}
+		return groups;
+	},
+
 	reconcileUrltestNodes(uciconfig) {
 		const subscriptionGroups = Object.create(null);
 		const available = Object.create(null);

@@ -182,6 +182,9 @@ return view.extend({
 		    hosts = data[2]?.hosts;
 
 		/* Cache all configured proxy nodes, they will be called multiple times */
+		const subscription_groups = Object.fromEntries(
+			hp.getSubscriptionGroups(data[0]).map((group) => [ group.hash, group.title ])
+		);
 		let proxy_nodes = {};
 		uci.sections(data[0], 'node', (res) => {
 			let nodeaddr = res.address || '',
@@ -189,7 +192,8 @@ return view.extend({
 			    endpoint = nodeaddr && nodeport ? ((stubValidator.apply('ip6addr', nodeaddr) ?
 				String.format('[%s]', nodeaddr) : nodeaddr) + ':' + nodeport) : res['.name'];
 
-			proxy_nodes[res['.name']] =
+			const group = subscription_groups[res.grouphash];
+			proxy_nodes[res['.name']] = (group ? '<' + group + '> ' : '') +
 				String.format('[%s] %s', res.type, res.label || endpoint);
 		});
 
@@ -284,6 +288,8 @@ return view.extend({
 					return callWriteDomainLists(lists, routingMode, groupStates).then((result) => {
 						if (!result.result)
 							throw new Error(result.error || _('Failed to save domain lists.'));
+						if (result.warning)
+							ui.addNotification(null, E('p', {}, _('Domain lists were saved, but temporary backup cleanup failed.')), 'warning');
 						for (let id of ids) {
 							const builtin = id === 'direct' || id === 'proxy';
 							const section = builtin ? 'diversion' : id;
@@ -339,7 +345,7 @@ return view.extend({
 		o.value('nil', _('Disable'));
 		o.value('urltest', _('URLTest'));
 		for (let i in proxy_nodes)
-			o.value(i, proxy_nodes[i]);
+			o.value(i, E('span', {}, [proxy_nodes[i]]));
 		o.default = 'nil';
 		o.depends('routing_mode', 'bypass_mainland_china');
 		o.depends('routing_mode', 'global');
@@ -349,26 +355,10 @@ return view.extend({
 		o = s.taboption('routing', hp.CBIStaticList, 'main_urltest_nodes', _('URLTest nodes'),
 			_('List of nodes to test.'));
 		for (let i in proxy_nodes)
-			o.value(i, proxy_nodes[i]);
+			o.value(i, E('span', {}, [proxy_nodes[i]]));
 		o.depends({ routing_mode: 'bypass_mainland_china', main_node: 'urltest' });
 		o.depends({ routing_mode: 'global', main_node: 'urltest' });
 		o.rmempty = false;
-		o.retain = true;
-
-		o = s.taboption('routing', form.Value, 'main_urltest_interval', _('Test interval'),
-			_('The test interval in seconds.'));
-		o.datatype = 'uinteger';
-		o.placeholder = '120';
-		o.depends({ routing_mode: 'bypass_mainland_china', main_node: 'urltest' });
-		o.depends({ routing_mode: 'global', main_node: 'urltest' });
-		o.retain = true;
-
-		o = s.taboption('routing', form.Value, 'main_urltest_tolerance', _('Test tolerance'),
-			_('The test tolerance in milliseconds.'));
-		o.datatype = 'uinteger';
-		o.placeholder = '60';
-		o.depends({ routing_mode: 'bypass_mainland_china', main_node: 'urltest' });
-		o.depends({ routing_mode: 'global', main_node: 'urltest' });
 		o.retain = true;
 
 		o = s.taboption('routing', form.Flag, 'main_urltest_interrupt_exist_connections', _('Interrupt existing connections'),
@@ -703,13 +693,13 @@ return view.extend({
 
 		dro = domainRoutes.option(form.ListValue, 'node', _('Node'));
 		for (let i in proxy_nodes)
-			dro.value(i, proxy_nodes[i]);
+			dro.value(i, E('span', {}, [proxy_nodes[i]]));
 		dro.value('tailscale', _('[Tailscale] Tailscale'));
 		dro.rmempty = false;
 		dro.textvalue = function(section_id) {
 			const value = this.cfgvalue(section_id);
 			return value === 'tailscale' ? _('[Tailscale] Tailscale') :
-				(value != null ? (proxy_nodes[value] || value) : null);
+				(value != null ? E('span', {}, [proxy_nodes[value] || value]) : null);
 		};
 
 		dro = domainRoutes.option(form.TextValue, '_domain_list', _('Domain List'),

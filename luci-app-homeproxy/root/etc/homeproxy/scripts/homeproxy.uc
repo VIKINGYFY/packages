@@ -6,7 +6,7 @@
 
 import { popen, readfile } from 'fs';
 import { md5 } from 'digest';
-import { urldecode_params } from 'luci.http';
+import { urldecode, urldecode_params } from 'luci.http';
 
 /* Global variables start */
 export const HP_DIR = '/etc/homeproxy';
@@ -686,6 +686,46 @@ export function parseURL(url) {
 	return objurl;
 };
 /* String parser end */
+
+export function getSubscriptionGroups(uci, config) {
+	let groups = [], seen = {};
+	for (let suburl in normalizeList(uci.get(config, 'subscription', 'subscription_url'))) {
+		const hash = md5(replace(suburl, /#.*$/, ''));
+		if (seen[hash])
+			continue;
+		seen[hash] = true;
+
+		const fragment = match(suburl, /#(.*)$/);
+		let title = suburl;
+		if (fragment && fragment[1]) {
+			try {
+				title = urldecode(fragment[1]);
+			} catch (e) {
+				title = fragment[1];
+			}
+		} else {
+			const url = parseURL(suburl);
+			title = url ? lc(url.hostname) : suburl;
+		}
+		push(groups, { hash, title });
+	}
+	return groups;
+};
+
+export function createNodeOutboundTags(uci, config) {
+	const used = createNodeLabelRegistry();
+	let groups = {}, tags = {};
+	for (let group in getSubscriptionGroups(uci, config))
+		groups[group.hash] = group.title;
+
+	uci.foreach(config, 'node', (section) => {
+		const id = section['.name'];
+		const group = groups[section.grouphash];
+		const label = trim(section.label || '') || `cfg-${id}-out`;
+		tags[id] = reserveUniqueLabel(used, group ? `<${group}> ${label}` : label, `cfg-${id}-out`);
+	});
+	return tags;
+};
 
 export function parseECHConfig(value) {
 	if (isEmpty(value) || value in ['0', 'false', 'none'])

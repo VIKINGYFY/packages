@@ -11,8 +11,8 @@ import { lstat, open, popen, readfile, rename, unlink, writefile } from 'fs';
 import { cursor } from 'uci';
 
 import {
-	HP_DIR, RUN_DIR, addECHDNS, domainListPath, findDomainGroupConflict, isBinary,
-	normalizeDomainList, removeBlankAttrs, renderEndpoint, renderOutbound,
+	HP_DIR, RUN_DIR, addECHDNS, createNodeOutboundTags, domainListPath,
+	findDomainGroupConflict, isBinary, normalizeDomainList, removeBlankAttrs, renderEndpoint, renderOutbound,
 	shellQuote, splitDomainList, validation
 } from '/etc/homeproxy/scripts/homeproxy.uc';
 
@@ -183,24 +183,83 @@ const methods = {
 					error: `domain ${conflict.left.value} conflicts with ${conflict.right.value}`
 				};
 
-			system(`mkdir -p ${HP_DIR}/diversion`);
+			if (system(`mkdir -p ${HP_DIR}/diversion`) !== 0)
+				return { result: false, error: 'failed to prepare domain list directory' };
+
 			let staged = [];
-			for (let id in keys(changes)) {
-				const file = domainListPath(id), temporary = file + '.new';
-				if (writefile(temporary, changes[id]) === null) {
-					for (let path in staged)
-						unlink(path.temporary);
-					return { result: false, error: 'failed to write domain list' };
+			const cleanup = () => {
+				let succeeded = true;
+				for (let path in staged) {
+					if (lstat(path.temporary) && !unlink(path.temporary))
+						succeeded = false;
+					if (!path.preserve_backup && lstat(path.backup) && !unlink(path.backup))
+						succeeded = false;
 				}
-				push(staged, { file, temporary });
+				return succeeded;
+			};
+
+			for (let id in keys(changes)) {
+				const file = domainListPath(id), temporary = file + '.new', backup = file + '.rollback';
+				const file_stat = lstat(file);
+				if ((file_stat && file_stat.type !== 'file') || lstat(temporary) || lstat(backup)) {
+					cleanup();
+					return { result: false, error: 'domain list transaction requires manual recovery' };
+				}
+
+				const path = {
+					file, temporary, backup,
+					had_original: !!file_stat,
+					installed: false,
+					preserve_backup: false
+				};
+				push(staged, path);
+
+				if (file_stat) {
+					const original = readfile(file);
+					if (original === null || writefile(backup, original) === null) {
+						const clean = cleanup();
+						return { result: false, error: clean ? 'failed to back up domain list' : 'failed to back up domain list; transaction files retained' };
+					}
+				}
+
+				if (writefile(temporary, changes[id]) === null) {
+					const clean = cleanup();
+					return { result: false, error: clean ? 'failed to stage domain list' : 'failed to stage domain list; transaction files retained' };
+				}
 			}
 
-			for (let path in staged)
+			for (let path in staged) {
 				if (!rename(path.temporary, path.file)) {
-					for (let pending in staged)
-						unlink(pending.temporary);
-					return { result: false, error: 'failed to install domain list' };
+					let rollback_failed = false;
+					for (let i = length(staged) - 1; i >= 0; i--) {
+						const committed = staged[i];
+						if (!committed.installed)
+							continue;
+
+						if (committed.had_original) {
+							if (!rename(committed.backup, committed.file)) {
+								committed.preserve_backup = true;
+								rollback_failed = true;
+							}
+						} else if (!unlink(committed.file) && lstat(committed.file)) {
+							rollback_failed = true;
+						}
+					}
+
+					if (!cleanup())
+						rollback_failed = true;
+					return {
+						result: false,
+						error: rollback_failed ?
+							'failed to install domain list; rollback failed, recovery files retained' :
+							'failed to install domain list; previous files restored'
+					};
 				}
+				path.installed = true;
+			}
+
+			if (!cleanup())
+				return { result: true, warning: 'domain lists saved but transaction backup cleanup failed' };
 
 			return { result: true };
 		}
@@ -459,6 +518,14 @@ const methods = {
 					active: { id: 'urltest', label: 'URLTest', type: 'urltest' },
 					error: 'missing_current_proxy'
 				};
+
+			for (let section_id, node_tag in createNodeOutboundTags(uci, 'homeproxy'))
+				if (node_tag === tag)
+					return {
+						mode: 'urltest',
+						active: formatNode(section_id, tag),
+						error: null
+					};
 
 			const matched = match(tag, /^cfg-(.*)-out$/);
 			const section_id = matched ? matched[1] : tag;

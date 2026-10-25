@@ -26,6 +26,13 @@ valid_port() {
 	[ "$1" -ge 1 ] && [ "$1" -le 65535 ]
 }
 
+set_runtime_option() {
+	if ! uci -q set "$1=$2"; then
+		log "Failed to set runtime option $1."
+		return 1
+	fi
+}
+
 initialize_port() {
 	local port="$1" default_port="$2" initialized="$3" reserved="$4"
 
@@ -60,21 +67,24 @@ if [ "$main_node" = 'urltest' ] && { [ "$dashboard_enabled" = '1' ] || [ "$tails
 fi
 
 if [ "$(uci -q get homeproxy.infra.clash_api_port)" != "$clash_api_port" ]; then
-	uci -q set homeproxy.infra.clash_api_port="$clash_api_port"
+	set_runtime_option homeproxy.infra.clash_api_port "$clash_api_port" || exit 1
 	changed=1
 fi
 if [ "$(uci -q get homeproxy.config.dashboard_port)" != "$dashboard_port" ]; then
-	uci -q set homeproxy.config.dashboard_port="$dashboard_port"
+	set_runtime_option homeproxy.config.dashboard_port "$dashboard_port" || exit 1
 	changed=1
 fi
 if [ "$clash_api_port_initialized" != '1' ]; then
-	uci -q set homeproxy.infra.clash_api_port_initialized='1'
+	set_runtime_option homeproxy.infra.clash_api_port_initialized '1' || exit 1
 	changed=1
 fi
 if [ "$dashboard_port_initialized" != '1' ]; then
-	uci -q set homeproxy.config.dashboard_port_initialized='1'
+	set_runtime_option homeproxy.config.dashboard_port_initialized '1' || exit 1
 	changed=1
 fi
 
-[ "$changed" -eq 0 ] || uci -q commit homeproxy
+if [ "$changed" -ne 0 ] && ! uci -q commit homeproxy; then
+	log 'Failed to commit runtime port settings.'
+	exit 1
+fi
 exit 0

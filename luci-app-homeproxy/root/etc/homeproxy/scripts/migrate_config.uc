@@ -154,7 +154,7 @@ if (subscriptionUserAgent === 'v2rayN/7.23.4' ||
 setDefault('infra', 'ntp_server', 'nil');
 if (isEmpty(uci.get(uciconfig, 'infra', 'udp_timeout')))
 	uci.set(uciconfig, 'infra', 'udp_timeout', '300');
-setDefault('config', 'main_urltest_interval', '120');
+setDefault('config', 'main_urltest_interval', '60');
 setDefault('config', 'main_urltest_tolerance', '60');
 setDefault('config', 'main_urltest_interrupt_exist_connections', '0');
 setDefault('config', 'log_level', 'warn');
