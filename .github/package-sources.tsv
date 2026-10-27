@@ -1,1 +1,2 @@
 luci-app-homeproxy	https://github.com/VIKINGYFY/packages
+luci-app-upnp	https://github.com/immortalwrt/luci/tree/master/applications/luci-app-upnp

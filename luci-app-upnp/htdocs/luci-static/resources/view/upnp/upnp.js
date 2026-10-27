@@ -1,0 +1,156 @@
+'use strict';
+'require view';
+'require poll';
+'require uci';
+'require form';
+'require upnp';
+
+return view.extend({
+	load: function() {
+		return Promise.all([
+			upnp.getStatus(),
+			uci.load('upnpd')
+		]);
+	},
+
+	render: function(data) {
+
+		let m, s, o;
+
+		var protocols = '%s & %s/%s'.format(
+			'<a href="https://en.wikipedia.org/wiki/Internet_Gateway_Device_Protocol" target="_blank" rel="noreferrer"><abbr title="UPnP Internet Gateway Device (Control Protocol)">UPnP IGD</abbr></a>',
+			'<a href="https://en.wikipedia.org/wiki/Port_Control_Protocol" target="_blank" rel="noreferrer"><abbr title="Port Control Protocol">PCP</abbr></a>',
+			'<a href="https://en.wikipedia.org/wiki/NAT_Port_Mapping_Protocol" target="_blank" rel="noreferrer"><abbr title="NAT Port Mapping Protocol">NAT-PMP</abbr></a>');
+		m = new form.Map('upnpd', [_('UPnP IGD & PCP/NAT-PMP Service')],
+			_('The %s protocols allow clients on the local network to configure port maps/forwards on the router autonomously.',
+				'The %s (%s = UPnP IGD & PCP/NAT-PMP) protocols allow clients on the local network to configure port maps/forwards on the router autonomously.')
+				.format(protocols)
+		);
+
+		s = m.section(form.GridSection, '_active_rules');
+
+		s.render = function() {
+			return E('div', { 'class': 'cbi-section cbi-tblsection' }, [
+				E('h3', _('Active Service Port Maps')), upnp.renderTable(data[0])
+			]);
+		};
+
+		s = m.section(form.NamedSection, 'config', 'upnpd', _('Service Settings'));
+		s.addremove = false;
+		s.tab('setup', _('Service Setup'));
+		s.tab('advanced', _('Advanced Settings'));
+
+		o = s.taboption('setup', form.Flag, 'enabled', _('Start service'),
+			_('Start autonomous port mapping service'));
+		o.rmempty = false;
+
+		o = s.taboption('setup', form.Flag, 'enable_upnp', _('Enable UPnP IGD protocol'));
+		o.default = '1';
+
+		o = s.taboption('setup', form.Flag, 'enable_natpmp', _('Enable PCP/NAT-PMP protocols'));
+		o.default = '1';
+
+		s.taboption('setup', form.Flag, 'ext_allow_private_ipv4', _('Allow private IPv4'),
+			_('Enable forwarding for private/reserved IPv4 address'));
+
+		o = s.taboption('setup', form.Flag, 'igdv1', _('UPnP IGDv1 compatibility mode'),
+			_('Advertise as IGDv1 (IPv4 only) device instead of IGDv2'));
+		o.default = '1';
+		o.rmempty = false;
+		o.depends('enable_upnp', '1');
+
+		o = s.taboption('setup', form.Value, 'download', _('Download speed'),
+			_('Report maximum download speed in kByte/s'));
+		o.depends('enable_upnp', '1');
+
+		o = s.taboption('setup', form.Value, 'upload', _('Upload speed'),
+			_('Report maximum upload speed in kByte/s'));
+		o.depends('enable_upnp', '1');
+
+		s.taboption('advanced', form.Flag, 'use_stun', _('Use %s', 'Use %s (%s = STUN)')
+				.format('<a href="https://en.wikipedia.org/wiki/STUN" target="_blank" rel="noreferrer"><abbr title="Session Traversal Utilities for NAT">STUN</abbr></a>'),
+			_('To detect the public IPv4 address for unrestricted full-cone/one-to-one NATs'));
+
+		o = s.taboption('advanced', form.Value, 'stun_host', _('STUN host'));
+		o.depends('use_stun', '1');
+		o.datatype = 'host';
+
+		o = s.taboption('advanced', form.Value, 'stun_port', _('STUN port'));
+		o.depends('use_stun', '1');
+		o.datatype = 'port';
+		o.placeholder = '3478';
+
+		o = s.taboption('advanced', form.Flag, 'secure_mode', _('Enable secure mode'),
+			_('Allow adding port maps for requesting IP addresses only'));
+		o.default = '1';
+		o.depends('enable_upnp', '1');
+
+		o = s.taboption('advanced', form.Value, 'notify_interval', _('Notify interval'),
+			_('A 900s interval will result in %s notifications with the minimum max-age of 1800s', 'A 900s interval will result in %s (%s = SSDP) notifications with the minimum max-age of 1800s')
+				.format('<abbr title="Simple Service Discovery Protocol">SSDP</abbr>'));
+		o.datatype = 'uinteger';
+		o.placeholder = '900';
+		o.depends('enable_upnp', '1');
+
+		o = s.taboption('advanced', form.Value, 'port', _('SOAP/HTTP port'));
+		o.datatype = 'port';
+		o.placeholder = '5000';
+		o.depends('enable_upnp', '1');
+
+		o = s.taboption('advanced', form.Value, 'presentation_url', _('Presentation URL'),
+			_('Report custom router web interface (presentation) URL'));
+		o.placeholder = 'http://192.168.1.1/';
+		o.depends('enable_upnp', '1');
+
+		o = s.taboption('advanced', form.Value, 'uuid', _('Device UUID'));
+		o.depends('enable_upnp', '1');
+
+		o = s.taboption('advanced', form.Value, 'model_number', _('Announced model number'));
+		o.depends('enable_upnp', '1');
+
+		o = s.taboption('advanced', form.Value, 'serial_number', _('Announced serial number'));
+		o.depends('enable_upnp', '1');
+
+		o = s.taboption('advanced', form.Flag, 'system_uptime', _('Report system instead of service uptime'));
+		o.default = '1';
+		o.depends('enable_upnp', '1');
+
+		s.taboption('advanced', form.Flag, 'log_output', _('Enable additional logging'),
+			_('Puts extra debugging information into the system log'));
+
+		o = s.taboption('advanced', form.Value, 'upnp_lease_file', _('Service lease file'));
+		o.placeholder = '/var/run/miniupnpd.leases';
+
+		s = m.section(form.GridSection, 'perm_rule', _('Service Access Control List'),
+			_('ACL specify which client addresses and ports can be mapped, IPv6 always allowed.'));
+		s.sortable = true;
+		s.anonymous = true;
+		s.addremove = true;
+
+		s.option(form.Value, 'comment', _('Comment'));
+
+		o = s.option(form.Value, 'int_addr', _('Client Address'));
+		o.datatype = 'ip4addr';
+		o.placeholder = '0.0.0.0/0';
+
+		o = s.option(form.Value, 'int_ports', _('Client Port'));
+		o.datatype = 'portrange';
+		o.placeholder = '1-65535';
+
+		o = s.option(form.Value, 'ext_ports', _('External Port'));
+		o.datatype = 'portrange';
+		o.placeholder = '1-65535';
+
+		o = s.option(form.ListValue, 'action', _('Action'));
+		o.value('allow', _('Allow'));
+		o.value('deny', _('Deny'));
+
+		return m.render().then(L.bind(function(m, nodes) {
+			poll.add(L.bind(function() {
+				const table = nodes.querySelector('.upnp-status-table');
+				return upnp.getStatus().then(rules => upnp.updateTable(table, rules));
+			}, this), 5);
+			return nodes;
+		}, this, m));
+	}
+});

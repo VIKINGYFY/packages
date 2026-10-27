@@ -58,6 +58,40 @@ ci_package_name() {
 	printf '%s\n' "$name"
 }
 
+ci_package_names() {
+	local package_dir="$1"
+	local manifest="$CI_REPO_ROOT/$package_dir/APK-PACKAGES"
+	local name
+	local -a names=()
+	local -A seen=()
+
+	if [[ ! -f "$manifest" ]]; then
+		ci_package_name "$package_dir"
+		return
+	fi
+
+	while IFS= read -r name || [[ -n "$name" ]]; do
+		[[ -n "$name" ]] || continue
+		[[ "$name" == \#* ]] && continue
+		[[ "$name" =~ ^[A-Za-z0-9][A-Za-z0-9.+-]*$ ]] || {
+			printf 'Invalid package name in %s: %s\n' "$manifest" "$name" >&2
+			return 1
+		}
+		[[ -z "${seen[$name]:-}" ]] || {
+			printf 'Duplicate package name in %s: %s\n' "$manifest" "$name" >&2
+			return 1
+		}
+		seen["$name"]=1
+		names+=("$name")
+	done < "$manifest"
+
+	(( ${#seen[@]} > 0 )) || {
+		printf 'No package names in %s\n' "$manifest" >&2
+		return 1
+	}
+	printf '%s\n' "${names[@]}"
+}
+
 ci_package_version() {
 	local package_dir="$1"
 	local version release

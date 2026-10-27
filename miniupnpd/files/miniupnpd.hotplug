@@ -1,0 +1,44 @@
+/etc/init.d/miniupnpd enabled || exit 0
+
+case "$ACTION" in
+	ifup|ifdown) ;;
+	ifupdate)
+		[ "$IFUPDATE_ADDRESSES" = 1 ] || [ "$IFUPDATE_ROUTES" = 1 ] || exit 0
+		;;
+	*) exit 0 ;;
+esac
+
+# The last required LAN or WAN may have appeared after service startup.
+if ! /etc/init.d/miniupnpd running; then
+	/etc/init.d/miniupnpd start
+	exit $?
+fi
+
+. /usr/share/miniupnpd/functions.sh
+. /lib/functions/network.sh
+upnpd_load_backend || exit 1
+
+external_iface=$(uci -q get upnpd.config.external_iface)
+external_iface6=$(uci -q get upnpd.config.external_iface6)
+external_zone=$(uci -q get upnpd.config.external_zone)
+internal_iface=$(uci -q get upnpd.config.internal_iface)
+
+for iface in $external_iface $external_iface6 ${internal_iface:-lan}; do
+	if [ "$INTERFACE" = "$iface" ]; then
+		upnpd_queue_reload
+		exit $?
+	fi
+done
+
+ifname=""
+ifname6=""
+upnpd_resolve_interface ifname "$external_iface" "$external_zone" 4
+upnpd_resolve_interface ifname6 "$external_iface6" "$external_zone" 6
+if [ -n "$DEVICE" ]; then
+	if [ "$DEVICE" = "$ifname" ] || [ "$DEVICE" = "$ifname6" ] ||
+		grep -Fqx "ext_ifname=$DEVICE" /var/etc/miniupnpd.conf ||
+		grep -Fqx "ext_ifname6=$DEVICE" /var/etc/miniupnpd.conf ||
+		grep -Fqx "listening_ip=$DEVICE" /var/etc/miniupnpd.conf; then
+		upnpd_queue_reload
+	fi
+fi

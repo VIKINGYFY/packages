@@ -1,0 +1,43 @@
+#!/bin/sh
+
+# Package installation runs this once, before starting the new daemon.
+attempt=0
+while pidof miniupnpd >/dev/null; do
+	[ "$attempt" -lt 10 ] || exit 1
+	sleep 1
+	attempt=$((attempt + 1))
+done
+
+if uci -q get upnpd.config.force_forwarding >/dev/null; then
+	if uci -q get upnpd.config.ext_allow_private_ipv4 >/dev/null; then
+		uci -q delete upnpd.config.force_forwarding || exit 1
+	else
+		uci -q rename upnpd.config.force_forwarding=ext_allow_private_ipv4 || exit 1
+	fi
+	uci -q commit upnpd || exit 1
+fi
+
+lease_file="$(uci -q get upnpd.config.upnp_lease_file)"
+lease_file="${lease_file:-/var/run/miniupnpd.leases}"
+if [ -f "$lease_file" ]; then
+	temporary="$(mktemp "${lease_file}.XXXXXX")" || exit 1
+	# SUPPORT_REMOTEHOST inserts a field before the internal IPv4 address.
+	if ! awk -F: '
+		($1 == "TCP" || $1 == "UDP") &&
+		$3 ~ /^[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+$/ &&
+		$4 ~ /^[0-9]+$/ && $5 ~ /^[0-9]+$/ {
+			sub(/^[^:]*:[^:]*:/, "&:")
+		}
+		{ print }
+	' "$lease_file" > "$temporary"; then
+		rm -f "$temporary"
+		exit 1
+	fi
+	if cmp -s "$lease_file" "$temporary"; then
+		rm -f "$temporary"
+	else
+		mv -f "$temporary" "$lease_file" || exit 1
+	fi
+fi
+
+exit 0

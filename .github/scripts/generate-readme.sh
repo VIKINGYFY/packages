@@ -121,6 +121,9 @@ plugin_description() {
 		luci-app-wolultra)
 			printf 'wol 功能的 LuCI 管理界面与 OpenWrt 集成。\n'
 			;;
+		luci-app-upnp)
+			printf 'UPnP IGD、PCP/NAT-PMP 端口映射管理与状态查看。\n'
+			;;
 		*)
 			printf '%s 的 LuCI 管理界面与 OpenWrt 集成。\n' \
 				"${package_dir#luci-app-}"
@@ -172,15 +175,20 @@ mapfile -t package_dirs < "$temp_file"
 		[[ "$name" != luci-app-* ]] || continue
 		version="$(ci_package_version "$package_dir")"
 		source_url="$(package_source_url "$package_dir")"
-		printf "| \`%s\` | \`%s\` | %s |\n" \
-			"$name" "$version" "$(source_label "$source_url")"
+		package_names_output="$(ci_package_names "$package_dir")" || exit 1
+		while IFS= read -r name; do
+			printf "| \`%s\` | \`%s\` | %s |\n" \
+				"$name" "$version" "$(source_label "$source_url")"
+		done <<< "$package_names_output"
 	done
 	echo
 	echo '## 自动维护'
 	echo
-	echo 'CI 每日检查受维护的上游项目，仅在发现更新时继续构建、提交和发布。软件包目录通过 Makefile 自动发现；新增或删除软件包后，构建范围和发布资产清理会自动调整，LuCI 插件列表也会自动更新。'
+	echo 'CI 每日检查受维护的上游项目，仅在发现更新时继续构建、提交和发布。'
 	echo
-	echo 'APK 发布按 ARM64 和 AMD64 分开维护；每个包名仅保留最新版本，并提供包含各软件包最新版的整合包。axonhub 与 sing-box 核心均从上游源码编译。'
+	echo '软件包目录通过 Makefile 自动发现；新增或删除软件包后，构建范围和发布资产清理会自动调整，LuCI 插件列表也会自动更新。'
+	echo
+	echo 'APK 发布按 ARM64 和 AMD64 分开维护；每个包名仅保留最新版本，并提供包含各软件包最新版的整合包。'
 	echo
 	echo '## License'
 	echo

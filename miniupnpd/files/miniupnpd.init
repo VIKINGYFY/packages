@@ -1,0 +1,199 @@
+#!/bin/sh /etc/rc.common
+# Copyright (C) 2006-2014 OpenWrt.org
+
+START=94
+STOP=15
+USE_PROCD=1
+PROG=/usr/sbin/miniupnpd
+. /usr/share/miniupnpd/functions.sh
+
+upnpd_get_port_range() {
+	local var="$1"; shift
+	local val
+
+	config_get val "$@"
+
+	case "$val" in
+		[0-9]*[:-][0-9]*)
+			export -n -- "${var}_start=${val%%[:-]*}"
+			export -n -- "${var}_end=${val##*[:-]}"
+		;;
+		[0-9]*)
+			export -n -- "${var}_start=$val"
+			export -n -- "${var}_end="
+		;;
+	esac
+}
+
+conf_rule_add() {
+	local cfg="$1"
+	local action int_addr
+	local ext_start ext_end int_start int_end comment
+
+	config_get action "$cfg" action "deny"                # allow or deny
+	upnpd_get_port_range "ext" "$cfg" ext_ports "0-65535" # external ports: x, x-y, x:y
+	config_get int_addr "$cfg" int_addr "0.0.0.0/0"       # ip or network and subnet mask (internal)
+	upnpd_get_port_range "int" "$cfg" int_ports "0-65535" # internal ports: x, x-y, x:y or range
+	config_get comment "$cfg" comment "ACL"		      # comment
+
+	# Make a single IP IP/32 so that miniupnpd.conf can use it.
+	[ "${int_addr%/*}" = "$int_addr" ] && int_addr="$int_addr/32"
+
+	echo "$action $ext_start${ext_end:+-}$ext_end $int_addr $int_start${int_end:+-}$int_end #$comment"
+}
+
+upnpd_write_bool() {
+	local opt="$1"
+	local def="${2:-0}"
+	local alt="${3:-$opt}"
+	local val
+
+	config_get_bool val config "$opt" "$def"
+	if [ "$val" -eq 0 ]; then
+		echo "$alt=no"
+	else
+		echo "$alt=yes"
+	fi
+}
+
+
+upnpd_write_config() {
+	local external_iface external_iface6 external_zone internal_iface ifname ifname6
+	local iface device listening=0 option value upload download uuid use_stun
+	local upnp_lease_file upnp_lease_file6
+
+	config_get external_iface config external_iface
+	config_get external_iface6 config external_iface6
+	config_get external_zone config external_zone
+	config_get internal_iface config internal_iface lan
+	upnpd_resolve_interface ifname "$external_iface" "$external_zone" 4
+	upnpd_resolve_interface ifname6 "$external_iface6" "$external_zone" 6
+	if [ -z "$ifname" ]; then
+		logger -t miniupnpd "External interface not found; waiting for network hotplug"
+		return 1
+	fi
+	printf 'ext_ifname=%s\n' "$ifname"
+	[ -z "$ifname6" ] || printf 'ext_ifname6=%s\n' "$ifname6"
+	for iface in ${internal_iface:-lan}; do
+		if network_get_device device "$iface"; then
+			printf 'listening_ip=%s\n' "$device"
+			listening=1
+		fi
+	done
+	if [ "$listening" = 0 ]; then
+		logger -t miniupnpd "Internal interface not found; waiting for network hotplug"
+		return 1
+	fi
+
+	upnpd_write_bool enable_natpmp 1 enable_pcp_pmp
+	upnpd_write_bool enable_upnp 1
+	upnpd_write_bool secure_mode 1
+	upnpd_write_bool system_uptime 1
+	upnpd_write_bool igdv1 1 force_igd_desc_v1
+	upnpd_write_bool use_stun 0 ext_perform_stun
+	upnpd_write_bool ipv6_disable 1
+	upnpd_write_bool ext_allow_private_ipv4 1
+
+	config_get_bool use_stun config use_stun 0
+	if [ "$use_stun" = 1 ]; then
+		config_get value config stun_host
+		[ -z "$value" ] || printf 'ext_stun_host=%s\n' "$value"
+		config_get value config stun_port
+		[ -z "$value" ] || printf 'ext_stun_port=%s\n' "$value"
+	fi
+
+	config_get upload config upload
+	config_get download config download
+	if [ -n "$upload" ] && [ -n "$download" ]; then
+		printf 'bitrate_down=%s\nbitrate_up=%s\n' "$((download * 1024 * 8))" "$((upload * 1024 * 8))"
+	fi
+	for option in external_ip:ext_ip presentation_url notify_interval serial_number:serial model_number; do
+		config_get value config "${option%:*}"
+		[ -z "$value" ] || printf '%s=%s\n' "${option#*:}" "$value"
+	done
+	config_get value config port 5000
+	[ -z "$value" ] || printf 'port=%s\n' "$value"
+
+	config_get upnp_lease_file config upnp_lease_file /var/run/miniupnpd.leases
+	config_get upnp_lease_file6 config upnp_lease_file6 /var/run/miniupnpd.leases6
+	for option in "$upnp_lease_file" "$upnp_lease_file6"; do
+		[ -z "$option" ] || touch "$option" || return 1
+	done
+	[ -z "$upnp_lease_file" ] || printf 'lease_file=%s\n' "$upnp_lease_file"
+	[ -z "$upnp_lease_file6" ] || printf 'lease_file6=%s\n' "$upnp_lease_file6"
+
+	config_get uuid config uuid
+	if [ -z "$uuid" ]; then
+		uuid="$(cat /proc/sys/kernel/random/uuid)"
+		uci set upnpd.config.uuid="$uuid" && uci commit upnpd || return 1
+	fi
+	[ "$uuid" = nocli ] || printf 'uuid=%s\n' "$uuid"
+	config_foreach conf_rule_add perm_rule
+
+	if [ "$FW" = fw4 ]; then
+		printf '%s\n' 'upnp_table_name=fw4' 'upnp_nat_table_name=fw4' \
+			'upnp_forward_chain=upnp_forward' 'upnp_nat_chain=upnp_prerouting' \
+			'upnp_nat_postrouting_chain=upnp_postrouting'
+	fi
+	return 0
+}
+
+start_service() {
+	local enabled conf config_file temporary log_output
+	upnpd_load_backend || return 1
+	config_load upnpd
+	config_get_bool enabled config enabled 0
+	[ "$enabled" = 1 ] || return 0
+	config_get config_file config config_file
+	config_get_bool log_output config log_output 0
+	. /lib/functions/network.sh
+
+	conf="${config_file:-/var/etc/miniupnpd.conf}"
+	if [ -n "$config_file" ]; then
+		[ -r "$conf" ] || return 1
+	else
+		mkdir -p /var/etc
+		temporary="$(mktemp "${conf}.XXXXXX")" || return 1
+		if ! upnpd_write_config > "$temporary"; then
+			rm -f "$temporary"
+			return 1
+		fi
+		mv -f "$temporary" "$conf" || return 1
+	fi
+	if ! upnpd_prepare_firewall; then
+		logger -t miniupnpd "Unable to prepare $FW port mapping chains"
+		return 1
+	fi
+
+	procd_open_instance
+	procd_set_param file "$conf" /etc/config/firewall
+	procd_set_param command "$PROG" -f "$conf"
+	[ "$log_output" = 1 ] && procd_append_param command -d
+	procd_set_param respawn 3600 5 5
+	procd_close_instance
+}
+
+stop_service() {
+	UPNPD_STOP_PIDS="$(ubus call service list '{"name":"miniupnpd"}' | jsonfilter -e '@.miniupnpd.instances[*].pid')"
+}
+
+service_stopped() {
+	if ! upnpd_wait_for_exit $UPNPD_STOP_PIDS; then
+		logger -t miniupnpd "Service did not stop; port mapping chains were not flushed"
+		return 1
+	fi
+	upnpd_load_backend && upnpd_flush_firewall
+}
+
+reload_service() {
+	stop && start
+}
+
+restart() {
+	reload_service
+}
+
+service_triggers() {
+	procd_add_reload_trigger upnpd
+	procd_add_raw_trigger miniupnpd.reload 1000 /etc/init.d/miniupnpd restart
+}

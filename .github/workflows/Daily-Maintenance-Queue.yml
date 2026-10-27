@@ -43,9 +43,17 @@ jobs:
     with:
       build_apks: false
 
+  miniupnp:
+    name: MiniUPnP 更新
+    needs: homeproxy
+    if: ${{ always() }}
+    uses: ./.github/workflows/Update-MiniUPnP.yml
+    with:
+      build_apks: false
+
   translation:
     name: 翻译维护
-    needs: homeproxy
+    needs: miniupnp
     if: ${{ always() }}
     uses: ./.github/workflows/Rescan-Translation.yml
     with:
@@ -57,17 +65,19 @@ jobs:
       - singbox
       - axonhub
       - homeproxy
+      - miniupnp
       - translation
     if: >-
       always() && (
         needs.singbox.outputs.packages != '' ||
         needs.axonhub.outputs.packages != '' ||
         needs.homeproxy.outputs.packages != '' ||
+        needs.miniupnp.outputs.packages != '' ||
         needs.translation.outputs.packages != ''
       )
     uses: ./.github/workflows/Build-APK-Packages.yml
     with:
       source_sha: >-
-        ${{ needs.translation.outputs.source_sha || needs.homeproxy.outputs.source_sha || needs.axonhub.outputs.source_sha || needs.singbox.outputs.source_sha }}
+        ${{ needs.translation.outputs.source_sha || needs.miniupnp.outputs.source_sha || needs.homeproxy.outputs.source_sha || needs.axonhub.outputs.source_sha || needs.singbox.outputs.source_sha }}
       packages: >-
-        ${{ needs.singbox.outputs.packages }},${{ needs.axonhub.outputs.packages }},${{ needs.homeproxy.outputs.packages }},${{ needs.translation.outputs.packages }}
+        ${{ needs.singbox.outputs.packages }},${{ needs.axonhub.outputs.packages }},${{ needs.homeproxy.outputs.packages }},${{ needs.miniupnp.outputs.packages }},${{ needs.translation.outputs.packages }}

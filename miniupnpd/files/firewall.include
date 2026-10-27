@@ -1,0 +1,11 @@
+#!/bin/sh
+
+. /usr/share/miniupnpd/functions.sh
+upnpd_load_backend || exit 1
+
+if [ "$FW" = fw3 ]; then
+	/usr/share/miniupnpd/firewall3.include || exit 1
+fi
+
+# Notify procd instead of restarting under the firewall/procd locks.
+upnpd_queue_reload

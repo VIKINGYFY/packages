@@ -1,0 +1,344 @@
+// Copyright 2022 Jo-Philipp Wich <jo@mein.io>
+// Licensed to the public under the Apache License 2.0.
+
+'use strict';
+
+import { access, mkdtemp, open, popen, readfile, rename, rmdir, unlink, writefile } from 'fs';
+import { connect } from 'ubus';
+import { cursor } from 'uci';
+
+const ubus = connect();
+
+function valid_port(value) {
+	return match(`${value}`, /^[0-9]+$/) && +value > 0 && +value <= 65535;
+}
+
+function valid_ipv4(value) {
+	return type(value) == 'string' &&
+		match(value, /^[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+$/) &&
+		length(iptoarr(value)) == 4;
+}
+
+function mapping_token(rule) {
+	return `${rule.proto}:${rule.extport}:${rule.intaddr}:${rule.intport}`;
+}
+
+function lease_file() {
+	const path = cursor().get('upnpd', 'config', 'upnp_lease_file');
+	return path == null ? '/var/run/miniupnpd.leases' : path;
+}
+
+function read_nft_rules() {
+	const rules = [];
+	const proc = popen('nft --json list chain inet fw4 upnp_prerouting 2>/dev/null');
+	if (!proc)
+		return null;
+
+	const output = proc.read('all');
+	if (proc.close() != 0)
+		return null;
+
+	let document;
+	try {
+		document = json(output);
+	}
+	catch (e) {
+		return null;
+	}
+	if (type(document?.nftables) != 'array')
+		return null;
+
+	for (let entry in document.nftables) {
+		const rule = entry.rule;
+		if (rule?.family != 'inet' || rule?.table != 'fw4' || rule?.chain != 'upnp_prerouting')
+			continue;
+
+		let protocol, extport, destination;
+		for (let expression in rule.expr) {
+			const comparison = expression.match;
+			if (comparison?.op == '==') {
+				const left = comparison.left;
+				const payload = left?.payload;
+				if (payload?.field == 'dport') {
+					extport = comparison.right;
+					if (payload.protocol == 'tcp' || payload.protocol == 'udp')
+						protocol = payload.protocol;
+				}
+				else if (left?.meta?.key == 'l4proto' ||
+					(payload?.protocol == 'ip' && payload?.field == 'protocol') ||
+					(payload?.base == 'nh' && payload?.offset == 72 && payload?.len == 8)) {
+					protocol = comparison.right;
+				}
+			}
+			if (expression.dnat?.family == 'ip')
+				destination = expression.dnat;
+		}
+
+		if (protocol == 6 || protocol == 'tcp')
+			protocol = 'TCP';
+		else if (protocol == 17 || protocol == 'udp')
+			protocol = 'UDP';
+		else
+			continue;
+
+		if (!valid_port(extport) || !valid_port(destination?.port) || !valid_ipv4(destination?.addr))
+			continue;
+
+		const mapping = {
+			proto: protocol,
+			extport: +extport,
+			intaddr: arrtoip(iptoarr(destination.addr)),
+			intport: +destination.port,
+			descr: '',
+			expires: 0
+		};
+		mapping.token = mapping_token(mapping);
+		push(rules, mapping);
+	}
+
+	return rules;
+}
+
+function read_iptables_rules() {
+	const rules = [];
+	const proc = popen('iptables -t nat -S MINIUPNPD 2>/dev/null');
+	if (!proc)
+		return null;
+
+	for (let line = proc.read('line'); length(line); line = proc.read('line')) {
+		const fields = split(trim(line), /\s+/);
+		if (fields[0] != '-A' || fields[1] != 'MINIUPNPD')
+			continue;
+
+		let protocol, extport, destination, target;
+		for (let i = 2; i < length(fields) - 1; i++) {
+			switch (fields[i]) {
+			case '-p': protocol = fields[++i]; break;
+			case '--dport': extport = fields[++i]; break;
+			case '--to-destination': destination = fields[++i]; break;
+			case '-j': target = fields[++i]; break;
+			}
+		}
+		if (protocol == 'tcp' || protocol == '6')
+			protocol = 'TCP';
+		else if (protocol == 'udp' || protocol == '17')
+			protocol = 'UDP';
+		else
+			continue;
+
+		const address = match(destination || '', /^([0-9.]+):([0-9]+)$/);
+		if (target != 'DNAT' || !valid_port(extport) ||
+			!valid_ipv4(address?.[1]) || !valid_port(address?.[2]))
+			continue;
+
+		const mapping = {
+			proto: protocol,
+			extport: +extport,
+			intaddr: arrtoip(iptoarr(address[1])),
+			intport: +address[2],
+			descr: '',
+			expires: 0
+		};
+		mapping.token = mapping_token(mapping);
+		push(rules, mapping);
+	}
+
+	return proc.close() == 0 ? rules : null;
+}
+
+function read_rules() {
+	const backend = trim(readfile('/usr/share/miniupnpd/backend') || '');
+	if (backend == 'nftables')
+		return read_nft_rules();
+	if (backend == 'iptables')
+		return read_iptables_rules();
+	return null;
+}
+
+function parse_lease(line) {
+	const fields = split(trim(line), ':');
+	if (fields[0] != 'TCP' && fields[0] != 'UDP')
+		return null;
+
+	if (length(fields) < 7 || !valid_ipv4(fields[3]) ||
+		!valid_port(fields[1]) || !valid_port(fields[4]) ||
+		!match(fields[5], /^[0-9]+$/))
+		return null;
+
+	const lease = {
+		proto: fields[0],
+		extport: +fields[1],
+		intaddr: arrtoip(iptoarr(fields[3])),
+		intport: +fields[4],
+		timestamp: +fields[5],
+		descr: join(':', slice(fields, 6))
+	};
+	lease.token = mapping_token(lease);
+	return lease;
+}
+
+function remove_lease(leasefile, token) {
+	const content = readfile(leasefile);
+	if (content == null)
+		return 'Unable to read the service lease file';
+
+	let removed = false;
+	const lines = [];
+	for (let line in split(content, '\n')) {
+		const lease = parse_lease(line);
+		if (lease?.token == token)
+			removed = true;
+		else
+			push(lines, line);
+	}
+	if (!removed)
+		return 'The port mapping is no longer present in the service lease file';
+
+	const directory = mkdtemp(`${leasefile}.luci-XXXXXX`);
+	if (!directory)
+		return 'Unable to create a temporary lease file';
+
+	const temporary = `${directory}/leases`;
+	const updated = join('\n', lines);
+	let result = 'Unable to update the service lease file';
+	if (writefile(temporary, updated) == length(updated) && rename(temporary, leasefile))
+		result = 'OK';
+
+	unlink(temporary);
+	rmdir(directory);
+	return result;
+}
+
+function service_pids() {
+	const status = ubus.call('service', 'list', { name: 'miniupnpd' });
+	if (type(status) != 'object')
+		return null;
+
+	const pids = [];
+	for (let name, instance in status.miniupnpd?.instances)
+		if (instance.running && +instance.pid > 0)
+			push(pids, +instance.pid);
+	return pids;
+}
+
+function wait_for_stop(pids) {
+	// procd acknowledges deletion before the daemon has exited.
+	for (let attempt = 0; attempt < 100; attempt++) {
+		let running = false;
+		for (let pid in pids)
+			if (access(`/proc/${pid}`))
+				running = true;
+		if (!running)
+			return true;
+		sleep(100);
+	}
+	return false;
+}
+
+function wait_for_start() {
+	let previous = '', stable = 0;
+	for (let attempt = 0; attempt < 50; attempt++) {
+		const pids = service_pids();
+		const current = join(':', pids || []);
+		stable = length(current) && current == previous ? stable + 1 : 0;
+		if (stable >= 5)
+			return true;
+		previous = current;
+		sleep(100);
+	}
+	return false;
+}
+
+function delete_mapping(token) {
+	const rules = read_rules();
+	if (rules == null)
+		return 'Unable to read port mapping firewall rules';
+	let present = false;
+	for (let rule in rules)
+		if (rule.token == token)
+			present = true;
+	if (!present)
+		return 'The port mapping no longer exists';
+
+	const leasefile = lease_file();
+	if (type(leasefile) != 'string' || !length(leasefile) || readfile(leasefile) == null)
+		return 'Unable to read the service lease file';
+
+	const pids = service_pids();
+	if (pids == null || !length(pids))
+		return 'Unable to find the running port mapping service';
+	if (system(['/etc/init.d/miniupnpd', 'stop']) != 0)
+		return 'Unable to stop the port mapping service';
+
+	let result;
+	if (!wait_for_stop(pids))
+		result = 'The port mapping service did not stop; the lease file was not changed';
+	else
+		result = remove_lease(leasefile, token);
+
+	const started = system(['/etc/init.d/miniupnpd', 'start']);
+	if (started != 0 || !wait_for_start())
+		return 'Unable to start the port mapping service';
+	return result;
+}
+
+const methods = {
+	get_status: {
+		call: function(req) {
+			const rules = read_rules();
+			if (rules == null)
+				return { rules: [], error: 'Unable to read port mapping firewall rules' };
+			const leases = {};
+			const content = readfile(lease_file());
+			for (let line in split(content || '', '\n')) {
+				const lease = parse_lease(line);
+				if (lease)
+					leases[lease.token] = lease;
+			}
+			for (let rule in rules) {
+				const lease = leases[rule.token];
+				if (lease) {
+					rule.descr = lease.descr;
+					rule.expires = lease.timestamp > 0 ? lease.timestamp - time() : 0;
+					if (rule.expires < 0)
+						rule.expires = 0;
+				}
+			}
+
+			return ubus.defer('luci-rpc', 'getHostHints', {}, function(rc, host_hints) {
+				for (let rule in rules) {
+					for (let mac, hint in host_hints) {
+						if (rule.intaddr in hint.ipaddrs) {
+							rule.host_hint = hint.name;
+							break;
+						}
+					}
+				}
+				req.reply({ rules });
+			});
+		}
+	},
+
+	delete_rule: {
+		args: { token: '' },
+		call: function(req) {
+			const token = req.args?.token;
+			if (type(token) != 'string' ||
+				!match(token, /^(TCP|UDP):[0-9]+:[0-9.]+:[0-9]+$/))
+				return { result: 'Invalid port mapping identifier' };
+
+			const lock = open('/var/run/miniupnpd.luci.lock', 'a');
+			if (!lock)
+				return { result: 'Unable to lock the port mapping service' };
+			if (!lock.lock('xn')) {
+				lock.close();
+				return { result: 'Another port mapping operation is in progress' };
+			}
+			const result = delete_mapping(token);
+			lock.close();
+			return { result };
+		}
+	}
+};
+
+return { 'luci.upnp': methods };

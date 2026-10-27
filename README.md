@@ -22,6 +22,7 @@
 | `luci-app-axonhub` | `20261016-r1` | axonhub 核心的 LuCI 管理界面与 OpenWrt 集成。 | [looplj/axonhub](https://github.com/looplj/axonhub) |
 | `luci-app-gecoosac` | `20261016-r1` | gecoosac 核心的 LuCI 管理界面与 OpenWrt 集成。 | [www.cnrouter.com](http://www.cnrouter.com) |
 | `luci-app-homeproxy` | `20261026-r3` | sing-box 核心的 LuCI 管理界面与 OpenWrt 集成。 | [VIKINGYFY/packages](https://github.com/VIKINGYFY/packages) |
+| `luci-app-upnp` | `20261027-r7` | UPnP IGD、PCP/NAT-PMP 端口映射管理与状态查看。 | [immortalwrt/luci](https://github.com/immortalwrt/luci/tree/master/applications/luci-app-upnp) |
 | `luci-app-wolultra` | `20261016-r1` | wol 功能的 LuCI 管理界面与 OpenWrt 集成。 | [VIKINGYFY/packages](https://github.com/VIKINGYFY/packages) |
 
 ## 核心与依赖来源
@@ -30,13 +31,17 @@
 | --- | --- | --- |
 | `axonhub` | `20261027-r1` | [looplj/axonhub](https://github.com/looplj/axonhub) |
 | `gecoosac` | `2.2.20251015-r1` | [www.cnrouter.com](http://www.cnrouter.com) |
+| `miniupnpd-nftables` | `20261027-r7` | [miniupnp/miniupnp](https://github.com/miniupnp/miniupnp) |
+| `miniupnpd-iptables` | `20261027-r7` | [miniupnp/miniupnp](https://github.com/miniupnp/miniupnp) |
 | `sing-box` | `1.15.0_alpha13-r1` | [SagerNet/sing-box](https://github.com/SagerNet/sing-box) |
 
 ## 自动维护
 
-CI 每日检查受维护的上游项目，仅在发现更新时继续构建、提交和发布。软件包目录通过 Makefile 自动发现；新增或删除软件包后，构建范围和发布资产清理会自动调整，LuCI 插件列表也会自动更新。
+CI 每日检查受维护的上游项目，仅在发现更新时继续构建、提交和发布。
 
-APK 发布按 ARM64 和 AMD64 分开维护；每个包名仅保留最新版本，并提供包含各软件包最新版的整合包。axonhub 与 sing-box 核心均从上游源码编译。
+软件包目录通过 Makefile 自动发现；新增或删除软件包后，构建范围和发布资产清理会自动调整，LuCI 插件列表也会自动更新。
+
+APK 发布按 ARM64 和 AMD64 分开维护；每个包名仅保留最新版本，并提供包含各软件包最新版的整合包。
 
 ## License
 

@@ -1,0 +1,604 @@
+From 7651a23732d234f97137ca160a0c157eaed43ae8 Mon Sep 17 00:00:00 2001
+From: Chen Minqiang <ptpt52@gmail.com>
+Date: Wed, 29 Sep 2021 22:29:53 +0800
+Subject: [PATCH] miniupnpd: format xml to make some app happy
+
+Server-U
+
+Signed-off-by: Chen Minqiang <ptpt52@gmail.com>
+
+--- a/miniupnpd/upnpdescgen.c
++++ b/miniupnpd/upnpdescgen.c
+@@ -946,6 +946,8 @@
+ 				str = strcat_char(str, len, tmplen, '<');
+ 				str = strcat_str(str, len, tmplen, eltname);
+ 				str = strcat_char(str, len, tmplen, '>');
++				str = strcat_char(str, len, tmplen, '\r');
++				str = strcat_char(str, len, tmplen, '\n');
+ 			}
+ #ifdef IGD_V2
+ unstack:
+@@ -964,6 +966,8 @@
+ 					for(c = *s; c > ' '; c = *(++s))
+ 						str = strcat_char(str, len, tmplen, c);
+ 					str = strcat_char(str, len, tmplen, '>');
++					str = strcat_char(str, len, tmplen, '\r');
++					str = strcat_char(str, len, tmplen, '\n');
+ 					top--;
+ 				}
+ 				else
+@@ -993,6 +997,8 @@
+ 				str = strcat_str(str, len, tmplen, configid_str);
+ 			}
+ 			str = strcat_char(str, len, tmplen, '>');
++			str = strcat_char(str, len, tmplen, '\r');
++			str = strcat_char(str, len, tmplen, '\n');
+ 			i = k & 0xffff;
+ 			if(top < (GENXML_STACK_SIZE - 1)) {
+ 				top++;
+--- a/miniupnpd/upnpsoap.c
++++ b/miniupnpd/upnpsoap.c
+@@ -75,11 +75,11 @@
+ 	static const char beforebody[] =
+ 		"<?xml version=\"1.0\"?>\r\n"
+ 		"<s:Envelope xmlns:s=\"http://schemas.xmlsoap.org/soap/envelope/\" "
+-		"s:encodingStyle=\"http://schemas.xmlsoap.org/soap/encoding/\">"
+-		"<s:Body>";
++		"s:encodingStyle=\"http://schemas.xmlsoap.org/soap/encoding/\">\r\n"
++		"<s:Body>\r\n";
+ 
+ 	static const char afterbody[] =
+-		"</s:Body>"
++		"</s:Body>\r\n"
+ 		"</s:Envelope>\r\n";
+ 
+ 	int r = BuildHeader_upnphttp(h, 200, "OK",  sizeof(beforebody) - 1
+@@ -107,17 +107,17 @@
+ #if 0
+ 	static const char resp[] =
+ 		"<u:GetConnectionTypeInfoResponse "
+-		"xmlns:u=\"" SERVICE_TYPE_WANIPC "\">"
+-		"<NewConnectionType>IP_Routed</NewConnectionType>"
+-		"<NewPossibleConnectionTypes>IP_Routed</NewPossibleConnectionTypes>"
+-		"</u:GetConnectionTypeInfoResponse>";
++		"xmlns:u=\"" SERVICE_TYPE_WANIPC "\">\r\n"
++		"<NewConnectionType>IP_Routed</NewConnectionType>\r\n"
++		"<NewPossibleConnectionTypes>IP_Routed</NewPossibleConnectionTypes>\r\n"
++		"</u:GetConnectionTypeInfoResponse>\r\n";
+ #endif
+ 	static const char resp[] =
+ 		"<u:%sResponse "
+-		"xmlns:u=\"%s\">"
+-		"<NewConnectionType>IP_Routed</NewConnectionType>"
+-		"<NewPossibleConnectionTypes>IP_Routed</NewPossibleConnectionTypes>"
+-		"</u:%sResponse>";
++		"xmlns:u=\"%s\">\r\n"
++		"<NewConnectionType>IP_Routed</NewConnectionType>\r\n"
++		"<NewPossibleConnectionTypes>IP_Routed</NewPossibleConnectionTypes>\r\n"
++		"</u:%sResponse>\r\n";
+ 	char body[512];
+ 	int bodylen;
+ 
+@@ -142,9 +142,9 @@
+ 
+ 	static const char resp[] =
+ 		"<u:%sResponse "
+-		"xmlns:u=\"%s\">"
+-		"<NewTotalBytesSent>%lu</NewTotalBytesSent>"
+-		"</u:%sResponse>";
++		"xmlns:u=\"%s\">\r\n"
++		"<NewTotalBytesSent>%lu</NewTotalBytesSent>\r\n"
++		"</u:%sResponse>\r\n";
+ 
+ 	char body[512];
+ 	int bodylen;
+@@ -174,9 +174,9 @@
+ 
+ 	static const char resp[] =
+ 		"<u:%sResponse "
+-		"xmlns:u=\"%s\">"
+-		"<NewTotalBytesReceived>%lu</NewTotalBytesReceived>"
+-		"</u:%sResponse>";
++		"xmlns:u=\"%s\">\r\n"
++		"<NewTotalBytesReceived>%lu</NewTotalBytesReceived>\r\n"
++		"</u:%sResponse>\r\n";
+ 
+ 	char body[512];
+ 	int bodylen;
+@@ -211,9 +211,9 @@
+ 
+ 	static const char resp[] =
+ 		"<u:%sResponse "
+-		"xmlns:u=\"%s\">"
+-		"<NewTotalPacketsSent>%lu</NewTotalPacketsSent>"
+-		"</u:%sResponse>";
++		"xmlns:u=\"%s\">\r\n"
++		"<NewTotalPacketsSent>%lu</NewTotalPacketsSent>\r\n"
++		"</u:%sResponse>\r\n";
+ 
+ 	char body[512];
+ 	int bodylen;
+@@ -243,9 +243,9 @@
+ 
+ 	static const char resp[] =
+ 		"<u:%sResponse "
+-		"xmlns:u=\"%s\">"
+-		"<NewTotalPacketsReceived>%lu</NewTotalPacketsReceived>"
+-		"</u:%sResponse>";
++		"xmlns:u=\"%s\">\r\n"
++		"<NewTotalPacketsReceived>%lu</NewTotalPacketsReceived>\r\n"
++		"</u:%sResponse>\r\n";
+ 
+ 	char body[512];
+ 	int bodylen;
+@@ -275,12 +275,12 @@
+ 	 * DSL, POTS (plain old Telephone service), Cable, Ethernet */
+ 	static const char resp[] =
+ 		"<u:%sResponse "
+-		"xmlns:u=\"%s\">"
+-		"<NewWANAccessType>%s</NewWANAccessType>"
+-		"<NewLayer1UpstreamMaxBitRate>%lu</NewLayer1UpstreamMaxBitRate>"
+-		"<NewLayer1DownstreamMaxBitRate>%lu</NewLayer1DownstreamMaxBitRate>"
+-		"<NewPhysicalLinkStatus>%s</NewPhysicalLinkStatus>"
+-		"</u:%sResponse>";
++		"xmlns:u=\"%s\">\r\n"
++		"<NewWANAccessType>%s</NewWANAccessType>\r\n"
++		"<NewLayer1UpstreamMaxBitRate>%lu</NewLayer1UpstreamMaxBitRate>\r\n"
++		"<NewLayer1DownstreamMaxBitRate>%lu</NewLayer1DownstreamMaxBitRate>\r\n"
++		"<NewPhysicalLinkStatus>%s</NewPhysicalLinkStatus>\r\n"
++		"</u:%sResponse>\r\n";
+ 
+ 	char body[2048];
+ 	int bodylen;
+@@ -320,11 +320,11 @@
+ {
+ 	static const char resp[] =
+ 		"<u:%sResponse "
+-		"xmlns:u=\"%s\">"
+-		"<NewConnectionStatus>%s</NewConnectionStatus>"
+-		"<NewLastConnectionError>ERROR_NONE</NewLastConnectionError>"
+-		"<NewUptime>%ld</NewUptime>"
+-		"</u:%sResponse>";
++		"xmlns:u=\"%s\">\r\n"
++		"<NewConnectionStatus>%s</NewConnectionStatus>\r\n"
++		"<NewLastConnectionError>ERROR_NONE</NewLastConnectionError>\r\n"
++		"<NewUptime>%ld</NewUptime>\r\n"
++		"</u:%sResponse>\r\n";
+ 
+ 	char body[512];
+ 	int bodylen;
+@@ -354,18 +354,18 @@
+ #if 0
+ 	static const char resp[] =
+ 		"<u:GetNATRSIPStatusResponse "
+-		"xmlns:u=\"" SERVICE_TYPE_WANIPC "\">"
+-		"<NewRSIPAvailable>0</NewRSIPAvailable>"
+-		"<NewNATEnabled>1</NewNATEnabled>"
+-		"</u:GetNATRSIPStatusResponse>";
++		"xmlns:u=\"" SERVICE_TYPE_WANIPC "\">\r\n"
++		"<NewRSIPAvailable>0</NewRSIPAvailable>\r\n"
++		"<NewNATEnabled>1</NewNATEnabled>\r\n"
++		"</u:GetNATRSIPStatusResponse>\r\n";
+ 	UNUSED(action);
+ #endif
+ 	static const char resp[] =
+ 		"<u:%sResponse "
+-		"xmlns:u=\"%s\">"
+-		"<NewRSIPAvailable>0</NewRSIPAvailable>"
+-		"<NewNATEnabled>1</NewNATEnabled>"
+-		"</u:%sResponse>";
++		"xmlns:u=\"%s\">\r\n"
++		"<NewRSIPAvailable>0</NewRSIPAvailable>\r\n"
++		"<NewNATEnabled>1</NewNATEnabled>\r\n"
++		"</u:%sResponse>\r\n";
+ 	char body[512];
+ 	int bodylen;
+ 	/* 2.2.9. RSIPAvailable
+@@ -393,9 +393,9 @@
+ {
+ 	static const char resp[] =
+ 		"<u:%sResponse "
+-		"xmlns:u=\"%s\">"
+-		"<NewExternalIPAddress>%s</NewExternalIPAddress>"
+-		"</u:%sResponse>";
++		"xmlns:u=\"%s\">\r\n"
++		"<NewExternalIPAddress>%s</NewExternalIPAddress>\r\n"
++		"</u:%sResponse>\r\n";
+ 
+ 	char body[512];
+ 	int bodylen;
+@@ -471,10 +471,10 @@
+ 
+ 	/*static const char resp[] =
+ 		"<u:AddPortMappingResponse "
+-		"xmlns:u=\"" SERVICE_TYPE_WANIPC "\"/>";*/
++		"xmlns:u=\"" SERVICE_TYPE_WANIPC "\"/>\r\n";*/
+ 	static const char resp[] =
+ 		"<u:%sResponse "
+-		"xmlns:u=\"%s\"/>";
++		"xmlns:u=\"%s\"/>\r\n";
+ 
+ 	char body[512];
+ 	int bodylen;
+@@ -674,9 +674,9 @@
+ 	int r;
+ 	static const char resp[] =
+ 		"<u:%sResponse "
+-		"xmlns:u=\"%s\">"
+-		"<NewReservedPort>%hu</NewReservedPort>"
+-		"</u:%sResponse>";
++		"xmlns:u=\"%s\">\r\n"
++		"<NewReservedPort>%hu</NewReservedPort>\r\n"
++		"</u:%sResponse>\r\n";
+ 
+ 	char body[512];
+ 	int bodylen;
+@@ -846,13 +846,13 @@
+ 
+ 	static const char resp[] =
+ 		"<u:%sResponse "
+-		"xmlns:u=\"%s\">"
+-		"<NewInternalPort>%u</NewInternalPort>"
+-		"<NewInternalClient>%s</NewInternalClient>"
+-		"<NewEnabled>1</NewEnabled>"
+-		"<NewPortMappingDescription>%s</NewPortMappingDescription>"
+-		"<NewLeaseDuration>%u</NewLeaseDuration>"
+-		"</u:%sResponse>";
++		"xmlns:u=\"%s\">\r\n"
++		"<NewInternalPort>%u</NewInternalPort>\r\n"
++		"<NewInternalClient>%s</NewInternalClient>\r\n"
++		"<NewEnabled>1</NewEnabled>\r\n"
++		"<NewPortMappingDescription>%s</NewPortMappingDescription>\r\n"
++		"<NewLeaseDuration>%u</NewLeaseDuration>\r\n"
++		"</u:%sResponse>\r\n";
+ 
+ 	char body[512+MINIUPNPD_DESC_SIZE];
+ 	int bodylen;
+@@ -951,12 +951,12 @@
+ 
+ 	/*static const char resp[] =
+ 		"<u:DeletePortMappingResponse "
+-		"xmlns:u=\"" SERVICE_TYPE_WANIPC "\">"
+-		"</u:DeletePortMappingResponse>";*/
++		"xmlns:u=\"" SERVICE_TYPE_WANIPC "\">\r\n"
++		"</u:DeletePortMappingResponse>\r\n";*/
+ 	static const char resp[] =
+ 		"<u:%sResponse "
+-		"xmlns:u=\"%s\">"
+-		"</u:%sResponse>";
++		"xmlns:u=\"%s\">\r\n"
++		"</u:%sResponse>\r\n";
+ 
+ 	char body[512];
+ 	int bodylen;
+@@ -1067,12 +1067,12 @@
+ 	int r = -1;
+ 	/*static const char resp[] =
+ 		"<u:DeletePortMappingRangeResponse "
+-		"xmlns:u=\"" SERVICE_TYPE_WANIPC "\">"
+-		"</u:DeletePortMappingRangeResponse>";*/
++		"xmlns:u=\"" SERVICE_TYPE_WANIPC "\">\r\n"
++		"</u:DeletePortMappingRangeResponse>\r\n";*/
+ 	static const char resp[] =
+ 		"<u:%sResponse "
+-		"xmlns:u=\"%s\">"
+-		"</u:%sResponse>";
++		"xmlns:u=\"%s\">\r\n"
++		"</u:%sResponse>\r\n";
+ 	char body[512];
+ 	int bodylen;
+ 	struct NameValueParserData data;
+@@ -1149,16 +1149,16 @@
+ 
+ 	static const char resp[] =
+ 		"<u:%sResponse "
+-		"xmlns:u=\"%s\">"
+-		"<NewRemoteHost>%s</NewRemoteHost>"
+-		"<NewExternalPort>%u</NewExternalPort>"
+-		"<NewProtocol>%s</NewProtocol>"
+-		"<NewInternalPort>%u</NewInternalPort>"
+-		"<NewInternalClient>%s</NewInternalClient>"
+-		"<NewEnabled>1</NewEnabled>"
+-		"<NewPortMappingDescription>%s</NewPortMappingDescription>"
+-		"<NewLeaseDuration>%u</NewLeaseDuration>"
+-		"</u:%sResponse>";
++		"xmlns:u=\"%s\">\r\n"
++		"<NewRemoteHost>%s</NewRemoteHost>\r\n"
++		"<NewExternalPort>%u</NewExternalPort>\r\n"
++		"<NewProtocol>%s</NewProtocol>\r\n"
++		"<NewInternalPort>%u</NewInternalPort>\r\n"
++		"<NewInternalClient>%s</NewInternalClient>\r\n"
++		"<NewEnabled>1</NewEnabled>\r\n"
++		"<NewPortMappingDescription>%s</NewPortMappingDescription>\r\n"
++		"<NewLeaseDuration>%u</NewLeaseDuration>\r\n"
++		"</u:%sResponse>\r\n";
+ 
+ 	long int index = 0;
+ 	unsigned short eport, iport;
+@@ -1246,31 +1246,31 @@
+ {
+ 	static const char resp_start[] =
+ 		"<u:%sResponse "
+-		"xmlns:u=\"%s\">"
++		"xmlns:u=\"%s\">\r\n"
+ 		"<NewPortListing><![CDATA[";
+ 	static const char resp_end[] =
+-		"]]></NewPortListing>"
+-		"</u:%sResponse>";
++		"]]></NewPortListing>\r\n"
++		"</u:%sResponse>\r\n";
+ 
+ 	static const char list_start[] =
+ 		"<p:PortMappingList xmlns:p=\"urn:schemas-upnp-org:gw:WANIPConnection\""
+ 		" xmlns:xsi=\"http://www.w3.org/2001/XMLSchema-instance\""
+ 		" xsi:schemaLocation=\"urn:schemas-upnp-org:gw:WANIPConnection"
+-		" http://www.upnp.org/schemas/gw/WANIPConnection-v2.xsd\">";
++		" http://www.upnp.org/schemas/gw/WANIPConnection-v2.xsd\">\r\n";
+ 	static const char list_end[] =
+-		"</p:PortMappingList>";
++		"</p:PortMappingList>\r\n";
+ 
+ 	static const char entry[] =
+-		"<p:PortMappingEntry>"
+-		"<p:NewRemoteHost>%s</p:NewRemoteHost>"
+-		"<p:NewExternalPort>%hu</p:NewExternalPort>"
+-		"<p:NewProtocol>%s</p:NewProtocol>"
+-		"<p:NewInternalPort>%hu</p:NewInternalPort>"
+-		"<p:NewInternalClient>%s</p:NewInternalClient>"
+-		"<p:NewEnabled>1</p:NewEnabled>"
+-		"<p:NewDescription>%s</p:NewDescription>"
+-		"<p:NewLeaseTime>%u</p:NewLeaseTime>"
+-		"</p:PortMappingEntry>";
++		"<p:PortMappingEntry>\r\n"
++		"<p:NewRemoteHost>%s</p:NewRemoteHost>\r\n"
++		"<p:NewExternalPort>%hu</p:NewExternalPort>\r\n"
++		"<p:NewProtocol>%s</p:NewProtocol>\r\n"
++		"<p:NewInternalPort>%hu</p:NewInternalPort>\r\n"
++		"<p:NewInternalClient>%s</p:NewInternalClient>\r\n"
++		"<p:NewEnabled>1</p:NewEnabled>\r\n"
++		"<p:NewDescription>%s</p:NewDescription>\r\n"
++		"<p:NewLeaseTime>%u</p:NewLeaseTime>\r\n"
++		"</p:PortMappingEntry>\r\n";
+ 
+ 	char * body;
+ 	size_t bodyalloc;
+@@ -1442,12 +1442,12 @@
+ {
+ 	/*static const char resp[] =
+ 		"<u:SetDefaultConnectionServiceResponse "
+-		"xmlns:u=\"urn:schemas-upnp-org:service:Layer3Forwarding:1\">"
+-		"</u:SetDefaultConnectionServiceResponse>";*/
++		"xmlns:u=\"urn:schemas-upnp-org:service:Layer3Forwarding:1\">\r\n"
++		"</u:SetDefaultConnectionServiceResponse>\r\n";*/
+ 	static const char resp[] =
+ 		"<u:%sResponse "
+-		"xmlns:u=\"%s\">"
+-		"</u:%sResponse>";
++		"xmlns:u=\"%s\">\r\n"
++		"</u:%sResponse>\r\n";
+ 	char body[512];
+ 	int bodylen;
+ 	struct NameValueParserData data;
+@@ -1491,14 +1491,14 @@
+ {
+ 	static const char resp[] =
+ 		"<u:%sResponse "
+-		"xmlns:u=\"%s\">"
++		"xmlns:u=\"%s\">\r\n"
+ #ifdef IGD_V2
+ 		"<NewDefaultConnectionService>%s:WANConnectionDevice:2,"
+ #else
+ 		"<NewDefaultConnectionService>%s:WANConnectionDevice:1,"
+ #endif
+-		SERVICE_ID_WANIPC "</NewDefaultConnectionService>"
+-		"</u:%sResponse>";
++		SERVICE_ID_WANIPC "</NewDefaultConnectionService>\r\n"
++		"</u:%sResponse>\r\n";
+ 	/* example from UPnP_IGD_Layer3Forwarding 1.0.pdf :
+ 	 * uuid:44f5824f-c57d-418c-a131-f22b34e14111:WANConnectionDevice:1,
+ 	 * urn:upnp-org:serviceId:WANPPPConn1 */
+@@ -1575,9 +1575,9 @@
+ {
+ 	static const char resp[] =
+         "<u:%sResponse "
+-        "xmlns:u=\"%s\">"
+-		"<return>%s</return>"
+-        "</u:%sResponse>";
++        "xmlns:u=\"%s\">\r\n"
++		"<return>%s</return>\r\n"
++        "</u:%sResponse>\r\n";
+ 
+ 	char body[512];
+ 	int bodylen;
+@@ -1659,10 +1659,10 @@
+ {
+ 	static const char resp[] =
+ 		"<u:%sResponse "
+-		"xmlns:u=\"%s\">"
+-		"<FirewallEnabled>%d</FirewallEnabled>"
+-		"<InboundPinholeAllowed>%d</InboundPinholeAllowed>"
+-		"</u:%sResponse>";
++		"xmlns:u=\"%s\">\r\n"
++		"<FirewallEnabled>%d</FirewallEnabled>\r\n"
++		"<InboundPinholeAllowed>%d</InboundPinholeAllowed>\r\n"
++		"</u:%sResponse>\r\n";
+ 
+ 	char body[512];
+ 	int bodylen;
+@@ -1885,9 +1885,9 @@
+ 	int r;
+ 	static const char resp[] =
+ 		"<u:%sResponse "
+-		"xmlns:u=\"%s\">"
+-		"<UniqueID>%d</UniqueID>"
+-		"</u:%sResponse>";
++		"xmlns:u=\"%s\">\r\n"
++		"<UniqueID>%d</UniqueID>\r\n"
++		"</u:%sResponse>\r\n";
+ 	char body[512];
+ 	int bodylen;
+ 	struct NameValueParserData data;
+@@ -2068,13 +2068,13 @@
+ #if 0
+ 	static const char resp[] =
+ 		"<u:UpdatePinholeResponse "
+-		"xmlns:u=\"urn:schemas-upnp-org:service:WANIPv6FirewallControl:1\">"
+-		"</u:UpdatePinholeResponse>";
++		"xmlns:u=\"urn:schemas-upnp-org:service:WANIPv6FirewallControl:1\">\r\n"
++		"</u:UpdatePinholeResponse>\r\n";
+ #endif
+ 	static const char resp[] =
+ 		"<u:%sResponse "
+-		"xmlns:u=\"%s\">"
+-		"</u:%sResponse>";
++		"xmlns:u=\"%s\">\r\n"
++		"</u:%sResponse>\r\n";
+ 	char body[512];
+ 	int bodylen;
+ 	struct NameValueParserData data;
+@@ -2152,9 +2152,9 @@
+ 
+ 	static const char resp[] =
+ 		"<u:%sResponse "
+-		"xmlns:u=\"%s\">"
+-		"<OutboundPinholeTimeout>%d</OutboundPinholeTimeout>"
+-		"</u:%sResponse>";
++		"xmlns:u=\"%s\">\r\n"
++		"<OutboundPinholeTimeout>%d</OutboundPinholeTimeout>\r\n"
++		"</u:%sResponse>\r\n";
+ 
+ 	char body[512];
+ 	int bodylen;
+@@ -2223,13 +2223,13 @@
+ #if 0
+ 	static const char resp[] =
+ 		"<u:DeletePinholeResponse "
+-		"xmlns:u=\"urn:schemas-upnp-org:service:WANIPv6FirewallControl:1\">"
+-		"</u:DeletePinholeResponse>";
++		"xmlns:u=\"urn:schemas-upnp-org:service:WANIPv6FirewallControl:1\">\r\n"
++		"</u:DeletePinholeResponse>\r\n";
+ #endif
+ 	static const char resp[] =
+ 		"<u:%sResponse "
+-		"xmlns:u=\"%s\">"
+-		"</u:%sResponse>";
++		"xmlns:u=\"%s\">\r\n"
++		"</u:%sResponse>\r\n";
+ 	char body[512];
+ 	int bodylen;
+ 
+@@ -2304,9 +2304,9 @@
+ {
+ 	static const char resp[] =
+ 		"<u:%sResponse "
+-		"xmlns:u=\"%s\">"
+-		"<IsWorking>%d</IsWorking>"
+-		"</u:%sResponse>";
++		"xmlns:u=\"%s\">\r\n"
++		"<IsWorking>%d</IsWorking>\r\n"
++		"</u:%sResponse>\r\n";
+ 	char body[512];
+ 	int bodylen;
+ 	int r;
+@@ -2370,9 +2370,9 @@
+ {
+ 	static const char resp[] =
+ 		"<u:%sResponse "
+-		"xmlns:u=\"%s\">"
+-		"<PinholePackets>%u</PinholePackets>"
+-		"</u:%sResponse>";
++		"xmlns:u=\"%s\">\r\n"
++		"<PinholePackets>%u</PinholePackets>\r\n"
++		"</u:%sResponse>\r\n";
+ 	char body[512];
+ 	int bodylen;
+ 	struct NameValueParserData data;
+@@ -2437,9 +2437,9 @@
+ {
+ 	static const char resp[] =
+ 		"<u:%sResponse "
+-		"xmlns:u=\"%s\">"
+-		"<OutMessage>%s</OutMessage>"
+-		"</u:%sResponse>";
++		"xmlns:u=\"%s\">\r\n"
++		"<OutMessage>%s</OutMessage>\r\n"
++		"</u:%sResponse>\r\n";
+ 	char body[1024];
+ 	int bodylen;
+ 	struct NameValueParserData data;
+@@ -2484,9 +2484,9 @@
+ {
+ 	static const char resp[] =
+ 		"<u:%sResponse "
+-		"xmlns:u=\"%s\">"
+-		"<ProtocolList><![CDATA[%s]]></ProtocolList>"
+-		"</u:%sResponse>";
++		"xmlns:u=\"%s\">\r\n"
++		"<ProtocolList><![CDATA[%s]]></ProtocolList>\r\n"
++		"</u:%sResponse>\r\n";
+ 	char body[1024];
+ 	int bodylen;
+ 	const char * ProtocolList =
+@@ -2494,10 +2494,10 @@
+ 		"<SupportedProtocols xmlns=\"urn:schemas-upnp-org:gw:DeviceProtection\""
+ 		" xmlns:xsi=\"http://www.w3.org/2001/XMLSchema-instance\""
+ 		" xsi:schemaLocation=\"urn:schemas-upnp-org:gw:DeviceProtection"
+-		" http://www.upnp.org/schemas/gw/DeviceProtection-v1.xsd\">"
+-		"<Introduction><Name>WPS</Name></Introduction>"
+-		"<Login><Name>PKCS5</Name></Login>"
+-		"</SupportedProtocols>";
++		" http://www.upnp.org/schemas/gw/DeviceProtection-v1.xsd\">\r\n"
++		"<Introduction><Name>WPS</Name></Introduction>\r\n"
++		"<Login><Name>PKCS5</Name></Login>\r\n"
++		"</SupportedProtocols>\r\n";
+ 
+ 	bodylen = snprintf(body, sizeof(body), resp,
+ 	                   action, ns/*"urn:schemas-upnp-org:service:DeviceProtection:1"*/,
+@@ -2516,9 +2516,9 @@
+ {
+ 	static const char resp[] =
+ 		"<u:%sResponse "
+-		"xmlns:u=\"%s\">"
+-		"<RoleList>%s</RoleList>"
+-		"</u:%sResponse>";
++		"xmlns:u=\"%s\">\r\n"
++		"<RoleList>%s</RoleList>\r\n"
++		"</u:%sResponse>\r\n";
+ 	char body[1024];
+ 	int bodylen;
+ 	const char * RoleList = "Public"; /* list of roles separated by spaces */
+@@ -2678,20 +2678,20 @@
+ 	static const char resp[] =
+ 		"<s:Envelope "
+ 		"xmlns:s=\"http://schemas.xmlsoap.org/soap/envelope/\" "
+-		"s:encodingStyle=\"http://schemas.xmlsoap.org/soap/encoding/\">"
+-		"<s:Body>"
+-		"<s:Fault>"
+-		"<faultcode>s:Client</faultcode>"
+-		"<faultstring>UPnPError</faultstring>"
+-		"<detail>"
+-		"<UPnPError xmlns=\"urn:schemas-upnp-org:control-1-0\">"
+-		"<errorCode>%d</errorCode>"
+-		"<errorDescription>%s</errorDescription>"
+-		"</UPnPError>"
+-		"</detail>"
+-		"</s:Fault>"
+-		"</s:Body>"
+-		"</s:Envelope>";
++		"s:encodingStyle=\"http://schemas.xmlsoap.org/soap/encoding/\">\r\n"
++		"<s:Body>\r\n"
++		"<s:Fault>\r\n"
++		"<faultcode>s:Client</faultcode>\r\n"
++		"<faultstring>UPnPError</faultstring>\r\n"
++		"<detail>\r\n"
++		"<UPnPError xmlns=\"urn:schemas-upnp-org:control-1-0\">\r\n"
++		"<errorCode>%d</errorCode>\r\n"
++		"<errorDescription>%s</errorDescription>\r\n"
++		"</UPnPError>\r\n"
++		"</detail>\r\n"
++		"</s:Fault>\r\n"
++		"</s:Body>\r\n"
++		"</s:Envelope>\r\n";
+ 
+ 	char body[2048];
+ 	int bodylen;

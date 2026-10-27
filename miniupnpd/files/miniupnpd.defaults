@@ -1,0 +1,23 @@
+#!/bin/sh
+
+. /usr/share/miniupnpd/functions.sh
+upnpd_load_backend || exit 1
+
+uci -q batch <<-EOT || exit 1
+	set firewall.miniupnpd=include
+	set firewall.miniupnpd.type=script
+	set firewall.miniupnpd.path=/usr/share/miniupnpd/firewall.include
+EOT
+
+if [ "$FW" = fw4 ]; then
+	uci -q delete firewall.miniupnpd.family
+	uci -q delete firewall.miniupnpd.reload
+	uci -q set firewall.miniupnpd.fw4_compatible=1 || exit 1
+else
+	uci -q delete firewall.miniupnpd.fw4_compatible
+	uci -q set firewall.miniupnpd.family=any || exit 1
+	uci -q set firewall.miniupnpd.reload=1 || exit 1
+fi
+uci -q commit firewall || exit 1
+
+exit 0

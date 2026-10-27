@@ -45,8 +45,12 @@ mapfile -t package_dirs < "$temp_dir/packages"
 
 package_names=()
 for package_dir in "${package_dirs[@]}"; do
+	ci_package_names "$package_dir" > "$temp_dir/names-$package_dir" || exit 1
+	while IFS= read -r name; do
+		[[ -n "$name" ]] || continue
+		package_names+=("$name")
+	done < "$temp_dir/names-$package_dir"
 	name="$(ci_package_name "$package_dir")"
-	package_names+=("$name")
 	if [[ "$name" == luci-app-* ]] && [[ -d "$REPO_ROOT/$package_dir/po" ]]; then
 		package_names+=("luci-i18n-${name#luci-app-}-zh-cn")
 	fi

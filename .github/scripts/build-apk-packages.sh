@@ -30,6 +30,7 @@ mapfile -t DISCOVERED_PACKAGES < "$temp_dir/packages"
 declare -A DISCOVERED=()
 for package in "${DISCOVERED_PACKAGES[@]}"; do
 	DISCOVERED["$package"]=1
+	ci_package_names "$package" > "$temp_dir/names-$package" || exit 1
 done
 
 SELECTED_PACKAGES=("$@")
@@ -65,6 +66,12 @@ for package in "${DISCOVERED_PACKAGES[@]}"; do
 
 	find "$SDK_ROOT/package/feeds" -mindepth 2 -maxdepth 2 -type l \
 		\( -name "$package" -o -name "$name" \) -print0 > "$temp_dir/feed-links"
+	while IFS= read -r name; do
+		[[ -n "$name" ]] || continue
+		find "$SDK_ROOT/package/feeds" -mindepth 2 -maxdepth 2 -type l \
+			-name "$name" -print0 >> "$temp_dir/feed-links"
+	done < "$temp_dir/names-$package"
+	sort -zu "$temp_dir/feed-links" -o "$temp_dir/feed-links"
 	while IFS= read -r -d '' feed_link; do
 		printf 'Removing conflicting feed package: %s\n' "$feed_link"
 		unlink "$feed_link"
@@ -83,8 +90,10 @@ done
 	fi
 
 	for package in "${SELECTED_PACKAGES[@]}"; do
-		name="$(ci_package_name "$package")"
-		printf 'CONFIG_PACKAGE_%s=m\n' "$name"
+		while IFS= read -r name; do
+			[[ -n "$name" ]] || continue
+			printf 'CONFIG_PACKAGE_%s=m\n' "$name"
+		done < "$temp_dir/names-$package"
 	done
 } > "$SDK_ROOT/.config"
 
@@ -98,11 +107,14 @@ config_package_enabled() {
 }
 
 for package in "${SELECTED_PACKAGES[@]}"; do
+	while IFS= read -r name; do
+		[[ -n "$name" ]] || continue
+		config_package_enabled "$name" || {
+			printf 'Selected package is not enabled in SDK config: %s\n' "$name" >&2
+			exit 1
+		}
+	done < "$temp_dir/names-$package"
 	name="$(ci_package_name "$package")"
-	config_package_enabled "$name" || {
-		printf 'Selected package is not enabled in SDK config: %s\n' "$name" >&2
-		exit 1
-	}
 	if [[ "$name" == luci-app-* ]] && [[ -d "$REPO_ROOT/$package/po/zh_Hans" ]]; then
 		translation_name="luci-i18n-${name#luci-app-}-zh-cn"
 		config_package_enabled "$translation_name" || {
@@ -165,8 +177,11 @@ copy_apk() {
 }
 
 for package in "${SELECTED_PACKAGES[@]}"; do
+	while IFS= read -r name; do
+		[[ -n "$name" ]] || continue
+		copy_apk "$name"
+	done < "$temp_dir/names-$package"
 	name="$(ci_package_name "$package")"
-	copy_apk "$name"
 	if [[ "$name" == luci-app-* ]] && [[ -d "$REPO_ROOT/$package/po/zh_Hans" ]]; then
 		copy_apk "luci-i18n-${name#luci-app-}-zh-cn"
 	fi
