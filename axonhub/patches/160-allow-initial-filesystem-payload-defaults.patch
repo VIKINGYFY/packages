@@ -11,7 +11,7 @@ Use the core storage defaults directly rather than maintaining a second
 retention configuration. Filesystem failures roll back initialization;
 never downgrade a configured filesystem deployment to database payloads.
 
-Base-Commit: 66ad2fc37ce0f7683a52a9238e8b38fc17e7ccef
+Base-Commit: 0896305eeee89435049575d55a813f72901f703b
 
 ---
 
@@ -67,28 +67,20 @@ Base-Commit: 66ad2fc37ce0f7683a52a9238e8b38fc17e7ccef
  server:
 --- a/internal/server/biz/system.go
 +++ b/internal/server/biz/system.go
-@@ -670,6 +670,7 @@ type SystemServiceParams struct {
- 	fx.In
- 
--	CacheConfig xcache.Config
--	Ent         *ent.Client
-+	CacheConfig    xcache.Config
-+	Ent            *ent.Client
-+	InitialStorage InitialStorageConfig
+@@ -674,4 +674,5 @@ type SystemServiceParams struct {
+ 	CacheConfig      xcache.Config
+ 	Ent              *ent.Client
++	InitialStorage   InitialStorageConfig
  }
  
-@@ -679,6 +680,7 @@ func NewSystemService(params SystemServi
- 			db: params.Ent,
- 		},
--		CacheConfig: params.CacheConfig,
--		Cache:       xcache.NewFromConfig[ent.System](params.CacheConfig),
-+		CacheConfig:    params.CacheConfig,
-+		Cache:          xcache.NewFromConfig[ent.System](params.CacheConfig),
-+		InitialStorage: params.InitialStorage,
+@@ -684,4 +685,5 @@ func NewSystemService(params SystemServi
+ 		CacheConfig:        params.CacheConfig,
+ 		Cache:              xcache.NewFromConfig[ent.System](params.CacheConfig),
++		InitialStorage:     params.InitialStorage,
  	}
  }
-@@ -687,6 +689,7 @@ type SystemService struct {
- 	*AbstractService
+@@ -692,6 +694,7 @@ type SystemService struct {
+ 	safeguardsDefaults safeguards.Config
  
 -	CacheConfig xcache.Config
 -	Cache       xcache.Cache[ent.System]
@@ -97,7 +89,7 @@ Base-Commit: 66ad2fc37ce0f7683a52a9238e8b38fc17e7ccef
 +	InitialStorage InitialStorageConfig
  
  	mu           sync.RWMutex
-@@ -819,6 +822,14 @@ func (s *SystemService) Initialize(ctx c
+@@ -824,6 +827,14 @@ func (s *SystemService) Initialize(ctx c
  	}
  
 +	defaultDataStorageID := primaryDataStorage.ID

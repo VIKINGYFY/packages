@@ -15,13 +15,13 @@ Share an admission lock across manual and scheduled GC. Bound cleanup
 with configurable batch size, cancellable pacing and timeout. Propagate
 cleanup errors, publish scheduler errors, and log completion and counts.
 
-Base-Commit: 66ad2fc37ce0f7683a52a9238e8b38fc17e7ccef
+Base-Commit: 0896305eeee89435049575d55a813f72901f703b
 
 ---
 
 --- a/conf/conf.go
 +++ b/conf/conf.go
-@@ -333,4 +333,7 @@ func setDefaults(v *viper.Viper) {
+@@ -334,4 +334,7 @@ func setDefaults(v *viper.Viper) {
  	v.SetDefault("gc.vacuum_enabled", true)
  	v.SetDefault("gc.vacuum_full", false)
 +	v.SetDefault("gc.batch_size", 500)
@@ -31,7 +31,7 @@ Base-Commit: 66ad2fc37ce0f7683a52a9238e8b38fc17e7ccef
  	// Provider quota defaults
 --- a/config.example.yml
 +++ b/config.example.yml
-@@ -181,4 +181,7 @@ gc:
+@@ -183,4 +183,7 @@ gc:
                                   # "0 3 * * 0"     - Weekly on Sunday at 3:00 AM
                                   # "0 4 1 * *"     - Monthly on 1st day at 4:00 AM
 +  batch_size: 500                # Maximum records per batch (env: AXONHUB_GC_BATCH_SIZE)

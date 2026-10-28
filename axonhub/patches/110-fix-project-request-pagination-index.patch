@@ -9,7 +9,7 @@ query while preserving the existing time indexes and authorization.
 Regenerate the Ent migration schema and schema snapshot from the authored
 schema so new and existing databases manage the same index.
 
-Base-Commit: 66ad2fc37ce0f7683a52a9238e8b38fc17e7ccef
+Base-Commit: 0896305eeee89435049575d55a813f72901f703b
 
 ---
 

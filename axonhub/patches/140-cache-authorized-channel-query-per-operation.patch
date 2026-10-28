@@ -11,7 +11,7 @@ Serialize concurrent lookups to avoid duplicate reads. Mutations use
 direct authorized queries so credential or permission changes are read
 immediately, and no authorization result survives the operation.
 
-Base-Commit: 66ad2fc37ce0f7683a52a9238e8b38fc17e7ccef
+Base-Commit: 0896305eeee89435049575d55a813f72901f703b
 
 ---
 

@@ -9,13 +9,13 @@ Use the configuration loaded at startup for batch size and timeout,
 validate it when constructing the worker, and remove runtime default-value
 fallbacks. Update the existing GC fixtures to provide explicit settings.
 
-Base-Commit: 66ad2fc37ce0f7683a52a9238e8b38fc17e7ccef
+Base-Commit: 0896305eeee89435049575d55a813f72901f703b
 
 ---
 
 --- a/conf/conf.go
 +++ b/conf/conf.go
-@@ -330,4 +330,5 @@ func setDefaults(v *viper.Viper) {
+@@ -331,4 +331,5 @@ func setDefaults(v *viper.Viper) {
  
  	// GC defaults
 +	v.SetDefault("gc.enabled", true)
@@ -23,7 +23,7 @@ Base-Commit: 66ad2fc37ce0f7683a52a9238e8b38fc17e7ccef
  	v.SetDefault("gc.vacuum_enabled", true)
 --- a/config.example.yml
 +++ b/config.example.yml
-@@ -174,4 +174,6 @@ metrics:
+@@ -176,4 +176,6 @@ metrics:
  # Garbage Collection configuration
  gc:
 +  enabled: true                  # Enable scheduled cleanup (env: AXONHUB_GC_ENABLED)
