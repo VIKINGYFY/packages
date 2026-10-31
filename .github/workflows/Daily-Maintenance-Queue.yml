@@ -1,7 +1,13 @@
-name: 每日维护任务队列
+name: 每日更新软件包
 
 on:
   workflow_dispatch:
+    inputs:
+      build_apks:
+        description: 检测并提交更新后是否立即统一编译
+        required: false
+        default: true
+        type: boolean
   schedule:
     # 中国时间 02:00
     - cron: '0 18 * * *'
@@ -11,7 +17,7 @@ permissions:
   contents: write
 
 concurrency:
-  group: daily-maintenance-queue
+  group: daily-package-updates
   cancel-in-progress: false
 
 jobs:
@@ -19,65 +25,124 @@ jobs:
     name: CI 清理
     uses: ./.github/workflows/Cleanup-CI-History.yml
 
-  singbox:
-    name: Sing-Box 更新
+  update:
+    name: 顺序检查并提交上游更新
     needs: cleanup
     if: ${{ always() }}
-    uses: ./.github/workflows/Update-Sing-Box.yml
-    with:
-      build_apks: false
+    runs-on: ubuntu-latest
+    timeout-minutes: 180
+    env:
+      GH_TOKEN: ${{ github.token }}
+      PACKAGE_BRANCH: ${{ github.event.repository.default_branch }}
+    steps:
+      - name: 检出软件包仓库
+        id: checkout
+        uses: actions/checkout@main
+        with:
+          fetch-depth: 0
+          ref: ${{ github.event.repository.default_branch }}
 
-  axonhub:
-    name: AxonHub 更新
-    needs: singbox
-    if: ${{ always() }}
-    uses: ./.github/workflows/Update-AxonHub.yml
-    with:
-      build_apks: false
+      - name: 准备更新清单和工具
+        id: dependencies
+        env:
+          DEBIAN_FRONTEND: noninteractive
+        run: |
+          UPDATE_MANIFEST_DIR="$RUNNER_TEMP/update-manifest"
+          echo "UPDATE_MANIFEST_DIR=$RUNNER_TEMP/update-manifest" >> "$GITHUB_ENV"
+          mkdir -p "$UPDATE_MANIFEST_DIR"
+          : > "$UPDATE_MANIFEST_DIR/commits.tsv"
+          sudo apt-get -qq update
+          sudo apt-get -qq install --no-install-recommends curl gettext git unzip
 
-  homeproxy:
-    name: HomeProxy 更新
-    needs: axonhub
-    if: ${{ always() }}
-    uses: ./.github/workflows/Update-HomeProxy.yml
-    with:
-      build_apks: false
+      - name: 检查并提交 Sing-Box
+        id: singbox
+        continue-on-error: true
+        run: bash .github/scripts/update-packages.sh singbox
 
-  miniupnp:
-    name: MiniUPnP 更新
-    needs: homeproxy
-    if: ${{ always() }}
-    uses: ./.github/workflows/Update-MiniUPnP.yml
-    with:
-      build_apks: false
+      - name: 检查并提交 AxonHub
+        id: axonhub
+        continue-on-error: true
+        run: bash .github/scripts/update-packages.sh axonhub
 
-  translation:
-    name: 翻译维护
-    needs: miniupnp
-    if: ${{ always() }}
-    uses: ./.github/workflows/Rescan-Translation.yml
-    with:
-      build_apks: false
+      - name: 检查并提交 HomeProxy 数据
+        id: homeproxy
+        continue-on-error: true
+        run: bash .github/scripts/update-packages.sh homeproxy
 
-  build:
-    name: 编译本轮变更的软件包
-    needs:
-      - singbox
-      - axonhub
-      - homeproxy
-      - miniupnp
-      - translation
-    if: >-
-      always() && (
-        needs.singbox.outputs.packages != '' ||
-        needs.axonhub.outputs.packages != '' ||
-        needs.homeproxy.outputs.packages != '' ||
-        needs.miniupnp.outputs.packages != '' ||
-        needs.translation.outputs.packages != ''
-      )
-    uses: ./.github/workflows/Build-APK-Packages.yml
-    with:
-      source_sha: >-
-        ${{ needs.translation.outputs.source_sha || needs.miniupnp.outputs.source_sha || needs.homeproxy.outputs.source_sha || needs.axonhub.outputs.source_sha || needs.singbox.outputs.source_sha }}
-      packages: >-
-        ${{ needs.singbox.outputs.packages }},${{ needs.axonhub.outputs.packages }},${{ needs.homeproxy.outputs.packages }},${{ needs.miniupnp.outputs.packages }},${{ needs.translation.outputs.packages }}
+      - name: 检查并提交 MiniUPnP
+        id: miniupnp
+        continue-on-error: true
+        run: bash .github/scripts/update-packages.sh miniupnp
+
+      - name: 检查并提交插件说明和翻译
+        id: translation
+        continue-on-error: true
+        run: bash .github/scripts/update-packages.sh translation
+
+      - name: 汇总本次提交
+        if: always()
+        id: manifest
+        env:
+          UPDATE_MANIFEST_DIR: ${{ runner.temp }}/update-manifest
+          BUILD_APKS: ${{ github.event_name == 'schedule' || inputs.build_apks }}
+          CHECKOUT_OUTCOME: ${{ steps.checkout.outcome }}
+          DEPENDENCIES_OUTCOME: ${{ steps.dependencies.outcome }}
+          SINGBOX_OUTCOME: ${{ steps.singbox.outcome }}
+          AXONHUB_OUTCOME: ${{ steps.axonhub.outcome }}
+          HOMEPROXY_OUTCOME: ${{ steps.homeproxy.outcome }}
+          MINIUPNP_OUTCOME: ${{ steps.miniupnp.outcome }}
+          TRANSLATION_OUTCOME: ${{ steps.translation.outcome }}
+        run: |
+          set -euo pipefail
+          mkdir -p "$UPDATE_MANIFEST_DIR"
+          commits_file="$UPDATE_MANIFEST_DIR/commits.tsv"
+          [[ -f "$commits_file" ]] || : > "$commits_file"
+
+          failed_csv=''
+          for stage in checkout dependencies singbox axonhub homeproxy miniupnp translation; do
+            variable="${stage^^}_OUTCOME"
+            if [[ "${!variable:-}" == failure ]]; then
+              failed_csv="${failed_csv:+$failed_csv,}$stage"
+            fi
+          done
+
+          source_sha=''
+          if [[ -d .git && -f .github/scripts/ci-common.sh ]]; then
+            source .github/scripts/ci-common.sh
+            if ! ci_sync_branch "$PACKAGE_BRANCH"; then
+              failed_csv="${failed_csv:+$failed_csv,}final_sync"
+            fi
+            source_sha="$(git rev-parse HEAD)"
+            [[ "$source_sha" =~ ^[0-9a-f]{40}$ ]]
+          fi
+
+          packages_csv="$(cut -f2 "$commits_file" |
+            tr ',' '\n' | sed '/^$/d' | sort -u | paste -sd, -)"
+          commits_csv="$(cut -f1 "$commits_file" | sed '/^$/d' | paste -sd, -)"
+          printf '%s\t%s\t%s\t%s\t%s\n' \
+            "$source_sha" "$BUILD_APKS" "$packages_csv" "$commits_csv" "$failed_csv" \
+            > "$UPDATE_MANIFEST_DIR/manifest.tsv"
+
+          if [[ -n "${GITHUB_STEP_SUMMARY:-}" ]]; then
+            {
+              printf '### 更新结果\n\n'
+              printf -- '- 软件包：%s\n' "${packages_csv:-无}"
+              printf -- '- 本次提交：%s\n' "${commits_csv:-无}"
+              printf -- "- 最终提交：\`%s\`\n" "${source_sha:-不可用}"
+              printf -- '- 失败阶段：%s\n' "${failed_csv:-无}"
+            } >> "$GITHUB_STEP_SUMMARY"
+          fi
+
+          if [[ -n "$failed_csv" ]]; then
+            printf '以下阶段失败：%s\n' "$failed_csv" >&2
+            exit 1
+          fi
+
+      - name: 上传本次更新清单
+        if: always()
+        uses: actions/upload-artifact@main
+        with:
+          name: update-manifest
+          path: ${{ runner.temp }}/update-manifest
+          if-no-files-found: ignore
+          retention-days: 3

@@ -1,33 +1,31 @@
 name: 编译并发布 APK 软件包
-run-name: 编译 APK ${{ inputs.packages || '自动检测' }} @ ${{ inputs.source_sha || github.sha }}
+run-name: 编译 APK ${{ inputs.packages || (github.event_name == 'workflow_run' && '本次更新') || '自动检测' }} @ ${{ inputs.source_sha || github.sha }}
 
 on:
   workflow_dispatch:
     inputs:
       source_sha:
-        description: 待编译的精确提交 SHA；自动更新任务必须填写
+        description: 待编译的精确提交 SHA；留空时使用当前触发提交
         required: false
         type: string
       packages:
-        description: 留空编译全部软件包；CI 可填写逗号分隔的软件包目录
+        description: 留空编译全部软件包；可填写逗号分隔的软件包目录
         required: false
-        type: string
-  workflow_call:
-    inputs:
-      source_sha:
-        description: 待编译的精确提交 SHA
-        required: true
-        type: string
-      packages:
-        description: 逗号分隔的软件包目录
-        required: true
         type: string
   push:
     branches:
       - main
+  workflow_run:
+    workflows:
+      - 每日更新软件包
+    types:
+      - completed
+    branches:
+      - main
 
 permissions:
-  contents: write
+  actions: read
+  contents: read
 
 concurrency:
   group: publish-apk-packages
@@ -44,21 +42,96 @@ jobs:
       packages: ${{ steps.packages.outputs.packages }}
       packages_display: ${{ steps.packages.outputs.packages_display }}
     steps:
+      - name: 下载更新工作流清单
+        if: github.event_name == 'workflow_run'
+        id: download_manifest
+        continue-on-error: true
+        uses: actions/download-artifact@main
+        with:
+          name: update-manifest
+          run-id: ${{ github.event.workflow_run.id }}
+          github-token: ${{ github.token }}
+          path: ${{ runner.temp }}/update-manifest
+
+      - name: 读取更新工作流清单
+        if: github.event_name == 'workflow_run'
+        id: update_manifest
+        env:
+          MANIFEST_FILE: ${{ runner.temp }}/update-manifest/manifest.tsv
+          FALLBACK_SHA: ${{ github.event.workflow_run.head_sha }}
+        run: |
+          set -euo pipefail
+          source_sha="$FALLBACK_SHA"
+          build_apks=false
+          packages=''
+          commits=''
+          failed_stages=''
+          if [[ -s "$MANIFEST_FILE" ]]; then
+            manifest_line="$(head -n 1 "$MANIFEST_FILE")"
+            source_sha="$(printf '%s\n' "$manifest_line" | cut -f1)"
+            build_apks="$(printf '%s\n' "$manifest_line" | cut -f2)"
+            packages="$(printf '%s\n' "$manifest_line" | cut -f3)"
+            commits="$(printf '%s\n' "$manifest_line" | cut -f4)"
+            failed_stages="$(printf '%s\n' "$manifest_line" | cut -f5)"
+          else
+            echo '更新工作流没有生成清单；跳过自动编译。' >&2
+          fi
+
+          if [[ ! "$source_sha" =~ ^[0-9a-f]{40}$ ]]; then
+            source_sha="$FALLBACK_SHA"
+            packages=''
+            build_apks=false
+          fi
+          [[ "$source_sha" =~ ^[0-9a-f]{40}$ ]]
+          [[ "$build_apks" == true || "$build_apks" == false ]]
+          if [[ -z "$packages" ]]; then
+            build_apks=false
+          fi
+
+          {
+            echo "source_sha=$source_sha"
+            echo "build_apks=$build_apks"
+            echo "packages=$packages"
+            echo "commits=$commits"
+            echo "failed_stages=$failed_stages"
+          } >> "$GITHUB_OUTPUT"
+
       - name: 检出待编译提交
         uses: actions/checkout@main
         with:
           fetch-depth: 0
-          ref: ${{ inputs.source_sha || github.sha }}
+          ref: ${{ steps.update_manifest.outputs.source_sha || inputs.source_sha || github.sha }}
+          persist-credentials: false
 
       - name: 确定需要编译的软件包
         id: packages
         env:
           BEFORE_SHA: ${{ github.event.before }}
-          REQUESTED_PACKAGES: ${{ inputs.packages }}
-          SOURCE_SHA: ${{ inputs.source_sha || github.sha }}
+          UPDATE_ENABLED: ${{ steps.update_manifest.outputs.build_apks }}
+          REQUESTED_PACKAGES: ${{ steps.update_manifest.outputs.packages || inputs.packages }}
+          SOURCE_SHA: ${{ steps.update_manifest.outputs.source_sha || inputs.source_sha || github.sha }}
+          UPDATE_COMMITS: ${{ steps.update_manifest.outputs.commits }}
+          FAILED_STAGES: ${{ steps.update_manifest.outputs.failed_stages }}
         run: |
+          if [[ "$GITHUB_EVENT_NAME" == workflow_run && "$UPDATE_ENABLED" != true ]]; then
+            {
+              echo 'changed=false'
+              echo "source_sha=$SOURCE_SHA"
+              echo 'packages='
+              echo 'packages_display='
+            } >> "$GITHUB_OUTPUT"
+            echo '本次更新没有变更包或关闭了自动编译。'
+            exit 0
+          fi
           .github/scripts/resolve-build-packages.sh \
             "$GITHUB_EVENT_NAME" "$BEFORE_SHA" "$REQUESTED_PACKAGES" "$SOURCE_SHA"
+          if [[ -n "$UPDATE_COMMITS" || -n "$FAILED_STAGES" ]]; then
+            {
+              printf '### 上游维护结果\n\n'
+              printf -- '- 更新提交：%s\n' "${UPDATE_COMMITS:-无}"
+              printf -- '- 失败阶段：%s\n' "${FAILED_STAGES:-无}"
+            } >> "$GITHUB_STEP_SUMMARY"
+          fi
 
   build:
     name: 编译 ${{ matrix.platform_name }} APK
@@ -66,6 +139,8 @@ jobs:
     if: needs.resolve.outputs.changed == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 360
+    permissions:
+      contents: read
     strategy:
       fail-fast: false
       matrix:
@@ -90,6 +165,7 @@ jobs:
         uses: actions/checkout@main
         with:
           ref: ${{ needs.resolve.outputs.source_sha }}
+          persist-credentials: false
 
       - name: 安装 SDK 依赖
         env:
@@ -208,6 +284,8 @@ jobs:
       - build
     runs-on: ubuntu-latest
     timeout-minutes: 45
+    permissions:
+      contents: write
     strategy:
       fail-fast: false
       matrix:
@@ -232,6 +310,7 @@ jobs:
         uses: actions/checkout@main
         with:
           ref: ${{ needs.resolve.outputs.source_sha }}
+          persist-credentials: false
 
       - name: 下载 ${{ matrix.platform_name }} 编译结果
         uses: actions/download-artifact@main
@@ -381,6 +460,8 @@ jobs:
       - publish
     runs-on: ubuntu-latest
     timeout-minutes: 10
+    permissions:
+      contents: write
     env:
       GH_TOKEN: ${{ github.token }}
     steps:
@@ -388,6 +469,7 @@ jobs:
         uses: actions/checkout@main
         with:
           ref: ${{ needs.resolve.outputs.source_sha }}
+          persist-credentials: false
 
       - name: 删除旧 APK Release 和 Tag
         run: |
