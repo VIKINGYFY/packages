@@ -11,6 +11,14 @@ BEFORE_SHA="${2:-}"
 REQUESTED_PACKAGES="${3:-}"
 SOURCE_SHA="${4:-${SOURCE_SHA:-${GITHUB_SHA:-}}}"
 
+case "$EVENT_NAME" in
+	push|workflow_dispatch) ;;
+	*)
+		printf '不支持的编译触发事件：%s\n' "$EVENT_NAME" >&2
+		exit 2
+		;;
+esac
+
 ci_require_commit_sha "$SOURCE_SHA"
 git -C "$CI_REPO_ROOT" cat-file -e "$SOURCE_SHA^{commit}"
 
@@ -24,7 +32,7 @@ select_all() {
 	selected_packages=("${all_packages[@]}")
 }
 
-# 可复用工作流继承调用方的事件名，显式软件包列表必须优先于事件类型。
+# 自动更新显式传入本次变更包；只有手动运行且留空时才编译全部。
 if [[ -n "$REQUESTED_PACKAGES" ]]; then
 	IFS=',' read -ra requested <<< "$REQUESTED_PACKAGES"
 	for package in "${requested[@]}"; do
@@ -36,7 +44,7 @@ if [[ -n "$REQUESTED_PACKAGES" ]]; then
 		fi
 		selected_packages+=("$package")
 	done
-elif [[ "$EVENT_NAME" == workflow_dispatch || "$EVENT_NAME" == workflow_call ]]; then
+elif [[ "$EVENT_NAME" == workflow_dispatch ]]; then
 	select_all
 else
 	if [[ -z "$BEFORE_SHA" ]] || [[ "$BEFORE_SHA" =~ ^0+$ ]]; then
@@ -46,22 +54,6 @@ else
 		git -C "$CI_REPO_ROOT" cat-file -e "$BEFORE_SHA^{commit}"
 		git -C "$CI_REPO_ROOT" diff --name-only "$BEFORE_SHA" "$SOURCE_SHA" > "$temp_dir/changed-files"
 	fi
-	mapfile -t changed_files < "$temp_dir/changed-files"
-
-	shared_build_changed=false
-	for path in "${changed_files[@]}"; do
-		case "$path" in
-			.github/workflows/Build-APK-Packages.yml|\
-			.github/scripts/build-apk-packages.sh|\
-			.github/scripts/ci-common.sh|\
-			.github/scripts/fix-package-permissions.sh|\
-			.github/scripts/resolve-build-packages.sh)
-				shared_build_changed=true
-				break
-				;;
-		esac
-	done
-
 	removed_package=false
 	if [[ -n "$BEFORE_SHA" ]] && [[ ! "$BEFORE_SHA" =~ ^0+$ ]]; then
 		git -C "$CI_REPO_ROOT" ls-tree -r --name-only "$BEFORE_SHA" |
@@ -76,24 +68,11 @@ else
 		done
 	fi
 
-	if [[ "$shared_build_changed" == true || "$removed_package" == true ]]; then
+	if [[ "$removed_package" == true ]]; then
 		select_all
 	else
-		for package in "${all_packages[@]}"; do
-			package_changed=false
-			only_nonbuild_files=true
-			for path in "${changed_files[@]}"; do
-				[[ "$path" == "$package/"* ]] || continue
-				package_changed=true
-				case "$path" in
-					"$package/README"|"$package/README.md") ;;
-					*) only_nonbuild_files=false ;;
-				esac
-			done
-			if [[ "$package_changed" == true && "$only_nonbuild_files" == false ]]; then
-				selected_packages+=("$package")
-			fi
-		done
+		ci_packages_from_paths < "$temp_dir/changed-files" > "$temp_dir/changed-packages"
+		mapfile -t selected_packages < "$temp_dir/changed-packages"
 	fi
 fi
 

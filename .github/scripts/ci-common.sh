@@ -128,6 +128,9 @@ ci_packages_from_paths() {
 	declare -A seen=()
 
 	while IFS= read -r path; do
+		case "$path" in
+			*/README|*/README.md|*/po/templates/*.pot) continue ;;
+		esac
 		[[ "$path" == */* ]] || continue
 		package="${path%%/*}"
 		[[ -f "$CI_REPO_ROOT/$package/Makefile" ]] || continue
@@ -189,7 +192,7 @@ ci_commit_and_push() {
 		printf '没有需要提交的变更。\n'
 		ci_write_output changed false
 		ci_write_output base_sha "$base_sha"
-		ci_write_output commit_sha "$base_sha"
+		ci_write_output commit_sha ''
 		ci_write_output packages ''
 		ci_write_output packages_display ''
 		return 0

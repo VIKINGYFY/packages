@@ -79,8 +79,8 @@ jobs:
         continue-on-error: true
         run: bash .github/scripts/update-packages.sh translation
 
-      - name: 汇总本次提交
-        if: always()
+      - name: 汇总本次新提交并按需触发编译
+        if: ${{ !cancelled() }}
         id: manifest
         env:
           UPDATE_MANIFEST_DIR: ${{ runner.temp }}/update-manifest
@@ -106,14 +106,19 @@ jobs:
             fi
           done
 
+          # 仅使用本次运行成功推送的提交，不能用仓库 HEAD 冒充本次更新。
           source_sha=''
-          if [[ -d .git && -f .github/scripts/ci-common.sh ]]; then
+          changed=false
+          if [[ -s "$commits_file" ]]; then
             source .github/scripts/ci-common.sh
-            if ! ci_sync_branch "$PACKAGE_BRANCH"; then
-              failed_csv="${failed_csv:+$failed_csv,}final_sync"
-            fi
-            source_sha="$(git rev-parse HEAD)"
-            [[ "$source_sha" =~ ^[0-9a-f]{40}$ ]]
+            source_sha="$(tail -n 1 "$commits_file" | cut -f1)"
+            ci_require_commit_sha "$source_sha"
+            while IFS= read -r record; do
+              commit_sha="$(cut -f1 <<< "$record")"
+              ci_require_commit_sha "$commit_sha"
+              git merge-base --is-ancestor "$commit_sha" "$source_sha"
+            done < "$commits_file"
+            changed=true
           fi
 
           packages_csv="$(cut -f2 "$commits_file" |
@@ -122,13 +127,35 @@ jobs:
           printf '%s\t%s\t%s\t%s\t%s\n' \
             "$source_sha" "$BUILD_APKS" "$packages_csv" "$commits_csv" "$failed_csv" \
             > "$UPDATE_MANIFEST_DIR/manifest.tsv"
+          {
+            echo "changed=$changed"
+            echo "source_sha=$source_sha"
+            echo "packages=$packages_csv"
+          } >> "$GITHUB_OUTPUT"
+
+          if [[ "$changed" == false ]]; then
+            build_result='本次没有成功推送的新提交，不触发 APK 编译。'
+          elif [[ -z "$packages_csv" ]]; then
+            build_result='本次提交未涉及软件包，不触发 APK 编译。'
+          elif [[ "$BUILD_APKS" != true ]]; then
+            build_result='本次已提交更新；手动关闭了自动编译。'
+          else
+            gh workflow run Build-APK-Packages.yml \
+              --repo "$GITHUB_REPOSITORY" --ref "$PACKAGE_BRANCH" \
+              -f "source_sha=$source_sha" -f "packages=$packages_csv"
+            build_result="已触发统一编译：$packages_csv @ $source_sha"
+          fi
+          echo "$build_result"
 
           if [[ -n "${GITHUB_STEP_SUMMARY:-}" ]]; then
             {
               printf '### 更新结果\n\n'
               printf -- '- 软件包：%s\n' "${packages_csv:-无}"
               printf -- '- 本次提交：%s\n' "${commits_csv:-无}"
-              printf -- "- 最终提交：\`%s\`\n" "${source_sha:-不可用}"
+              if [[ -n "$source_sha" ]]; then
+                printf -- "- 本次最终提交：\`%s\`\n" "$source_sha"
+              fi
+              printf -- '- 编译：%s\n' "$build_result"
               printf -- '- 失败阶段：%s\n' "${failed_csv:-无}"
             } >> "$GITHUB_STEP_SUMMARY"
           fi
@@ -139,10 +166,11 @@ jobs:
           fi
 
       - name: 上传本次更新清单
-        if: always()
+        if: always() && steps.manifest.outputs.changed == 'true'
         uses: actions/upload-artifact@main
         with:
           name: update-manifest
           path: ${{ runner.temp }}/update-manifest
           if-no-files-found: ignore
+          overwrite: true
           retention-days: 3

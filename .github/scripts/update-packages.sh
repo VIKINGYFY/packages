@@ -67,7 +67,7 @@ update_sing_box() {
 	rm -rf "$source_dir"
 	mkdir -p "$source_dir"
 	tar -xzf "$archive" --strip-components=1 -C "$source_dir"
-test -s "$source_dir/go.mod"
+	test -s "$source_dir/go.mod"
 
 	for patch_file in sing-box/patches/*.patch; do
 		[[ -f "$patch_file" ]] || continue
