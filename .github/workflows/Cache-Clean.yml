@@ -1,0 +1,60 @@
+name: 每周一清空 CI 缓存
+
+on:
+  schedule:
+    # UTC+8 周一 01:30，先于每日 02:00 的维护计划。
+    - cron: '30 17 * * 0'
+  workflow_dispatch:
+    inputs:
+      dry_run:
+        description: 仅列出缓存，不实际删除
+        required: false
+        default: false
+        type: boolean
+
+permissions:
+  actions: write
+
+# 等待构建及其缓存保存完成，避免清空后又写回旧缓存。
+concurrency:
+  group: publish-apk-packages
+  cancel-in-progress: false
+  queue: max
+
+jobs:
+  cleanup:
+    name: 清空全部 Actions 缓存
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    concurrency:
+      group: cleanup-ci-history
+      cancel-in-progress: false
+      queue: max
+    env:
+      GH_TOKEN: ${{ github.token }}
+      DRY_RUN: ${{ github.event_name == 'workflow_dispatch' && inputs.dry_run }}
+    steps:
+      - name: 清空本仓库全部缓存
+        run: |
+          set -euo pipefail
+          cache_list="$RUNNER_TEMP/cache-clean.tsv"
+          gh api --paginate \
+            "repos/$GITHUB_REPOSITORY/actions/caches?per_page=100" \
+            --jq '.actions_caches[] | [.id, .key, .ref, .size_in_bytes] | @tsv' \
+            > "$cache_list"
+          cache_count="$(wc -l < "$cache_list")"
+          cache_bytes="$(awk -F '\t' '{ size += $4 } END { printf "%.0f", size }' "$cache_list")"
+
+          if [[ "$DRY_RUN" == true ]]; then
+            cat "$cache_list"
+            mode='试运行，未删除缓存'
+          else
+            gh cache delete --all --succeed-on-no-caches --repo "$GITHUB_REPOSITORY"
+            mode='已清空全部缓存'
+          fi
+
+          {
+            printf '### 每周缓存清理：%s\n\n' "$mode"
+            printf -- '- 缓存数量：%s\n' "$cache_count"
+            printf -- '- 缓存大小：%s 字节\n' "$cache_bytes"
+          } >> "$GITHUB_STEP_SUMMARY"
