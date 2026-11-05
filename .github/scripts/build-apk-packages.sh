@@ -127,7 +127,7 @@ done
 
 for package in "${SELECTED_PACKAGES[@]}"; do
 	name="$(ci_package_name "$package")"
-	find "$SDK_ROOT/dl" -maxdepth 1 -type f \
+	find -H "$SDK_ROOT/dl" -maxdepth 1 -type f \
 		\( -name "$name-*" -o -name "$name.*" \) -print0 > "$temp_dir/cached-sources"
 	while IFS= read -r -d '' cached_source; do
 		printf '删除待更新软件包的旧源码缓存：%s\n' "${cached_source##*/}"
@@ -198,8 +198,28 @@ if [[ -f "$SDK_ROOT/public-key.pem" ]]; then
 	"$APK_TOOL" verify --keys-dir "$SDK_ROOT" "${APK_FILES[@]}"
 fi
 
-# Carry the SDK's host tool to the publish job for APK version comparisons.
-install -D -m 0755 "$APK_TOOL" "$OUTPUT_DIR/tools/apk"
+# SDK host tools are wrappers around hidden binaries and bundled libraries.
+# Archive the runtime so Actions preserves hidden files and executable modes.
+tool_root="$temp_dir/apk-tools"
+host_root="$SDK_ROOT/staging_dir/host"
+install -D -m 0755 "$APK_TOOL" "$tool_root/bin/apk"
+if [[ -f "$host_root/bin/.apk.bin" ]]; then
+	install -m 0755 "$host_root/bin/.apk.bin" "$tool_root/bin/.apk.bin"
+	loader="$(find "$host_root/lib" -maxdepth 1 -name 'ld-*.so*' -print -quit)"
+	[[ -n "$loader" ]]
+	"$loader" --library-path "$host_root/lib" --list "$host_root/bin/.apk.bin" \
+		> "$temp_dir/apk-libraries"
+	mkdir -p "$tool_root/lib"
+	install -m 0755 "$loader" "$host_root/lib/runas.so" "$tool_root/lib/"
+	awk '$2 == "=>" && $3 ~ /^\// { print $3 }' "$temp_dir/apk-libraries" \
+		> "$temp_dir/apk-library-paths"
+	while IFS= read -r library; do
+		install -m 0755 "$library" "$tool_root/lib/"
+	done < "$temp_dir/apk-library-paths"
+fi
+"$tool_root/bin/apk" --version
+mkdir -p "$OUTPUT_DIR/tools"
+tar -czf "$OUTPUT_DIR/tools/apk-tools.tar.gz" -C "$tool_root" .
 
 manifest="$OUTPUT_DIR/APK-MANIFEST.tsv"
 : > "$manifest"

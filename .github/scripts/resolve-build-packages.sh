@@ -48,31 +48,33 @@ elif [[ "$EVENT_NAME" == workflow_dispatch ]]; then
 	select_all
 else
 	if [[ -z "$BEFORE_SHA" ]] || [[ "$BEFORE_SHA" =~ ^0+$ ]]; then
-		git -C "$CI_REPO_ROOT" show --format= --name-only "$SOURCE_SHA" > "$temp_dir/changed-files"
-	else
-		ci_require_commit_sha "$BEFORE_SHA"
-		git -C "$CI_REPO_ROOT" cat-file -e "$BEFORE_SHA^{commit}"
-		git -C "$CI_REPO_ROOT" diff --name-only "$BEFORE_SHA" "$SOURCE_SHA" > "$temp_dir/changed-files"
-	fi
-	removed_package=false
-	if [[ -n "$BEFORE_SHA" ]] && [[ ! "$BEFORE_SHA" =~ ^0+$ ]]; then
-		git -C "$CI_REPO_ROOT" ls-tree -r --name-only "$BEFORE_SHA" |
-			awk -F / 'NF == 2 && $2 == "Makefile" && $1 !~ /^\./ { print $1 }' |
-			sort -u > "$temp_dir/old-packages"
-		mapfile -t old_packages < "$temp_dir/old-packages"
-		for package in "${old_packages[@]}"; do
-			if ! printf '%s\n' "${all_packages[@]}" | grep -Fqx "$package"; then
-				removed_package=true
-				break
-			fi
-		done
-	fi
-
-	if [[ "$removed_package" == true ]]; then
 		select_all
 	else
-		ci_packages_from_paths < "$temp_dir/changed-files" > "$temp_dir/changed-packages"
-		mapfile -t selected_packages < "$temp_dir/changed-packages"
+		ci_require_commit_sha "$BEFORE_SHA"
+		if ! git -C "$CI_REPO_ROOT" cat-file -e "$BEFORE_SHA^{commit}" 2>/dev/null; then
+			printf '推送前的提交不可用，编译全部软件包。\n' >&2
+			select_all
+		else
+			git -C "$CI_REPO_ROOT" diff --name-only "$BEFORE_SHA" "$SOURCE_SHA" > "$temp_dir/changed-files"
+			removed_package=false
+			git -C "$CI_REPO_ROOT" ls-tree -r --name-only "$BEFORE_SHA" |
+				awk -F / 'NF == 2 && $2 == "Makefile" && $1 !~ /^\./ { print $1 }' |
+				sort -u > "$temp_dir/old-packages"
+			mapfile -t old_packages < "$temp_dir/old-packages"
+			for package in "${old_packages[@]}"; do
+				if ! printf '%s\n' "${all_packages[@]}" | grep -Fqx "$package"; then
+					removed_package=true
+					break
+				fi
+			done
+
+			if [[ "$removed_package" == true ]]; then
+				select_all
+			else
+				ci_packages_from_paths < "$temp_dir/changed-files" > "$temp_dir/changed-packages"
+				mapfile -t selected_packages < "$temp_dir/changed-packages"
+			fi
+		fi
 	fi
 fi
 

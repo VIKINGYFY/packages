@@ -26,6 +26,7 @@ permissions:
 concurrency:
   group: publish-apk-packages
   cancel-in-progress: false
+  queue: max
 
 jobs:
   resolve:
@@ -240,6 +241,19 @@ jobs:
           name: apk-output-${{ matrix.platform }}
           path: ${{ runner.temp }}/apk-output
 
+      - name: 验证编译产物和 APK 发布工具
+        run: |
+          output_dir="$RUNNER_TEMP/apk-output"
+          tool_dir="$RUNNER_TEMP/apk-tools"
+          mkdir -p "$tool_dir"
+          tar -xzf "$output_dir/tools/apk-tools.tar.gz" -C "$tool_dir"
+          "$tool_dir/bin/apk" --version
+          (
+            cd "$output_dir"
+            sha256sum --check --strict SHA256SUMS
+          )
+          echo "APK_TOOL=$tool_dir/bin/apk" >> "$GITHUB_ENV"
+
       - name: 确定 ZIP 发布号
         id: archive
         run: |
@@ -316,10 +330,7 @@ jobs:
 
       - name: 每个软件包仅保留最新版本
         run: |
-          apk_tool="$RUNNER_TEMP/apk-output/tools/apk"
-          chmod +x "$apk_tool"
-          "$apk_tool" --version
-          APK_TOOL="$apk_tool" .github/scripts/prune-apk-release.sh \
+          .github/scripts/prune-apk-release.sh \
             "$RELEASE_TAG" 1 "$RUNNER_TEMP/latest-apk-assets.tsv"
 
       - name: 发布 ${{ matrix.platform_name }} 最新整合包

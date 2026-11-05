@@ -19,6 +19,7 @@ permissions:
 concurrency:
   group: daily-package-updates
   cancel-in-progress: false
+  queue: max
 
 jobs:
   cleanup:
@@ -28,7 +29,7 @@ jobs:
   update:
     name: 顺序检查并提交上游更新
     needs: cleanup
-    if: ${{ always() }}
+    if: ${{ !cancelled() }}
     runs-on: ubuntu-latest
     timeout-minutes: 180
     env:
