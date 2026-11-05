@@ -316,17 +316,10 @@ jobs:
 
       - name: 每个软件包仅保留最新版本
         run: |
-          tool_dir="$RUNNER_TEMP/apk-tools"
-          archive="$RUNNER_TEMP/apk-tools-static.apk"
-          mkdir -p "$tool_dir"
-          curl -fsSL --retry 3 \
-            https://dl-cdn.alpinelinux.org/alpine/v3.23/main/x86_64/apk-tools-static-3.0.8-r0.apk \
-            -o "$archive"
-          printf '%s  %s\n' \
-            2edccd3267ce540f8d2371a0f394e84b40d8348ecc28425309e6d07079ed1259 \
-            "$archive" | sha256sum -c -
-          tar -xzf "$archive" -C "$tool_dir" sbin/apk.static
-          APK_TOOL="$tool_dir/sbin/apk.static" .github/scripts/prune-apk-release.sh \
+          apk_tool="$RUNNER_TEMP/apk-output/tools/apk"
+          chmod +x "$apk_tool"
+          "$apk_tool" --version
+          APK_TOOL="$apk_tool" .github/scripts/prune-apk-release.sh \
             "$RELEASE_TAG" 1 "$RUNNER_TEMP/latest-apk-assets.tsv"
 
       - name: 发布 ${{ matrix.platform_name }} 最新整合包

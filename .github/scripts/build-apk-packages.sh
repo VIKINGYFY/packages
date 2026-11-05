@@ -198,6 +198,9 @@ if [[ -f "$SDK_ROOT/public-key.pem" ]]; then
 	"$APK_TOOL" verify --keys-dir "$SDK_ROOT" "${APK_FILES[@]}"
 fi
 
+# Carry the SDK's host tool to the publish job for APK version comparisons.
+install -D -m 0755 "$APK_TOOL" "$OUTPUT_DIR/tools/apk"
+
 manifest="$OUTPUT_DIR/APK-MANIFEST.tsv"
 : > "$manifest"
 
