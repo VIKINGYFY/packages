@@ -21,7 +21,8 @@ Base-Commit: 0896305eeee89435049575d55a813f72901f703b
 
 --- a/conf/conf.go
 +++ b/conf/conf.go
-@@ -334,4 +334,7 @@ func setDefaults(v *viper.Viper) {
+@@ -333,6 +333,9 @@ func setDefaults(v *viper.Viper) {
+ 	v.SetDefault("gc.cron", "0 2 * * *") // Daily at 2:00 AM
  	v.SetDefault("gc.vacuum_enabled", true)
  	v.SetDefault("gc.vacuum_full", false)
 +	v.SetDefault("gc.batch_size", 500)
@@ -29,9 +30,11 @@ Base-Commit: 0896305eeee89435049575d55a813f72901f703b
 +	v.SetDefault("gc.timeout", "10m")
  
  	// Provider quota defaults
+ 	v.SetDefault("provider_quota.check_interval", "5m")
 --- a/config.example.yml
 +++ b/config.example.yml
-@@ -183,4 +183,7 @@ gc:
+@@ -182,6 +182,9 @@ gc:
+                                  # "0 2 * * *"     - Daily at 2:00 AM
                                   # "0 3 * * 0"     - Weekly on Sunday at 3:00 AM
                                   # "0 4 1 * *"     - Monthly on 1st day at 4:00 AM
 +  batch_size: 500                # Maximum records per batch (env: AXONHUB_GC_BATCH_SIZE)
@@ -39,9 +42,11 @@ Base-Commit: 0896305eeee89435049575d55a813f72901f703b
 +  timeout: "10m"                 # Maximum cleanup duration (env: AXONHUB_GC_TIMEOUT)
    vacuum_enabled: false          # Enable VACUUM after cleanup (env: AXONHUB_GC_VACUUM_ENABLED)
                                   # Supported for SQLite and PostgreSQL
+                                  # SQLite: Rebuilds database file to reclaim space
 --- a/internal/server/gc/gc.go
 +++ b/internal/server/gc/gc.go
-@@ -3,5 +3,7 @@ package gc
+@@ -2,7 +2,9 @@ package gc
+ 
  import (
  	"context"
 +	"errors"
@@ -49,14 +54,18 @@ Base-Commit: 0896305eeee89435049575d55a813f72901f703b
 +	"sync"
  	"time"
  
-@@ -27,4 +29,6 @@ import (
+ 	"entgo.io/ent/dialect"
+@@ -26,6 +28,8 @@ import (
+ 
  var defaultBatchSize = 500
  
 +var ErrCleanupInProgress = errors.New("cleanup already running")
 +
  type TriggerGcCleanupInput struct {
  	RequestsCleanupDays       int `json:"requests_cleanup_days"`
-@@ -43,10 +47,15 @@ type GcCleanupPreviewItem struct {
+ 	UsageLogsCleanupDays      int `json:"usage_logs_cleanup_days"`
+@@ -42,12 +46,17 @@ type GcCleanupPreviewItem struct {
+ }
  
  type Config struct {
 -	CRON          string `json:"cron" yaml:"cron" conf:"cron" validate:"required"`
@@ -75,14 +84,18 @@ Base-Commit: 0896305eeee89435049575d55a813f72901f703b
 +
  	SystemService      *biz.SystemService
  	DataStorageService *biz.DataStorageService
-@@ -76,5 +85,5 @@ func NewWorker(params Params) *Worker {
+ 	Ent                *ent.Client
+@@ -75,7 +84,7 @@ func NewWorker(params Params) *Worker {
+ }
  
  func (w *Worker) RegisterScheduledTasks(ctx context.Context, s *scheduler.Scheduler) error {
 -	return s.Register(ctx, scheduler.TaskSpec{
 +	return s.RegisterWithError(ctx, scheduler.TaskSpec{
  		Name:        "gc",
  		Description: "Garbage collection — cleanup old requests, stored bodies, traces, usage logs, and channel probes",
-@@ -89,4 +98,7 @@ func (w *Worker) deleteInBatches(ctx con
+ 		CronExpr:    w.Config.CRON,
+@@ -88,6 +97,9 @@ func (w *Worker) deleteInBatches(ctx con
+ 	totalDeleted := 0
  
  	for {
 +		if err := w.waitForBatch(ctx, totalDeleted > 0); err != nil {
@@ -90,7 +103,9 @@ Base-Commit: 0896305eeee89435049575d55a813f72901f703b
 +		}
  		deleted, err := deleteFunc()
  		if err != nil {
-@@ -107,138 +119,109 @@ func (w *Worker) deleteInBatches(ctx con
+ 			return totalDeleted, fmt.Errorf("failed to delete batch: %w", err)
+@@ -106,140 +118,111 @@ func (w *Worker) deleteInBatches(ctx con
+ 
  // getBatchSize returns the appropriate batch size for cleanup operations.
  func (w *Worker) getBatchSize() int {
 +	if w.Config.BatchSize > 0 {
@@ -323,7 +338,9 @@ Base-Commit: 0896305eeee89435049575d55a813f72901f703b
 +	return errors.Join(result, ctx.Err())
  }
  
-@@ -252,8 +235,5 @@ func (w *Worker) cleanupRequests(ctx con
+ // cleanupRequests deletes requests older than the specified number of days.
+@@ -251,213 +234,182 @@ func (w *Worker) cleanupRequests(ctx con
+ 
  	cutoffTime := time.Now().AddDate(0, 0, -cleanupDays)
  
 -	execResult, err := w.cleanupOldRequestExecutions(ctx, cutoffTime)
@@ -333,7 +350,8 @@ Base-Commit: 0896305eeee89435049575d55a813f72901f703b
 +	execResult, execErr := w.cleanupOldRequestExecutions(ctx, cutoffTime)
  
  	log.Debug(ctx, "Deleted old request executions",
-@@ -262,177 +242,153 @@ func (w *Worker) cleanupRequests(ctx con
+ 		log.Int("deleted_executions_count", execResult),
+ 		log.Time("cutoff_time", cutoffTime),
  	)
  
 -	reqResult, err := w.cleanupOldRequestsRecords(ctx, cutoffTime)
@@ -613,7 +631,7 @@ Base-Commit: 0896305eeee89435049575d55a813f72901f703b
 +func (w *Worker) cleanupRequestExternalStorage(ctx context.Context, req *ent.Request, cache map[int]*ent.DataStorage) error {
  	keys := []string{
  		biz.GenerateRequestBodyKey(req.ProjectID, req.ID),
-@@ -440,23 +396,19 @@ func (w *Worker) cleanupRequestExternalS
+ 		biz.GenerateResponseBodyKey(req.ProjectID, req.ID),
  		biz.GenerateResponseChunksKey(req.ProjectID, req.ID),
  	}
 -
@@ -649,19 +667,25 @@ Base-Commit: 0896305eeee89435049575d55a813f72901f703b
 +	return w.cleanupExternalDirectory(ctx, req.DataStorageID, biz.GenerateRequestDirKey(req.ProjectID, req.ID), cache)
  }
  
-@@ -541,4 +493,5 @@ func (w *Worker) cleanupThreads(ctx cont
+ // hasRealDirectories reports whether the storage backend materializes
+@@ -540,6 +492,7 @@ func (w *Worker) cleanupThreads(ctx cont
+ 			Where(
  				thread.CreatedAtLT(cutoffTime),
  				thread.StatusNEQ(thread.StatusRetained),
 +				thread.Not(thread.HasTraces()),
  			).
  			Order(ent.Asc(thread.FieldID)).
-@@ -580,4 +533,5 @@ func (w *Worker) cleanupTraces(ctx conte
+ 			Limit(batchSize).
+@@ -579,6 +532,7 @@ func (w *Worker) cleanupTraces(ctx conte
+ 			Where(
  				trace.CreatedAtLT(cutoffTime),
  				trace.StatusNEQ(trace.StatusRetained),
 +				trace.Not(trace.HasRequests()),
  			).
  			Order(ent.Asc(trace.FieldID)).
-@@ -697,4 +651,8 @@ func (w *Worker) RunVacuumNow(ctx contex
+ 			Limit(batchSize).
+@@ -696,6 +650,10 @@ func (w *Worker) RunVacuumNow(ctx contex
+ 
  // RunCleanupNow manually triggers the cleanup process with the specified days.
  func (w *Worker) RunCleanupNow(ctx context.Context, input TriggerGcCleanupInput) error {
 +	return w.runCleanup(ctx, true, cleanupDays(input))
@@ -670,7 +694,9 @@ Base-Commit: 0896305eeee89435049575d55a813f72901f703b
 +func cleanupDays(input TriggerGcCleanupInput) map[string]int {
  	manualDays := make(map[string]int)
  	if input.RequestsCleanupDays > 0 {
-@@ -713,6 +671,5 @@ func (w *Worker) RunCleanupNow(ctx conte
+ 		manualDays[biz.CleanupResourceRequests] = input.RequestsCleanupDays
+@@ -712,8 +670,7 @@ func (w *Worker) RunCleanupNow(ctx conte
+ 	if input.ResponseChunksCleanupDays > 0 {
  		manualDays[biz.CleanupResourceResponseChunks] = input.ResponseChunksCleanupDays
  	}
 -	w.runCleanup(ctx, true, manualDays)
@@ -678,9 +704,11 @@ Base-Commit: 0896305eeee89435049575d55a813f72901f703b
 +	return manualDays
  }
  
+ // PreviewCleanup estimates how many records would be deleted without actually deleting them.
 --- a/internal/server/gc/gc_bodies.go
 +++ b/internal/server/gc/gc_bodies.go
-@@ -113,8 +113,11 @@ func (w *Worker) stripRequestPayloads(ct
+@@ -112,10 +112,13 @@ func (w *Worker) stripRequestPayloads(ct
+ 	batchSize := w.getBatchSize()
  	total := 0
  	failed := 0
 -	skipIDs := make([]int, 0)
@@ -693,7 +721,9 @@ Base-Commit: 0896305eeee89435049575d55a813f72901f703b
 +		}
  		query := w.Ent.Request.Query().
  			Select(
-@@ -124,10 +127,9 @@ func (w *Worker) stripRequestPayloads(ct
+ 				request.FieldID,
+@@ -123,12 +126,11 @@ func (w *Worker) stripRequestPayloads(ct
+ 				request.FieldDataStorageID,
  			).
  			Where(
 +				request.IDGT(cursor),
@@ -706,19 +736,25 @@ Base-Commit: 0896305eeee89435049575d55a813f72901f703b
 -		}
  
  		reqs, err := query.
-@@ -152,4 +154,5 @@ func (w *Worker) stripRequestPayloads(ct
+ 			Modify(func(s *sql.Selector) {
+@@ -151,6 +153,7 @@ func (w *Worker) stripRequestPayloads(ct
+ 
  		ids := make([]int, 0, len(reqs))
  		for _, req := range reqs {
 +			cursor = req.ID
  			if err := w.deleteRequestExternalPayload(ctx, req, kind, cache); err != nil {
  				// 外存还在时不能打 DB 已剥标记，否则 Load* 仍读对象且后续 GC 选不中。
-@@ -159,5 +162,4 @@ func (w *Worker) stripRequestPayloads(ct
+ 				log.Warn(ctx, "Skip stripping request payload; external delete failed",
+@@ -158,7 +161,6 @@ func (w *Worker) stripRequestPayloads(ct
+ 					log.Int("request_id", req.ID),
  					log.String("resource", string(kind)),
  				)
 -				skipIDs = append(skipIDs, req.ID)
  				failed++
  
-@@ -184,8 +186,11 @@ func (w *Worker) stripExecutionPayloads(
+ 				continue
+@@ -183,10 +185,13 @@ func (w *Worker) stripExecutionPayloads(
+ 	batchSize := w.getBatchSize()
  	total := 0
  	failed := 0
 -	skipIDs := make([]int, 0)
@@ -731,14 +767,16 @@ Base-Commit: 0896305eeee89435049575d55a813f72901f703b
 +		}
  		query := w.Ent.RequestExecution.Query().
  			Select(
-@@ -196,4 +201,6 @@ func (w *Worker) stripExecutionPayloads(
+ 				requestexecution.FieldID,
+@@ -195,14 +200,13 @@ func (w *Worker) stripExecutionPayloads(
+ 				requestexecution.FieldDataStorageID,
  			).
  			Where(
 +				requestexecution.IDGT(cursor),
 +				requestexecution.StatusNotIn(requestexecution.StatusPending, requestexecution.StatusProcessing),
  				requestexecution.CreatedAtLT(cutoff),
  				requestexecution.Not(requestexecution.HasRequestWith(
-@@ -201,7 +208,4 @@ func (w *Worker) stripExecutionPayloads(
+ 					request.HasTraceWith(trace.StatusEQ(trace.StatusRetained)),
  				)),
  			)
 -		if len(skipIDs) > 0 {
@@ -746,21 +784,26 @@ Base-Commit: 0896305eeee89435049575d55a813f72901f703b
 -		}
  
  		execs, err := query.
-@@ -226,4 +230,5 @@ func (w *Worker) stripExecutionPayloads(
+ 			Modify(func(s *sql.Selector) {
+@@ -225,13 +229,13 @@ func (w *Worker) stripExecutionPayloads(
+ 
  		ids := make([]int, 0, len(execs))
  		for _, exec := range execs {
 +			cursor = exec.ID
  			if err := w.deleteExecutionExternalPayload(ctx, exec, kind, cache); err != nil {
  				log.Warn(ctx, "Skip stripping execution payload; external delete failed",
-@@ -232,5 +237,4 @@ func (w *Worker) stripExecutionPayloads(
+ 					log.Cause(err),
+ 					log.Int("execution_id", exec.ID),
  					log.String("resource", string(kind)),
  				)
 -				skipIDs = append(skipIDs, exec.ID)
  				failed++
  
+ 				continue
 --- a/internal/server/gc/gc_internal.go
 +++ b/internal/server/gc/gc_internal.go
-@@ -3,10 +3,33 @@ package gc
+@@ -2,11 +2,34 @@ package gc
+ 
  import (
  	"context"
 +	"github.com/looplj/axonhub/internal/log"
@@ -798,7 +841,8 @@ Base-Commit: 0896305eeee89435049575d55a813f72901f703b
  }
 --- a/internal/server/gql/system.resolvers.go
 +++ b/internal/server/gql/system.resolvers.go
-@@ -304,18 +304,7 @@ func (r *mutationResolver) TriggerGcClea
+@@ -303,20 +303,9 @@ func (r *mutationResolver) TriggerGcClea
+ 	if !scopes.UserHasScope(ctx, scopes.ScopeWriteSettings) {
  		return false, fmt.Errorf("permission denied: requires write:settings scope")
  	}
 -
@@ -820,9 +864,11 @@ Base-Commit: 0896305eeee89435049575d55a813f72901f703b
 +	}
  	return true, nil
  }
+ 
 --- a/internal/server/scheduler/scheduler.go
 +++ b/internal/server/scheduler/scheduler.go
-@@ -28,4 +28,9 @@ func New(exec executors.ScheduledExecuto
+@@ -27,6 +27,11 @@ func New(exec executors.ScheduledExecuto
+ // Register schedules a task and starts its cron. Returns an error if a task
  // with the same name already exists.
  func (s *Scheduler) Register(ctx context.Context, spec TaskSpec, fn func(ctx context.Context)) error {
 +	return s.RegisterWithError(ctx, spec, func(ctx context.Context) error { fn(ctx); return nil })
@@ -832,7 +878,9 @@ Base-Commit: 0896305eeee89435049575d55a813f72901f703b
 +func (s *Scheduler) RegisterWithError(ctx context.Context, spec TaskSpec, fn func(context.Context) error) error {
  	s.mu.Lock()
  	defer s.mu.Unlock()
-@@ -164,5 +169,10 @@ func (s *Scheduler) schedule(ctx context
+ 
+@@ -163,7 +168,12 @@ func (s *Scheduler) schedule(ctx context
+ 				}
  			}()
  
 -			t.fn(ctx)
@@ -844,12 +892,15 @@ Base-Commit: 0896305eeee89435049575d55a813f72901f703b
 +			}
  		}()
  	}
+ 
 --- a/internal/server/scheduler/task.go
 +++ b/internal/server/scheduler/task.go
-@@ -17,5 +17,5 @@ type task struct {
+@@ -16,7 +16,7 @@ type task struct {
+ 	cancelFunc context.CancelFunc
  	lastRunAt  time.Time
  	lastError  string
 -	fn         func(ctx context.Context)
 +	fn         func(ctx context.Context) error
  }
  
+ // TaskSpec defines the static configuration of a scheduled task.

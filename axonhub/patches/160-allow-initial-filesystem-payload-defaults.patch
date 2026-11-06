@@ -17,7 +17,8 @@ Base-Commit: 0896305eeee89435049575d55a813f72901f703b
 
 --- a/conf/conf.go
 +++ b/conf/conf.go
-@@ -29,15 +29,16 @@ type Config struct {
+@@ -28,17 +28,18 @@ import (
+ type Config struct {
  	fx.Out `yaml:"-" json:"-"`
  
 -	DB               db.Config           `conf:"db" yaml:"db" json:"db"`
@@ -45,7 +46,9 @@ Base-Commit: 0896305eeee89435049575d55a813f72901f703b
 +	APIKeyPrefix     string                   `name:"api_key_prefix" yaml:"-" json:"-"`
  }
  
-@@ -233,4 +234,7 @@ func customizedDecodeHook(srcType reflec
+ type providerQuotaConfig struct {
+@@ -232,6 +233,9 @@ func customizedDecodeHook(srcType reflec
+ 
  // setDefaults sets default configuration values.
  func setDefaults(v *viper.Viper) {
 +	// Initial storage defaults are supplied by the deployment for new databases.
@@ -53,9 +56,11 @@ Base-Commit: 0896305eeee89435049575d55a813f72901f703b
 +
  	// Server defaults
  	v.SetDefault("server.host", "0.0.0.0")
+ 	v.SetDefault("server.port", 8090)
 --- a/config.example.yml
 +++ b/config.example.yml
-@@ -3,4 +3,9 @@
+@@ -2,6 +2,11 @@
+ # AxonHub Configuration Example
  # Copy this file to config.yml and modify as needed
  
 +# Optional deployment defaults, applied only during first system initialization.
@@ -65,21 +70,27 @@ Base-Commit: 0896305eeee89435049575d55a813f72901f703b
 +
  # Server configuration
  server:
+   host: "0.0.0.0"               # Server host (env: AXONHUB_SERVER_HOST)
 --- a/internal/server/biz/system.go
 +++ b/internal/server/biz/system.go
-@@ -674,4 +674,5 @@ type SystemServiceParams struct {
+@@ -673,6 +673,7 @@ type SystemServiceParams struct {
+ 	SafeguardsConfig safeguards.Config `optional:"true"`
  	CacheConfig      xcache.Config
  	Ent              *ent.Client
 +	InitialStorage   InitialStorageConfig
  }
  
-@@ -684,4 +685,5 @@ func NewSystemService(params SystemServi
+ func NewSystemService(params SystemServiceParams) *SystemService {
+@@ -683,6 +684,7 @@ func NewSystemService(params SystemServi
+ 		safeguardsDefaults: params.SafeguardsConfig,
  		CacheConfig:        params.CacheConfig,
  		Cache:              xcache.NewFromConfig[ent.System](params.CacheConfig),
 +		InitialStorage:     params.InitialStorage,
  	}
  }
-@@ -692,6 +694,7 @@ type SystemService struct {
+ 
+@@ -691,8 +693,9 @@ type SystemService struct {
+ 
  	safeguardsDefaults safeguards.Config
  
 -	CacheConfig xcache.Config
@@ -89,7 +100,9 @@ Base-Commit: 0896305eeee89435049575d55a813f72901f703b
 +	InitialStorage InitialStorageConfig
  
  	mu           sync.RWMutex
-@@ -824,6 +827,14 @@ func (s *SystemService) Initialize(ctx c
+ 	timeLocation *time.Location
+@@ -823,8 +826,16 @@ func (s *SystemService) Initialize(ctx c
+ 		return fmt.Errorf("failed to create primary data storage: %w", err)
  	}
  
 +	defaultDataStorageID := primaryDataStorage.ID
@@ -105,6 +118,7 @@ Base-Commit: 0896305eeee89435049575d55a813f72901f703b
 +	err = s.SetDefaultDataStorageID(ctx, defaultDataStorageID)
  	if err != nil {
  		return fmt.Errorf("failed to set default data storage ID: %w", err)
+ 	}
 --- /dev/null
 +++ b/internal/server/biz/system_initial_storage.go
 @@ -0,0 +1,43 @@

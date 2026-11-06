@@ -53,7 +53,7 @@ jobs:
           mkdir -p "$UPDATE_MANIFEST_DIR"
           : > "$UPDATE_MANIFEST_DIR/commits.tsv"
           sudo apt-get -qq update
-          sudo apt-get -qq install --no-install-recommends curl gettext git unzip
+          sudo apt-get -qq install --no-install-recommends curl gettext git quilt unzip
 
       - name: 检查并提交 Sing-Box
         id: singbox

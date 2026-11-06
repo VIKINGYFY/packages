@@ -44,6 +44,21 @@ commit_update() {
 	fi
 }
 
+refresh_package_patches() {
+	local source_dir="$1"
+	local package_dir="$2"
+	local refreshed_patches
+
+	[[ -d "$package_dir/patches" ]] || return 0
+	refreshed_patches="$(mktemp -d "$RUNNER_TEMP/package-patches.XXXXXX")"
+	bash "$SCRIPT_DIR/refresh-package-patches.sh" \
+		"$source_dir" "$package_dir/patches" "$refreshed_patches"
+	if [[ ! -f "$package_dir/patches/series" ]]; then
+		rm -f "$refreshed_patches/series"
+	fi
+	cp -a "$refreshed_patches/." "$package_dir/patches/"
+}
+
 update_sing_box() {
 	local makefile='sing-box/Makefile'
 	local upstream_tag upstream_version current_version archive source_dir source_hash
@@ -69,10 +84,7 @@ update_sing_box() {
 	tar -xzf "$archive" --strip-components=1 -C "$source_dir"
 	test -s "$source_dir/go.mod"
 
-	for patch_file in sing-box/patches/*.patch; do
-		[[ -f "$patch_file" ]] || continue
-		patch --batch --fuzz=0 -p1 -d "$source_dir" < "$patch_file"
-	done
+	refresh_package_patches "$source_dir" "${makefile%/*}"
 
 	source_hash="$(sha256sum "$archive" | cut -d' ' -f1)"
 	sed -i \
@@ -85,7 +97,7 @@ update_sing_box() {
 	grep -Fx 'PKG_RELEASE:=1' "$makefile"
 	grep -Fx "PKG_HASH:=$source_hash" "$makefile"
 	git diff --check
-	commit_update "chore: 更新 Sing-Box 至 ${upstream_version}-r1" "$makefile"
+	commit_update "chore: 更新 Sing-Box 至 ${upstream_version}-r1" "${makefile%/*}"
 }
 
 update_axonhub() {
@@ -113,10 +125,7 @@ update_axonhub() {
 	test -s "$source_dir/go.mod"
 	test -s "$source_dir/frontend/pnpm-lock.yaml"
 
-	for patch_file in axonhub/patches/*.patch; do
-		[[ -f "$patch_file" ]] || continue
-		patch --batch --fuzz=0 -p1 -d "$source_dir" < "$patch_file"
-	done
+	refresh_package_patches "$source_dir" "${makefile%/*}"
 
 	source_hash="$(sha256sum "$archive" | cut -d' ' -f1)"
 	package_version="$(TZ=Asia/Shanghai date +%Y%m%d)"
@@ -139,7 +148,7 @@ update_axonhub() {
 	grep -Fx "PKG_SOURCE_VERSION:=$upstream_commit" "$makefile"
 	grep -Fx "PKG_HASH:=$source_hash" "$makefile"
 	git diff --check
-	commit_update "chore: 更新 AxonHub 至 ${package_version}-r${release}" "$makefile"
+	commit_update "chore: 更新 AxonHub 至 ${package_version}-r${release}" "${makefile%/*}"
 }
 
 update_homeproxy() {
@@ -177,10 +186,7 @@ update_miniupnp() {
 	test -s "$source_dir/miniupnpd/upnpredirect.c"
 	test -s "$source_dir/miniupnpd/miniupnpd.c"
 
-	for patch_file in miniupnpd/patches/*.patch; do
-		[[ -f "$patch_file" ]] || continue
-		patch --batch --forward --fuzz=0 -p1 -d "$source_dir" < "$patch_file"
-	done
+	refresh_package_patches "$source_dir" "${makefile%/*}"
 
 	source_hash="$(sha256sum "$archive" | cut -d' ' -f1)"
 	package_version="$(TZ=Asia/Shanghai date +%Y%m%d)"
@@ -203,7 +209,7 @@ update_miniupnp() {
 	grep -Fx "PKG_SOURCE_VERSION:=$upstream_commit" "$makefile"
 	grep -Fx "PKG_HASH:=$source_hash" "$makefile"
 	git diff --check
-	commit_update "chore: 更新 MiniUPnP 至 ${package_version}-r${release}" "$makefile"
+	commit_update "chore: 更新 MiniUPnP 至 ${package_version}-r${release}" "${makefile%/*}"
 }
 
 update_translation() {
