@@ -101,7 +101,7 @@ Base-Commit: 0896305eeee89435049575d55a813f72901f703b
  
  	mu           sync.RWMutex
  	timeLocation *time.Location
-@@ -823,8 +826,16 @@ func (s *SystemService) Initialize(ctx c
+@@ -824,8 +827,16 @@ func (s *SystemService) Initialize(ctx c
  		return fmt.Errorf("failed to create primary data storage: %w", err)
  	}
  

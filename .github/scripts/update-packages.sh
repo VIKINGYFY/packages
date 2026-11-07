@@ -47,12 +47,19 @@ commit_update() {
 refresh_package_patches() {
 	local source_dir="$1"
 	local package_dir="$2"
-	local refreshed_patches
+	local input_patches refreshed_patches
 
 	[[ -d "$package_dir/patches" ]] || return 0
+	input_patches="$package_dir/patches"
+	if [[ "$package_dir" == axonhub ]]; then
+		input_patches="$(mktemp -d "$RUNNER_TEMP/axonhub-patches.XXXXXX")"
+		cp -a "$package_dir/patches/." "$input_patches/"
+		python3 "$SCRIPT_DIR/rebase-axonhub-schema.py" "$source_dir" \
+			"$input_patches/110-fix-project-request-pagination-index.patch"
+	fi
 	refreshed_patches="$(mktemp -d "$RUNNER_TEMP/package-patches.XXXXXX")"
 	bash "$SCRIPT_DIR/refresh-package-patches.sh" \
-		"$source_dir" "$package_dir/patches" "$refreshed_patches"
+		"$source_dir" "$input_patches" "$refreshed_patches"
 	if [[ ! -f "$package_dir/patches/series" ]]; then
 		rm -f "$refreshed_patches/series"
 	fi
