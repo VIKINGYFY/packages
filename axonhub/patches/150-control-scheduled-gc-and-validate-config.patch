@@ -15,7 +15,7 @@ Base-Commit: 0896305eeee89435049575d55a813f72901f703b
 
 --- a/conf/conf.go
 +++ b/conf/conf.go
-@@ -330,6 +330,7 @@ func setDefaults(v *viper.Viper) {
+@@ -334,6 +334,7 @@ func setDefaults(v *viper.Viper) {
  	v.SetDefault("metrics.exporter.insecure", false)
  
  	// GC defaults
@@ -25,7 +25,7 @@ Base-Commit: 0896305eeee89435049575d55a813f72901f703b
  	v.SetDefault("gc.vacuum_full", false)
 --- a/config.example.yml
 +++ b/config.example.yml
-@@ -175,6 +175,8 @@ metrics:
+@@ -181,6 +181,8 @@ metrics:
  
  # Garbage Collection configuration
  gc:
