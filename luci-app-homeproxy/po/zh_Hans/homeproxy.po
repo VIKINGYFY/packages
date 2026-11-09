@@ -1667,6 +1667,10 @@ msgstr "规则代理 IPv4 地址"
 msgid "Rule Proxy MAC addresses"
 msgstr "规则代理 MAC 地址"
 
+#: luci-app-homeproxy/htdocs/luci-static/resources/view/homeproxy/status.js:231
+msgid "Rule sets updated. HomeProxy was not restarted."
+msgstr "规则库已更新，HomeProxy 未重启。"
+
 #: luci-app-homeproxy/htdocs/luci-static/resources/view/homeproxy/node.js:877
 #: luci-app-homeproxy/htdocs/luci-static/resources/view/homeproxy/server.js:168
 msgid "SOCKS"
@@ -2191,6 +2195,10 @@ msgstr "从订阅更新节点"
 #: luci-app-homeproxy/htdocs/luci-static/resources/view/homeproxy/node.js:1853
 msgid "Update resources and subscriptions via proxy."
 msgstr "通过代理更新资源和订阅。"
+
+#: luci-app-homeproxy/htdocs/luci-static/resources/view/homeproxy/status.js:258
+msgid "Update rule sets"
+msgstr "更新规则库"
 
 #: luci-app-homeproxy/htdocs/luci-static/resources/view/homeproxy/node.js:1852
 msgid "Update via proxy"

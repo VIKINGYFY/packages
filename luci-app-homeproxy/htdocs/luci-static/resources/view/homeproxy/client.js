@@ -356,32 +356,61 @@ return view.extend({
 			};
 		}
 		configureDomainListSave(m);
+		let currentGroups = {};
+		function currentGroupLabel(current) {
+			const active = current?.active;
+			if (!active || active.id === 'urltest')
+				return null;
+			let label = proxy_nodes[active.id] || active.label || active.id;
+			if (typeof current.latency_ms === 'number')
+				label += ' ' + current.latency_ms + 'ms';
+			return label;
+		}
+		function groupStatusNode(id) {
+			const current = currentGroups[id];
+			const label = currentGroupLabel(current);
+			return E('span', {
+				'data-homeproxy-group': id,
+				style: 'display:block;white-space:normal;overflow-wrap:anywhere;max-width:22rem',
+				title: current?.measured_at || ''
+			}, [label ? _('URLTest: %s').format(label) : _('URLTest')]);
+		}
+		let statusNode, statusHTML;
 
 		s = m.section(form.TypedSection);
 		s.render = function () {
-			poll.add(function () {
-				return Promise.all([
-					L.resolveDefault(hp.getServiceStatus('sing-box-c'), false),
-					L.resolveDefault(callCurrentNode(), null)
-				]).then((res) => {
-					let isRunning = res[0],
-					    current = res[1],
-					    current_label = null;
-
-					if (current?.mode === 'urltest') {
-						let active = current.active || {};
-						let nodeName = (active?.id && active.id !== 'urltest') ? (proxy_nodes[active.id] || active.label || active.id) : _('Invalid node');
-
-						current_label = _('URLTest: %s').format(nodeName);
-					}
-					let view = document.getElementById('service_status');
-					view.innerHTML = renderStatus(isRunning, features.version, current_label);
-				});
-			});
-
+			statusNode = E('p', { id: 'service_status' }, _('Collecting data...'));
+			if (statusHTML)
+				statusNode.innerHTML = statusHTML;
 			return E('div', { class: 'cbi-section', id: 'status_bar' }, [
-				E('p', { id: 'service_status' }, _('Collecting data...'))
+				statusNode
 			]);
+		};
+		/* Saving the map rerenders sections; keep one status poll per view. */
+		function refreshStatus() {
+			return Promise.all([
+				L.resolveDefault(hp.getServiceStatus('sing-box-c'), false),
+				L.resolveDefault(callCurrentNode(), null)
+			]).then((res) => {
+				let isRunning = res[0],
+				    current = res[1],
+				    current_label = null;
+
+				if (current?.mode === 'urltest') {
+					let nodeName = currentGroupLabel(current) || _('Invalid node');
+
+					current_label = _('URLTest: %s').format(nodeName);
+				}
+				currentGroups = current?.groups || {};
+				for (const node of m.root.querySelectorAll('[data-homeproxy-group]')) {
+					const replacement = groupStatusNode(node.getAttribute('data-homeproxy-group'));
+					node.textContent = replacement.textContent;
+					node.title = replacement.title;
+				}
+				statusHTML = renderStatus(isRunning, features.version, current_label);
+				if (statusNode)
+					statusNode.innerHTML = statusHTML;
+			});
 		}
 
 		s = m.section(form.NamedSection, 'config', 'homeproxy');
@@ -767,6 +796,8 @@ return view.extend({
 			const value = this.cfgvalue(section_id);
 			if (value == null)
 				return null;
+			if (value === 'urltest')
+				return groupStatusNode(section_id);
 			const label = value === 'urltest' ? _('URLTest') : value === 'tailscale' ?
 				_('[Tailscale] Tailscale') : (proxy_nodes[value] || value);
 			return E('span', { style: 'display: block; white-space: normal; overflow-wrap: anywhere; max-width: 22rem' }, [label]);
@@ -781,7 +812,8 @@ return view.extend({
 		dro.retain = true;
 		dro.modalonly = true;
 		dro.validate = function(section_id) {
-			const value = this.formvalue(section_id);
+			/* The parent form validates again after the modal has closed. */
+			const value = this.formvalue(section_id) ?? this.cfgvalue(section_id);
 			const nodes = Array.isArray(value) ? value : (value ? [value] : []);
 			return nodes.length > 0 && nodes.every((id) => Object.prototype.hasOwnProperty.call(proxy_nodes, id)) ||
 				_('Select at least one available URLTest node.');
@@ -856,6 +888,9 @@ return view.extend({
 			const refresh = () => L.resolveDefault(callTailscaleStatus(), {}).then((status) => {
 				dom.content(container, renderTailscaleStatus(status));
 			});
+			if (this.statusPoll)
+				poll.remove(this.statusPoll);
+			this.statusPoll = refresh;
 			poll.add(refresh, 5);
 			refresh();
 			return container;
@@ -953,6 +988,9 @@ return view.extend({
 		/* Inline validation must also see lists whose editors have never opened. */
 		const domainListIds = ['direct', 'proxy'];
 		uci.sections('homeproxy', 'domain_route', (section) => domainListIds.push(section['.name']));
-		return Promise.all(domainListIds.map(loadDomainList)).then(() => m.render());
+		return Promise.all(domainListIds.map(loadDomainList)).then(() => m.render()).then((node) => {
+			poll.add(refreshStatus);
+			return refreshStatus().then(() => node);
+		});
 	}
 });

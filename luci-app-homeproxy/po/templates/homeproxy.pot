@@ -1639,6 +1639,10 @@ msgstr ""
 msgid "Rule Proxy MAC addresses"
 msgstr ""
 
+#: luci-app-homeproxy/htdocs/luci-static/resources/view/homeproxy/status.js:231
+msgid "Rule sets updated. HomeProxy was not restarted."
+msgstr ""
+
 #: luci-app-homeproxy/htdocs/luci-static/resources/view/homeproxy/node.js:877
 #: luci-app-homeproxy/htdocs/luci-static/resources/view/homeproxy/server.js:168
 msgid "SOCKS"
@@ -2142,6 +2146,10 @@ msgstr ""
 
 #: luci-app-homeproxy/htdocs/luci-static/resources/view/homeproxy/node.js:1853
 msgid "Update resources and subscriptions via proxy."
+msgstr ""
+
+#: luci-app-homeproxy/htdocs/luci-static/resources/view/homeproxy/status.js:258
+msgid "Update rule sets"
 msgstr ""
 
 #: luci-app-homeproxy/htdocs/luci-static/resources/view/homeproxy/node.js:1852
