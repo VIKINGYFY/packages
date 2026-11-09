@@ -1583,6 +1583,14 @@ msgstr "REALITY 私钥"
 msgid "REALITY public key"
 msgstr "REALITY 公钥"
 
+#: luci-app-homeproxy/htdocs/luci-static/resources/homeproxy.js:205
+msgid "REALITY requires a uTLS fingerprint."
+msgstr "REALITY 必须启用 uTLS 指纹。"
+
+#: luci-app-homeproxy/htdocs/luci-static/resources/homeproxy.js:203
+msgid "REALITY requires sing-box uTLS support."
+msgstr "REALITY 需要 sing-box 提供 uTLS 支持。"
+
 #: luci-app-homeproxy/htdocs/luci-static/resources/view/homeproxy/node.js:1648
 #: luci-app-homeproxy/htdocs/luci-static/resources/view/homeproxy/server.js:728
 msgid "REALITY short ID"
@@ -1704,6 +1712,10 @@ msgstr "保存当前设置"
 #: luci-app-homeproxy/htdocs/luci-static/resources/view/homeproxy/node.js:1909
 msgid "Save subscriptions settings"
 msgstr "保存订阅设置"
+
+#: luci-app-homeproxy/htdocs/luci-static/resources/view/homeproxy/client.js:767
+msgid "Select at least one available URLTest node."
+msgstr "请至少选择一个可用的 URLTest 节点。"
 
 #: luci-app-homeproxy/htdocs/luci-static/resources/view/homeproxy/server.js:139
 msgid "Server"

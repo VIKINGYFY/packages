@@ -1555,6 +1555,14 @@ msgstr ""
 msgid "REALITY public key"
 msgstr ""
 
+#: luci-app-homeproxy/htdocs/luci-static/resources/homeproxy.js:205
+msgid "REALITY requires a uTLS fingerprint."
+msgstr ""
+
+#: luci-app-homeproxy/htdocs/luci-static/resources/homeproxy.js:203
+msgid "REALITY requires sing-box uTLS support."
+msgstr ""
+
 #: luci-app-homeproxy/htdocs/luci-static/resources/view/homeproxy/node.js:1648
 #: luci-app-homeproxy/htdocs/luci-static/resources/view/homeproxy/server.js:728
 msgid "REALITY short ID"
@@ -1675,6 +1683,10 @@ msgstr ""
 
 #: luci-app-homeproxy/htdocs/luci-static/resources/view/homeproxy/node.js:1909
 msgid "Save subscriptions settings"
+msgstr ""
+
+#: luci-app-homeproxy/htdocs/luci-static/resources/view/homeproxy/client.js:767
+msgid "Select at least one available URLTest node."
 msgstr ""
 
 #: luci-app-homeproxy/htdocs/luci-static/resources/view/homeproxy/server.js:139

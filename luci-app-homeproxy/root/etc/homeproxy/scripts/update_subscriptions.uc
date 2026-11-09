@@ -15,7 +15,7 @@ import { cursor } from 'uci';
 import { urldecode, urlencode } from 'luci.http';
 
 import {
-	wGET, decodeBase64Str, getTime, isEmpty, parseECHConfig, parseURL,
+	wGET, decodeBase64Str, getTime, isEmpty, parseECHConfig, parseURL, realityFingerprint,
 	reconcileUrltestNodes, reserveUniqueLabel, synchronizeNodeLabels,
 	validation, HP_DIR, RUN_DIR
 } from 'homeproxy';
@@ -1074,6 +1074,7 @@ function main() {
 						config = parse_uri(node);
 					if (isEmpty(config))
 						continue;
+					config.tls_utls = realityFingerprint(config, sing_features.with_utls);
 
 					const label = config.label;
 					config.label = null;
