@@ -15,7 +15,7 @@ Link: https://github.com/Self-Hosting-Group/miniupnp/tree/upnp-igdv2-compat
 
 --- a/miniupnpd/upnphttp.c
 +++ b/miniupnpd/upnphttp.c
-@@ -321,9 +321,22 @@
+@@ -321,9 +321,22 @@ ParseHttpHeaders(struct upnphttp * h)
  			}
  			else if(strncasecmp(line, "user-agent:", 11) == 0)
  			{
@@ -43,7 +43,7 @@ Link: https://github.com/Self-Hosting-Group/miniupnp/tree/upnp-igdv2-compat
  			}
 --- a/miniupnpd/upnpsoap.c
 +++ b/miniupnpd/upnpsoap.c
-@@ -920,6 +920,14 @@
+@@ -920,6 +920,14 @@ GetSpecificPortMappingEntry(struct upnph
  #ifdef ENABLE_PCP
  		hide_pcp_nonce(desc);
  #endif
@@ -58,11 +58,10 @@ Link: https://github.com/Self-Hosting-Group/miniupnp/tree/upnp-igdv2-compat
  		bodylen = snprintf(body, sizeof(body), resp,
  				action, ns/*SERVICE_TYPE_WANIPC*/,
  				(unsigned int)iport, int_ip, desc, leaseduration,
-@@ -1207,6 +1215,14 @@
- 		char body[512+MINIUPNPD_DESC_SIZE];
+@@ -1208,6 +1216,14 @@ GetGenericPortMappingEntry(struct upnpht
  #ifdef ENABLE_PCP
  		hide_pcp_nonce(desc);
-+#endif
+ #endif
 +#ifdef IGD_V2
 +		/* Workaround to list port maps with the Windows IGDv2-incompatible client
 +		 * by returning an infinite (0) lease duration. To fix listing and editing
@@ -70,6 +69,7 @@ Link: https://github.com/Self-Hosting-Group/miniupnp/tree/upnp-igdv2-compat
 +		if (h->respflags & FLAG_MS_CLIENT) {
 +			leaseduration = 0;
 +		}
- #endif
++#endif
  		bodylen = snprintf(body, sizeof(body), resp,
  			action, ns, /*SERVICE_TYPE_WANIPC,*/ rhost,
+ 			(unsigned int)eport, protocol, (unsigned int)iport, iaddr, desc,
