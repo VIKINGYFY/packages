@@ -21,7 +21,7 @@ Base-Commit: 0896305eeee89435049575d55a813f72901f703b
 
 --- a/conf/conf.go
 +++ b/conf/conf.go
-@@ -337,6 +337,9 @@ func setDefaults(v *viper.Viper) {
+@@ -349,6 +349,9 @@ func setDefaults(v *viper.Viper) {
  	v.SetDefault("gc.cron", "0 2 * * *") // Daily at 2:00 AM
  	v.SetDefault("gc.vacuum_enabled", true)
  	v.SetDefault("gc.vacuum_full", false)

@@ -15,7 +15,7 @@ Base-Commit: 0896305eeee89435049575d55a813f72901f703b
 
 --- a/conf/conf.go
 +++ b/conf/conf.go
-@@ -334,6 +334,7 @@ func setDefaults(v *viper.Viper) {
+@@ -346,6 +346,7 @@ func setDefaults(v *viper.Viper) {
  	v.SetDefault("metrics.exporter.insecure", false)
  
  	// GC defaults
