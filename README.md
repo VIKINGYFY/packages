@@ -21,7 +21,7 @@
 | --- | --- | --- | --- |
 | `luci-app-axonhub` | `20261016-r1` | axonhub 核心的 LuCI 管理界面与 OpenWrt 集成。 | [looplj/axonhub](https://github.com/looplj/axonhub) |
 | `luci-app-gecoosac` | `20261016-r1` | gecoosac 核心的 LuCI 管理界面与 OpenWrt 集成。 | [www.cnrouter.com](http://www.cnrouter.com) |
-| `luci-app-homeproxy` | `20261110-r12` | sing-box 核心的 LuCI 管理界面与 OpenWrt 集成。 | [VIKINGYFY/packages](https://github.com/VIKINGYFY/packages) |
+| `luci-app-homeproxy` | `20261111-r1` | sing-box 核心的 LuCI 管理界面与 OpenWrt 集成。 | [VIKINGYFY/packages](https://github.com/VIKINGYFY/packages) |
 | `luci-app-upnp` | `20261027-r7` | UPnP IGD、PCP/NAT-PMP 端口映射管理与状态查看。 | [immortalwrt/luci](https://github.com/immortalwrt/luci/tree/master/applications/luci-app-upnp) |
 | `luci-app-wolultra` | `20261016-r1` | wol 功能的 LuCI 管理界面与 OpenWrt 集成。 | [VIKINGYFY/packages](https://github.com/VIKINGYFY/packages) |
 
@@ -29,7 +29,7 @@
 
 | 软件包 | 版本 | 源码来源 |
 | --- | --- | --- |
-| `axonhub` | `20261110-r1` | [looplj/axonhub](https://github.com/looplj/axonhub) |
+| `axonhub` | `20261111-r1` | [looplj/axonhub](https://github.com/looplj/axonhub) |
 | `gecoosac` | `2.2.20251015-r1` | [www.cnrouter.com](http://www.cnrouter.com) |
 | `miniupnpd-nftables` | `20261110-r1` | [miniupnp/miniupnp](https://github.com/miniupnp/miniupnp) |
 | `miniupnpd-iptables` | `20261110-r1` | [miniupnp/miniupnp](https://github.com/miniupnp/miniupnp) |
