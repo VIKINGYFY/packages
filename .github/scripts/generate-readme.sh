@@ -141,7 +141,7 @@ mapfile -t package_dirs < "$temp_file"
 	echo
 	echo '# 高质量<付费>中转站'
 	echo
-	echo '[LiBwrt-Ai](https://api.zipimg.cn/register?aff=FFPS3UMJ8HJD)'
+	echo '[Krill-Code](https://www.krill-code.com/register?invite=959NHQCZGT)'
 	echo
 	echo '# imm-packages · AI Edition'
 	echo
