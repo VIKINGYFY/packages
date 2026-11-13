@@ -29,10 +29,10 @@
 
 | 软件包 | 版本 | 源码来源 |
 | --- | --- | --- |
-| `axonhub` | `20261113-r1` | [looplj/axonhub](https://github.com/looplj/axonhub) |
+| `axonhub` | `20261114-r1` | [looplj/axonhub](https://github.com/looplj/axonhub) |
 | `gecoosac` | `2.2.20251015-r1` | [www.cnrouter.com](http://www.cnrouter.com) |
-| `miniupnpd-nftables` | `20261113-r1` | [miniupnp/miniupnp](https://github.com/miniupnp/miniupnp) |
-| `miniupnpd-iptables` | `20261113-r1` | [miniupnp/miniupnp](https://github.com/miniupnp/miniupnp) |
+| `miniupnpd-nftables` | `20261114-r1` | [miniupnp/miniupnp](https://github.com/miniupnp/miniupnp) |
+| `miniupnpd-iptables` | `20261114-r1` | [miniupnp/miniupnp](https://github.com/miniupnp/miniupnp) |
 | `sing-box` | `1.15.0_alpha13-r1` | [SagerNet/sing-box](https://github.com/SagerNet/sing-box) |
 
 ## 自动维护
