@@ -104,7 +104,7 @@ Base-Commit: 0896305eeee89435049575d55a813f72901f703b
  		deleted, err := deleteFunc()
  		if err != nil {
  			return totalDeleted, fmt.Errorf("failed to delete batch: %w", err)
-@@ -106,140 +118,111 @@ func (w *Worker) deleteInBatches(ctx con
+@@ -106,144 +118,112 @@ func (w *Worker) deleteInBatches(ctx con
  
  // getBatchSize returns the appropriate batch size for cleanup operations.
  func (w *Worker) getBatchSize() int {
@@ -121,11 +121,16 @@ Base-Commit: 0896305eeee89435049575d55a813f72901f703b
 -
 -	ctx = ent.NewContext(ctx, w.Ent)
 -	ctx = schematype.SkipSoftDelete(ctx)
+-
+-	policy, err := w.SystemService.StoragePolicy(ctx)
+-	if err != nil {
+-		log.Error(ctx, "Failed to get storage policy for cleanup", log.Cause(err))
+-		return
 +// waitForBatch yields between batches and honors cancellation even when pacing is disabled.
 +func (w *Worker) waitForBatch(ctx context.Context, pause bool) error {
 +	if err := ctx.Err(); err != nil {
 +		return err
-+	}
+ 	}
 +	if !pause || w.Config.BatchInterval <= 0 {
 +		return nil
 +	}
@@ -139,42 +144,6 @@ Base-Commit: 0896305eeee89435049575d55a813f72901f703b
 +	}
 +}
  
-+// runCleanup shares one admission lock between scheduled and manual maintenance.
-+func (w *Worker) runCleanup(ctx context.Context, manual bool, manualDays map[string]int) error {
-+	if err := ctx.Err(); err != nil {
-+		return err
-+	}
-+	if !w.cleanupMu.TryLock() {
-+		return ErrCleanupInProgress
-+	}
-+	defer w.cleanupMu.Unlock()
-+	return w.runCleanupLocked(ctx, manual, manualDays)
-+}
-+
-+func (w *Worker) runCleanupLocked(ctx context.Context, manual bool, manualDays map[string]int) (result error) {
-+	timeout := w.Config.Timeout
-+	if timeout <= 0 {
-+		timeout = 10 * time.Minute
-+	}
-+	ctx, cancel := context.WithTimeout(ctx, timeout)
-+	defer cancel()
-+	started := time.Now()
-+	log.Info(ctx, "Starting cleanup process", log.Bool("manual", manual), log.Time("started_at", started))
-+	defer func() {
-+		if result != nil {
-+			log.Error(ctx, "Cleanup process failed", log.Duration("duration", time.Since(started)), log.Cause(result))
-+		} else {
-+			log.Info(ctx, "Cleanup process completed", log.Duration("duration", time.Since(started)))
-+		}
-+	}()
-+	ctx = schematype.SkipSoftDelete(ent.NewContext(ctx, w.Ent))
- 	policy, err := w.SystemService.StoragePolicy(ctx)
- 	if err != nil {
--		log.Error(ctx, "Failed to get storage policy for cleanup", log.Cause(err))
--		return
-+		return fmt.Errorf("get storage policy: %w", err)
- 	}
--
 -	log.Debug(ctx, "Storage policy for cleanup", log.Any("policy", policy))
 -
 -	for _, option := range policy.CleanupOptions {
@@ -272,23 +241,57 @@ Base-Commit: 0896305eeee89435049575d55a813f72901f703b
 -				log.Warn(ctx, "Unknown resource type for cleanup",
 -					log.String("resource", option.ResourceType))
 -			}
+-		}
++// runCleanup shares one admission lock between scheduled and manual maintenance.
++func (w *Worker) runCleanup(ctx context.Context, manual bool, manualDays map[string]int) error {
++	if err := ctx.Err(); err != nil {
++		return err
+ 	}
++	if !w.cleanupMu.TryLock() {
++		return ErrCleanupInProgress
++	}
++	defer w.cleanupMu.Unlock()
++	return w.runCleanupLocked(ctx, manual, manualDays)
++}
+ 
+-	err = w.cleanupChannelProbes(ctx, 3, manual)
++func (w *Worker) runCleanupLocked(ctx context.Context, manual bool, manualDays map[string]int) (result error) {
++	timeout := w.Config.Timeout
++	if timeout <= 0 {
++		timeout = 10 * time.Minute
++	}
++	ctx, cancel := context.WithTimeout(ctx, timeout)
++	defer cancel()
++	started := time.Now()
++	log.Info(ctx, "Starting cleanup process", log.Bool("manual", manual), log.Time("started_at", started))
++	defer func() {
++		if result != nil {
++			log.Error(ctx, "Cleanup process failed", log.Duration("duration", time.Since(started)), log.Cause(result))
++		} else {
++			log.Info(ctx, "Cleanup process completed", log.Duration("duration", time.Since(started)))
++		}
++	}()
++	ctx = schematype.SkipSoftDelete(ent.NewContext(ctx, w.Ent))
++	policy, err := w.SystemService.StoragePolicy(ctx)
+ 	if err != nil {
+-		log.Error(ctx, "Failed to cleanup channel probes",
+-			log.Cause(err))
+-	} else {
+-		log.Info(ctx, "Successfully cleaned up channel probes",
+-			log.Int("cleanup_days", 3))
++		return fmt.Errorf("get storage policy: %w", err)
+ 	}
+-
+-	if err := w.cleanupRequestBodyChunks(ctx); err != nil {
+-		log.Error(ctx, "Failed to cleanup unreferenced request body chunks", log.Cause(err))
 +	run := func(resource string, days int, cleanup func() error) {
 +		if err := cleanup(); err != nil {
 +			result = errors.Join(result, fmt.Errorf("%s: %w", resource, err))
 +			log.Error(ctx, "Failed to cleanup resource", log.String("resource", resource), log.Cause(err))
 +		} else {
 +			log.Info(ctx, "Successfully cleaned up resource", log.String("resource", resource), log.Int("cleanup_days", days))
- 		}
++		}
  	}
--
--	err = w.cleanupChannelProbes(ctx, 3, manual)
--	if err != nil {
--		log.Error(ctx, "Failed to cleanup channel probes",
--			log.Cause(err))
--	} else {
--		log.Info(ctx, "Successfully cleaned up channel probes",
--			log.Int("cleanup_days", 3))
--	}
 -
 -	if w.Config.VacuumEnabled {
 -		if err := w.runVacuum(ctx); err != nil {
@@ -297,10 +300,10 @@ Base-Commit: 0896305eeee89435049575d55a813f72901f703b
 +	for _, option := range policy.CleanupOptions {
 +		if err := ctx.Err(); err != nil {
 +			return errors.Join(result, err)
-+		}
+ 		}
 +		if !option.Enabled && !manual {
 +			continue
- 		}
++		}
 +		days := option.CleanupDays
 +		if manual && manualDays != nil {
 +			var ok bool
@@ -330,6 +333,7 @@ Base-Commit: 0896305eeee89435049575d55a813f72901f703b
 +		return errors.Join(result, err)
 +	}
 +	run("channel_probes", 3, func() error { return w.cleanupChannelProbes(ctx, 3, manual) })
++	run("request_body_chunks", 0, func() error { return w.cleanupRequestBodyChunks(ctx) })
 +	if w.Config.VacuumEnabled && result == nil {
 +		run("vacuum", 0, func() error { return w.runVacuum(ctx) })
  	}
@@ -338,8 +342,8 @@ Base-Commit: 0896305eeee89435049575d55a813f72901f703b
 +	return errors.Join(result, ctx.Err())
  }
  
- // cleanupRequests deletes requests older than the specified number of days.
-@@ -251,213 +234,182 @@ func (w *Worker) cleanupRequests(ctx con
+ func (w *Worker) cleanupRequestBodyChunks(ctx context.Context) error {
+@@ -267,218 +247,186 @@ func (w *Worker) cleanupRequests(ctx con
  
  	cutoffTime := time.Now().AddDate(0, 0, -cleanupDays)
  
@@ -428,24 +432,28 @@ Base-Commit: 0896305eeee89435049575d55a813f72901f703b
 +			ids = append(ids, row.ID)
  		}
 -
--		if _, err := w.Ent.RequestExecution.Delete().
--			Where(requestexecution.IDIn(ids...)).
--			Exec(ctx); err != nil {
--			return totalDeleted, fmt.Errorf("failed to delete request executions batch: %w", err)
+-		deleted, err := w.Ent.RequestExecution.Delete().
+-			Where(
+-				requestexecution.IDIn(ids...),
+-				requestexecution.Not(requestexecution.HasRequestWith(request.HasTraceWith(trace.StatusEQ(trace.StatusRetained)))),
+-			).
 +		if len(ids) == 0 {
 +			continue
++		}
++		n, err := w.Ent.RequestExecution.Delete().
++			Where(requestexecution.IDIn(ids...), requestexecution.Not(requestexecution.HasRequestWith(request.HasTraceWith(trace.StatusEQ(trace.StatusRetained))))).
+ 			Exec(ctx)
+ 		if err != nil {
+-			return totalDeleted, fmt.Errorf("failed to delete request executions batch: %w", err)
++			return totalDeleted, errors.Join(firstFailure, fmt.Errorf("delete executions batch: %w", err))
  		}
 -
 -		log.Debug(ctx, "Deleted old request executions batch",
--			log.Int("deleted_executions_count", len(ids)),
+-			log.Int("deleted_executions_count", deleted),
 -			log.Time("cutoff_time", cutoffTime),
 -		)
 -
--		totalDeleted += len(ids)
-+		n, err := w.Ent.RequestExecution.Delete().Where(requestexecution.IDIn(ids...)).Exec(ctx)
-+		if err != nil {
-+			return totalDeleted, errors.Join(firstFailure, fmt.Errorf("delete executions batch: %w", err))
-+		}
+-		totalDeleted += deleted
 +		totalDeleted += n
 +	}
 +	log.Info(ctx, "Completed record cleanup", log.String("resource", "executions"), log.Int("deleted_count", totalDeleted), log.Int("failed_count", failed))
@@ -510,19 +518,19 @@ Base-Commit: 0896305eeee89435049575d55a813f72901f703b
 +			ids = append(ids, row.ID)
  		}
 -
--		if _, err := w.Ent.Request.Delete().
--			Where(request.IDIn(ids...)).
--			Exec(ctx); err != nil {
--			return totalDeleted, fmt.Errorf("failed to delete requests batch: %w", err)
+-		deleted, err := w.Ent.Request.Delete().
 +		if len(ids) == 0 {
 +			continue
++		}
++		n, err := w.Ent.Request.Delete().
+ 			Where(request.IDIn(ids...), request.Not(request.HasTraceWith(trace.StatusEQ(trace.StatusRetained)))).
+ 			Exec(ctx)
+ 		if err != nil {
+-			return totalDeleted, fmt.Errorf("failed to delete requests batch: %w", err)
++			return totalDeleted, errors.Join(firstFailure, fmt.Errorf("delete requests batch: %w", err))
  		}
 -
--		totalDeleted += len(ids)
-+		n, err := w.Ent.Request.Delete().Where(request.IDIn(ids...)).Exec(ctx)
-+		if err != nil {
-+			return totalDeleted, errors.Join(firstFailure, fmt.Errorf("delete requests batch: %w", err))
-+		}
+-		totalDeleted += deleted
 +		totalDeleted += n
 +	}
 +	log.Info(ctx, "Completed record cleanup", log.String("resource", "requests"), log.Int("deleted_count", totalDeleted), log.Int("failed_count", failed))
@@ -668,7 +676,7 @@ Base-Commit: 0896305eeee89435049575d55a813f72901f703b
  }
  
  // hasRealDirectories reports whether the storage backend materializes
-@@ -540,6 +492,7 @@ func (w *Worker) cleanupThreads(ctx cont
+@@ -561,6 +509,7 @@ func (w *Worker) cleanupThreads(ctx cont
  			Where(
  				thread.CreatedAtLT(cutoffTime),
  				thread.StatusNEQ(thread.StatusRetained),
@@ -676,7 +684,7 @@ Base-Commit: 0896305eeee89435049575d55a813f72901f703b
  			).
  			Order(ent.Asc(thread.FieldID)).
  			Limit(batchSize).
-@@ -579,6 +532,7 @@ func (w *Worker) cleanupTraces(ctx conte
+@@ -600,6 +549,7 @@ func (w *Worker) cleanupTraces(ctx conte
  			Where(
  				trace.CreatedAtLT(cutoffTime),
  				trace.StatusNEQ(trace.StatusRetained),
@@ -684,7 +692,7 @@ Base-Commit: 0896305eeee89435049575d55a813f72901f703b
  			).
  			Order(ent.Asc(trace.FieldID)).
  			Limit(batchSize).
-@@ -696,6 +650,10 @@ func (w *Worker) RunVacuumNow(ctx contex
+@@ -717,6 +667,10 @@ func (w *Worker) RunVacuumNow(ctx contex
  
  // RunCleanupNow manually triggers the cleanup process with the specified days.
  func (w *Worker) RunCleanupNow(ctx context.Context, input TriggerGcCleanupInput) error {
@@ -695,7 +703,7 @@ Base-Commit: 0896305eeee89435049575d55a813f72901f703b
  	manualDays := make(map[string]int)
  	if input.RequestsCleanupDays > 0 {
  		manualDays[biz.CleanupResourceRequests] = input.RequestsCleanupDays
-@@ -712,8 +670,7 @@ func (w *Worker) RunCleanupNow(ctx conte
+@@ -733,8 +687,7 @@ func (w *Worker) RunCleanupNow(ctx conte
  	if input.ResponseChunksCleanupDays > 0 {
  		manualDays[biz.CleanupResourceResponseChunks] = input.ResponseChunksCleanupDays
  	}
@@ -707,7 +715,7 @@ Base-Commit: 0896305eeee89435049575d55a813f72901f703b
  // PreviewCleanup estimates how many records would be deleted without actually deleting them.
 --- a/internal/server/gc/gc_bodies.go
 +++ b/internal/server/gc/gc_bodies.go
-@@ -112,10 +112,13 @@ func (w *Worker) stripRequestPayloads(ct
+@@ -114,10 +114,13 @@ func (w *Worker) stripRequestPayloads(ct
  	batchSize := w.getBatchSize()
  	total := 0
  	failed := 0
@@ -722,7 +730,7 @@ Base-Commit: 0896305eeee89435049575d55a813f72901f703b
  		query := w.Ent.Request.Query().
  			Select(
  				request.FieldID,
-@@ -123,12 +126,11 @@ func (w *Worker) stripRequestPayloads(ct
+@@ -125,12 +128,11 @@ func (w *Worker) stripRequestPayloads(ct
  				request.FieldDataStorageID,
  			).
  			Where(
@@ -737,7 +745,7 @@ Base-Commit: 0896305eeee89435049575d55a813f72901f703b
  
  		reqs, err := query.
  			Modify(func(s *sql.Selector) {
-@@ -151,6 +153,7 @@ func (w *Worker) stripRequestPayloads(ct
+@@ -153,6 +155,7 @@ func (w *Worker) stripRequestPayloads(ct
  
  		ids := make([]int, 0, len(reqs))
  		for _, req := range reqs {
@@ -745,7 +753,7 @@ Base-Commit: 0896305eeee89435049575d55a813f72901f703b
  			if err := w.deleteRequestExternalPayload(ctx, req, kind, cache); err != nil {
  				// 外存还在时不能打 DB 已剥标记，否则 Load* 仍读对象且后续 GC 选不中。
  				log.Warn(ctx, "Skip stripping request payload; external delete failed",
-@@ -158,7 +161,6 @@ func (w *Worker) stripRequestPayloads(ct
+@@ -160,7 +163,6 @@ func (w *Worker) stripRequestPayloads(ct
  					log.Int("request_id", req.ID),
  					log.String("resource", string(kind)),
  				)
@@ -753,7 +761,7 @@ Base-Commit: 0896305eeee89435049575d55a813f72901f703b
  				failed++
  
  				continue
-@@ -183,10 +185,13 @@ func (w *Worker) stripExecutionPayloads(
+@@ -185,10 +187,13 @@ func (w *Worker) stripExecutionPayloads(
  	batchSize := w.getBatchSize()
  	total := 0
  	failed := 0
@@ -768,7 +776,7 @@ Base-Commit: 0896305eeee89435049575d55a813f72901f703b
  		query := w.Ent.RequestExecution.Query().
  			Select(
  				requestexecution.FieldID,
-@@ -195,14 +200,13 @@ func (w *Worker) stripExecutionPayloads(
+@@ -197,14 +202,13 @@ func (w *Worker) stripExecutionPayloads(
  				requestexecution.FieldDataStorageID,
  			).
  			Where(
@@ -785,7 +793,7 @@ Base-Commit: 0896305eeee89435049575d55a813f72901f703b
  
  		execs, err := query.
  			Modify(func(s *sql.Selector) {
-@@ -225,13 +229,13 @@ func (w *Worker) stripExecutionPayloads(
+@@ -227,13 +231,13 @@ func (w *Worker) stripExecutionPayloads(
  
  		ids := make([]int, 0, len(execs))
  		for _, exec := range execs {

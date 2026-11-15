@@ -1,8 +1,9 @@
 #!/usr/bin/env python3
 
-"""Rebase the pagination index snapshot without replacing upstream schema changes."""
+"""Rebase generated pagination index hunks while preserving upstream schema changes."""
 
 import copy
+import difflib
 import json
 from pathlib import Path
 import re
@@ -42,11 +43,59 @@ def request_indexes(snapshot):
     return requests[0]["indexes"]
 
 
+def migration_index(index, columns):
+    references = ", ".join(f"RequestsColumns[{columns[field]}]" for field in index["fields"])
+    return ("\t\t\t{\n"
+            f'\t\t\t\tName:    "{index["storage_key"]}",\n'
+            "\t\t\t\tUnique:  false,\n"
+            f"\t\t\t\tColumns: []*schema.Column{{{references}}},\n"
+            "\t\t\t},\n")
+
+
+def rebase_migration(source, text):
+    path = "internal/ent/migrate/schema.go"
+    header = f"--- a/{path}\n+++ b/{path}\n"
+    sections = list(re.finditer(re.escape(header) + r"(.*?)(?=^--- |\Z)", text, re.M | re.S))
+    require(len(sections) == 1, "expected exactly one migration patch section")
+    section = sections[0]
+    lines = section[1].splitlines(keepends=True)
+    require(sum(line.startswith("@@ ") for line in lines) == 1,
+            "expected exactly one migration hunk")
+    require(not any(line.startswith("-") for line in lines),
+            "migration patch must not remove upstream code")
+    added = "".join(line[1:] for line in lines if line.startswith("+"))
+    project = re.search(r"RequestsColumns\[(\d+)\], RequestsColumns\[0\]", added)
+    require(project is not None, "unexpected migration index columns")
+    expected = migration_index(INDEX, {"project_id": int(project[1]), "id": 0}).splitlines(keepends=True)
+    # Diff tools can align shared braces with either neighboring index. Accept
+    # those rotations while requiring exactly the same five inserted lines.
+    require(any(added == "".join(expected[i:] + expected[:i]) for i in range(len(expected))),
+            "migration patch contains changes beyond the pagination index")
+
+    current = (source / path).read_text()
+    blocks = list(re.finditer(r"^\tRequestsColumns = \[\]\*schema.Column\{\n(.*?)^\t\}",
+                              current, re.M | re.S))
+    require(len(blocks) == 1, "expected exactly one RequestsColumns declaration")
+    names = re.findall(r'^\t\t\{Name: "([^"\n]+)",', blocks[0][1], re.M)
+    require(len(names) == len(blocks[0][1].splitlines()) and len(set(names)) == len(names),
+            "unexpected migration column encoding")
+    columns = {name: position for position, name in enumerate(names)}
+    anchor = migration_index(ANCHOR, columns)
+    require(current.count(anchor) == 1, "upstream migration pagination anchor changed")
+    require(f'Name:    "{INDEX["storage_key"]}"' not in current,
+            "upstream migration already defines the pagination index; review the patch")
+    desired = current.replace(anchor, anchor + migration_index(INDEX, columns))
+    refreshed = "".join(difflib.unified_diff(current.splitlines(keepends=True),
+                                             desired.splitlines(keepends=True),
+                                             fromfile="a/" + path, tofile="b/" + path))
+    return text[:section.start()] + refreshed + text[section.end():]
+
+
 def main():
     if len(sys.argv) != 3:
         sys.exit("Usage: rebase-axonhub-schema.py <upstream-source-dir> <patch-file>")
 
-    source = Path(sys.argv[1]) / "internal/ent/internal/schema.go"
+    source = Path(sys.argv[1])
     patch = Path(sys.argv[2])
     text = patch.read_bytes().decode()
     before = snapshot_line(text, "-")
@@ -62,7 +111,7 @@ def main():
     require(all(index.get("storage_key") != INDEX["storage_key"]
                 for index in request_indexes(old_snapshot)), "base already has the pagination index")
 
-    current = snapshot_line(source.read_text(), "")
+    current = snapshot_line((source / "internal/ent/internal/schema.go").read_text(), "")
     upstream = decode(current[1])
     desired = copy.deepcopy(upstream)
     indexes = request_indexes(desired)
@@ -82,12 +131,13 @@ def main():
     require(decode(new_literal) == desired, "rebased snapshot differs from the expected index addition")
 
     # All checks finish before touching the temporary input patch. Quilt still
-    # applies and verifies the authored schema and migration hunks normally.
+    # applies and verifies the authored schema hunk normally.
     for match, literal in sorted([(before, current[1]), (after, new_literal)],
                                  key=lambda item: item[0].start(), reverse=True):
         text = text[:match.start(1)] + literal + text[match.end(1):]
+    text = rebase_migration(source, text)
     patch.write_bytes(text.encode())
-    print("已按上游 Ent 快照重定位请求分页索引补丁。")
+    print("已按上游 Ent 快照和迁移列定义重定位请求分页索引补丁。")
 
 
 if __name__ == "__main__":

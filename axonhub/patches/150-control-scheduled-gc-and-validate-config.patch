@@ -186,3 +186,19 @@ Base-Commit: 0896305eeee89435049575d55a813f72901f703b
  	oldTimestamp := time.Now().AddDate(0, 0, -5).Unix()
  	recentTimestamp := time.Now().Unix()
  
+--- a/internal/server/gc/gc_chunks_test.go
++++ b/internal/server/gc/gc_chunks_test.go
+@@ -172,7 +172,12 @@ func setupChunkBodyCleanupWorker(t *test
+ 	proj := client.Project.Create().SetName("chunk-body-cleanup").SaveX(ctx)
+ 	client.DataStorage.Create().SetName("primary").SetDescription("primary database").
+ 		SetPrimary(true).SetType(datastorage.TypeDatabase).SetSettings(&objects.DataStorageSettings{}).SaveX(ctx)
+-	worker := &Worker{SystemService: systemService, DataStorageService: dataStorageService, Ent: client}
++	worker := &Worker{
++		SystemService:      systemService,
++		DataStorageService: dataStorageService,
++		Ent:                client,
++		Config:             Config{BatchSize: 500, Timeout: 10 * time.Minute},
++	}
+ 	return worker, ctx, client, proj
+ }
+ 
