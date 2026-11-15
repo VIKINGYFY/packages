@@ -362,7 +362,7 @@ Signed-off-by: Chen Minqiang <ptpt52@gmail.com>
  
  	char * body;
  	size_t bodyalloc;
-@@ -1442,12 +1442,12 @@ SetDefaultConnectionService(struct upnph
+@@ -1443,12 +1443,12 @@ SetDefaultConnectionService(struct upnph
  {
  	/*static const char resp[] =
  		"<u:SetDefaultConnectionServiceResponse "
@@ -379,7 +379,7 @@ Signed-off-by: Chen Minqiang <ptpt52@gmail.com>
  	char body[512];
  	int bodylen;
  	struct NameValueParserData data;
-@@ -1491,14 +1491,14 @@ GetDefaultConnectionService(struct upnph
+@@ -1492,14 +1492,14 @@ GetDefaultConnectionService(struct upnph
  {
  	static const char resp[] =
  		"<u:%sResponse "
@@ -397,7 +397,7 @@ Signed-off-by: Chen Minqiang <ptpt52@gmail.com>
  	/* example from UPnP_IGD_Layer3Forwarding 1.0.pdf :
  	 * uuid:44f5824f-c57d-418c-a131-f22b34e14111:WANConnectionDevice:1,
  	 * urn:upnp-org:serviceId:WANPPPConn1 */
-@@ -1575,9 +1575,9 @@ QueryStateVariable(struct upnphttp * h,
+@@ -1576,9 +1576,9 @@ QueryStateVariable(struct upnphttp * h,
  {
  	static const char resp[] =
          "<u:%sResponse "
@@ -410,7 +410,7 @@ Signed-off-by: Chen Minqiang <ptpt52@gmail.com>
  
  	char body[512];
  	int bodylen;
-@@ -1659,10 +1659,10 @@ GetFirewallStatus(struct upnphttp * h, c
+@@ -1660,10 +1660,10 @@ GetFirewallStatus(struct upnphttp * h, c
  {
  	static const char resp[] =
  		"<u:%sResponse "
@@ -425,7 +425,7 @@ Signed-off-by: Chen Minqiang <ptpt52@gmail.com>
  
  	char body[512];
  	int bodylen;
-@@ -1885,9 +1885,9 @@ AddPinhole(struct upnphttp * h, const ch
+@@ -1886,9 +1886,9 @@ AddPinhole(struct upnphttp * h, const ch
  	int r;
  	static const char resp[] =
  		"<u:%sResponse "
@@ -438,7 +438,7 @@ Signed-off-by: Chen Minqiang <ptpt52@gmail.com>
  	char body[512];
  	int bodylen;
  	struct NameValueParserData data;
-@@ -2068,13 +2068,13 @@ UpdatePinhole(struct upnphttp * h, const
+@@ -2069,13 +2069,13 @@ UpdatePinhole(struct upnphttp * h, const
  #if 0
  	static const char resp[] =
  		"<u:UpdatePinholeResponse "
@@ -456,7 +456,7 @@ Signed-off-by: Chen Minqiang <ptpt52@gmail.com>
  	char body[512];
  	int bodylen;
  	struct NameValueParserData data;
-@@ -2152,9 +2152,9 @@ GetOutboundPinholeTimeout(struct upnphtt
+@@ -2153,9 +2153,9 @@ GetOutboundPinholeTimeout(struct upnphtt
  
  	static const char resp[] =
  		"<u:%sResponse "
@@ -469,7 +469,7 @@ Signed-off-by: Chen Minqiang <ptpt52@gmail.com>
  
  	char body[512];
  	int bodylen;
-@@ -2223,13 +2223,13 @@ DeletePinhole(struct upnphttp * h, const
+@@ -2224,13 +2224,13 @@ DeletePinhole(struct upnphttp * h, const
  #if 0
  	static const char resp[] =
  		"<u:DeletePinholeResponse "
@@ -487,7 +487,7 @@ Signed-off-by: Chen Minqiang <ptpt52@gmail.com>
  	char body[512];
  	int bodylen;
  
-@@ -2304,9 +2304,9 @@ CheckPinholeWorking(struct upnphttp * h,
+@@ -2305,9 +2305,9 @@ CheckPinholeWorking(struct upnphttp * h,
  {
  	static const char resp[] =
  		"<u:%sResponse "
@@ -500,7 +500,7 @@ Signed-off-by: Chen Minqiang <ptpt52@gmail.com>
  	char body[512];
  	int bodylen;
  	int r;
-@@ -2370,9 +2370,9 @@ GetPinholePackets(struct upnphttp * h, c
+@@ -2371,9 +2371,9 @@ GetPinholePackets(struct upnphttp * h, c
  {
  	static const char resp[] =
  		"<u:%sResponse "
@@ -513,7 +513,7 @@ Signed-off-by: Chen Minqiang <ptpt52@gmail.com>
  	char body[512];
  	int bodylen;
  	struct NameValueParserData data;
-@@ -2437,9 +2437,9 @@ SendSetupMessage(struct upnphttp * h, co
+@@ -2438,9 +2438,9 @@ SendSetupMessage(struct upnphttp * h, co
  {
  	static const char resp[] =
  		"<u:%sResponse "
@@ -526,7 +526,7 @@ Signed-off-by: Chen Minqiang <ptpt52@gmail.com>
  	char body[1024];
  	int bodylen;
  	struct NameValueParserData data;
-@@ -2484,9 +2484,9 @@ GetSupportedProtocols(struct upnphttp *
+@@ -2485,9 +2485,9 @@ GetSupportedProtocols(struct upnphttp *
  {
  	static const char resp[] =
  		"<u:%sResponse "
@@ -539,7 +539,7 @@ Signed-off-by: Chen Minqiang <ptpt52@gmail.com>
  	char body[1024];
  	int bodylen;
  	const char * ProtocolList =
-@@ -2494,10 +2494,10 @@ GetSupportedProtocols(struct upnphttp *
+@@ -2495,10 +2495,10 @@ GetSupportedProtocols(struct upnphttp *
  		"<SupportedProtocols xmlns=\"urn:schemas-upnp-org:gw:DeviceProtection\""
  		" xmlns:xsi=\"http://www.w3.org/2001/XMLSchema-instance\""
  		" xsi:schemaLocation=\"urn:schemas-upnp-org:gw:DeviceProtection"
@@ -554,7 +554,7 @@ Signed-off-by: Chen Minqiang <ptpt52@gmail.com>
  
  	bodylen = snprintf(body, sizeof(body), resp,
  	                   action, ns/*"urn:schemas-upnp-org:service:DeviceProtection:1"*/,
-@@ -2516,9 +2516,9 @@ GetAssignedRoles(struct upnphttp * h, co
+@@ -2517,9 +2517,9 @@ GetAssignedRoles(struct upnphttp * h, co
  {
  	static const char resp[] =
  		"<u:%sResponse "
@@ -567,7 +567,7 @@ Signed-off-by: Chen Minqiang <ptpt52@gmail.com>
  	char body[1024];
  	int bodylen;
  	const char * RoleList = "Public"; /* list of roles separated by spaces */
-@@ -2678,20 +2678,20 @@ SoapError(struct upnphttp * h, int errCo
+@@ -2679,20 +2679,20 @@ SoapError(struct upnphttp * h, int errCo
  	static const char resp[] =
  		"<s:Envelope "
  		"xmlns:s=\"http://schemas.xmlsoap.org/soap/envelope/\" "
