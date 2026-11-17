@@ -32,6 +32,7 @@ function getConnectionStatus() {
 		object: 'luci.homeproxy',
 		method: 'connection_check',
 		params: ['site'],
+		nobatch: true,
 		expect: { '': {} }
 	});
 

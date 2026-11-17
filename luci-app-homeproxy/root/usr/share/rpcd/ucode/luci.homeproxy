@@ -9,6 +9,7 @@
 
 import { lstat, open, popen, readfile, rename, unlink, writefile } from 'fs';
 import { cursor } from 'uci';
+import { task } from 'uloop';
 
 import {
 	HP_DIR, RUN_DIR, addECHDNS, createNodeOutboundTags, domainListPath,
@@ -835,12 +836,12 @@ const methods = {
 
 			system(`/bin/mkdir -p ${shellQuote(RUN_DIR)}`);
 			let lockfd = open(`${RUN_DIR}/latency-test.lock`, 'w', 0600);
-			if (!lockfd || lockfd.lock('x') !== true) {
+			if (!lockfd || lockfd.lock('xn') !== true) {
 				lockfd?.close();
 				for (let entry in entries)
 					entry.result = formatResult(entry.node, 'error', null, {
 						code: error_codes.runtime_prepare_failed,
-						message: 'failed to lock temporary latency test runtime'
+						message: 'another latency test is running or the runtime lock is unavailable'
 					});
 				return { results: map(slots, (slot) => slot.result) };
 			}
@@ -1006,5 +1007,27 @@ const methods = {
 		}
 	}
 };
+
+/* Network diagnostics run outside rpcd's event loop, including their subprocess waits. */
+for (let name in ['connection_check', 'node_latency_test', 'tailscale_status']) {
+	const handler = methods[name].call;
+	methods[name].call = function(req) {
+		const worker = task(() => {
+			try {
+				return { success: true, result: handler(req) };
+			} catch (e) {
+				return { success: false };
+			}
+		}, (response) => {
+			if (response?.success)
+				req.reply(response.result);
+			else
+				req.reply(null, 1);
+		});
+		if (worker)
+			return req.defer();
+		req.reply(null, 1);
+	};
+}
 
 return { 'luci.homeproxy': methods };

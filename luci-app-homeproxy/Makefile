@@ -20,7 +20,8 @@ LUCI_DEPENDS:= \
 	+flock \
 	+unzip \
 	+ucode-mod-digest \
-	+ucode-mod-math
+	+ucode-mod-math \
+	+ucode-mod-uloop
 LUCI_EXTRA_DEPENDS:=sing-box (>=1.15.0_alpha10)
 LUCI_PKGARCH:=all
 
