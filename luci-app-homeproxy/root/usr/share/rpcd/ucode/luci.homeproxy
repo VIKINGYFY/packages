@@ -403,9 +403,11 @@ const methods = {
 					system(`/bin/rm -f ${shellQuote(tmpcert)}`);
 					return { result: false, error: 'failed to write certificate file' };
 				}
-				if (kind === 'private' && system(`/bin/chmod 600 ${shellQuote(certfile)}`) !== 0) {
+				if (system(`/bin/chown sing-box:sing-box ${shellQuote(HP_DIR + '/certs')} ${shellQuote(certfile)}`) !== 0 ||
+				    system(`/bin/chmod 700 ${shellQuote(HP_DIR + '/certs')}`) !== 0 ||
+				    system(`/bin/chmod 600 ${shellQuote(certfile)}`) !== 0) {
 					system(`/bin/rm -f ${shellQuote(tmpcert)} ${shellQuote(certfile)}`);
-					return { result: false, error: 'failed to protect private key file' };
+					return { result: false, error: 'failed to set certificate file permissions' };
 				}
 				system(`/bin/rm -f ${shellQuote(tmpcert)}`);
 
