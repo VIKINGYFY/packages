@@ -34,6 +34,36 @@ const RESOURCES = {
 		version: `${HP_DIR}/dashboard/dashboard.ver`
 	}
 };
+
+function resourceUpdateStatus() {
+	const data = trim(readfile(`${RUN_DIR}/update_resources.result`) || '');
+	if (!data)
+		return { running: false, status: null };
+
+	let result = {};
+	for (let line in split(data, '\n')) {
+		const pair = match(line, /^([^=]+)=(.*)$/);
+		if (pair)
+			result[pair[1]] = pair[2];
+	}
+	result.status = int(result.status);
+	result.running = result.running === '1';
+	result.core_updated = result.core_updated === '1';
+	result.dashboard_updated = result.dashboard_updated === '1';
+	result.apply_failed = result.apply_failed === '1';
+	if (result.running) {
+		const pid = int(result.pid);
+		const starting = !pid && time() - int(result.started_at) < 5;
+		const command = pid ? readfile(`/proc/${pid}/cmdline`) || '' : '';
+		if (!starting && index(command, 'update_resources.sh') === -1 && index(command, '--worker') === -1) {
+			result.running = false;
+			result.status = 1;
+			result.error = 'interrupted';
+		}
+	}
+	return result;
+}
+
 const CONNECTION_SITES = {
 	baidu: 'https://www.baidu.com/',
 	bilibili: 'https://www.bilibili.com/',
@@ -954,7 +984,12 @@ const methods = {
 					source: resource.source
 				});
 			}
-			return { resources };
+			return { resources, update: resourceUpdateStatus() };
+		}
+	},
+	resources_update_status: {
+		call: function() {
+			return resourceUpdateStatus();
 		}
 	},
 	resources_update: {
@@ -964,29 +999,10 @@ const methods = {
 			const mixed_port = int(hpuci.get('homeproxy', 'infra', 'mixed_port')) || 5330;
 			const update_proxy = (hpuci.get('homeproxy', 'subscription', 'update_via_proxy') === '1') ?
 				`HOMEPROXY_UPDATE_PROXY=${shellQuote(`http://127.0.0.1:${mixed_port}`)} ` : '';
-			const status = system(`${update_proxy}${HP_DIR}/scripts/update_resources.sh`);
-			let update_result = {};
-			if (status !== 2) {
-				for (let line in split(trim(readfile(`${RUN_DIR}/update_resources.result`) || ''), '\n')) {
-					const pair = match(line, /^([^=]+)=(.*)$/);
-					if (pair)
-						update_result[pair[1]] = pair[2];
-				}
-			}
-			const core_updated = update_result.core_updated === '1';
-			const dashboard_updated = update_result.dashboard_updated === '1';
-			let apply_failed = false;
-			/* Local rule sets reload through the core's file watcher. */
-			if (dashboard_updated && system('/etc/init.d/homeproxy running >/dev/null 2>&1') === 0)
-				apply_failed = system('/etc/init.d/homeproxy reload >/dev/null 2>&1') !== 0;
-			return {
-				status,
-				core_updated,
-				dashboard_updated,
-				apply_failed,
-				updated: update_result.updated || null,
-				failed: update_result.failed || null
-			};
+			const status = system(`${update_proxy}${HP_DIR}/scripts/update_resources.sh --background </dev/null >/dev/null 2>&1`);
+			if (status !== 0 && status !== 2)
+				return { status: 1, running: false, error: 'start_failed' };
+			return { ...resourceUpdateStatus(), already_running: status === 2 };
 		}
 	}
 };
