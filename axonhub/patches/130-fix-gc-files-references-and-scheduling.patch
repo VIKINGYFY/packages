@@ -21,7 +21,7 @@ Base-Commit: 0896305eeee89435049575d55a813f72901f703b
 
 --- a/conf/conf.go
 +++ b/conf/conf.go
-@@ -349,6 +349,9 @@ func setDefaults(v *viper.Viper) {
+@@ -361,6 +361,9 @@ func setDefaults(v *viper.Viper) {
  	v.SetDefault("gc.cron", "0 2 * * *") // Daily at 2:00 AM
  	v.SetDefault("gc.vacuum_enabled", true)
  	v.SetDefault("gc.vacuum_full", false)
@@ -33,7 +33,7 @@ Base-Commit: 0896305eeee89435049575d55a813f72901f703b
  	v.SetDefault("provider_quota.check_interval", "5m")
 --- a/config.example.yml
 +++ b/config.example.yml
-@@ -188,6 +188,9 @@ gc:
+@@ -190,6 +190,9 @@ gc:
                                   # "0 2 * * *"     - Daily at 2:00 AM
                                   # "0 3 * * 0"     - Weekly on Sunday at 3:00 AM
                                   # "0 4 1 * *"     - Monthly on 1st day at 4:00 AM
