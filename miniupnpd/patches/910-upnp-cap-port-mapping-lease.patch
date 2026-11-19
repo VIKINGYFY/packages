@@ -1,0 +1,88 @@
+From: ViKing <viking.yfy@qq.com>
+Date: Thu, 19 Nov 2026 21:20:28 +0800
+Subject: [PATCH] miniupnpd: Cap UPnP port mapping leases at one day
+
+Limit the lease duration accepted by AddPortMapping and AddAnyPortMapping
+to 86400 seconds. Use that limit for omitted or zero durations and honor
+shorter leases requested by clients.
+
+Advertise the same maximum in the WANIPConnection service description.
+
+Signed-off-by: ViKing <viking.yfy@qq.com>
+
+--- a/miniupnpd/upnpdescgen.c
++++ b/miniupnpd/upnpdescgen.c
+@@ -103,7 +103,7 @@ static const int upnpallowedranges[] = {
+ 	0,
+ 	/* 1 PortMappingLeaseDuration */
+ 	0,
+-	604800,
++	UPNP_MAX_PORT_MAPPING_LEASE_DURATION,
+ 	/* 3 InternalPort */
+ 	1,
+ 	65535,
+--- a/miniupnpd/upnpglobalvars.h
++++ b/miniupnpd/upnpglobalvars.h
+@@ -30,6 +30,9 @@ extern const char * ext_stun_host;
+ /*! \brief STUN server port */
+ extern uint16_t ext_stun_port;
+ 
++/* Maximum UPnP WANIPConnection port mapping lease, in seconds. */
++#define UPNP_MAX_PORT_MAPPING_LEASE_DURATION 86400
++
+ /* file to store all leases */
+ #ifdef ENABLE_LEASEFILE
+ extern const char * lease_file;
+--- a/miniupnpd/upnpsoap.c
++++ b/miniupnpd/upnpsoap.c
+@@ -462,6 +462,17 @@ GetExternalIPAddress(struct upnphttp * h
+ 	BuildSendAndCloseSoapResp(h, body, bodylen);
+ }
+ 
++static unsigned int
++upnp_mapping_lease_duration(const char * requested)
++{
++	unsigned long duration = requested ? strtoul(requested, NULL, 10) : 0;
++
++	/* Use the maximum when a client requests a permanent mapping. */
++	if (duration == 0 || duration > UPNP_MAX_PORT_MAPPING_LEASE_DURATION)
++		return UPNP_MAX_PORT_MAPPING_LEASE_DURATION;
++	return (unsigned int)duration;
++}
++
+ /* AddPortMapping method of WANIPConnection Service
+  * Ignored argument : NewEnabled */
+ static void
+@@ -592,18 +603,10 @@ AddPortMapping(struct upnphttp * h, cons
+ 		return;
+ 	}
+ 
+-	leaseduration = leaseduration_str ? atoi(leaseduration_str) : 0;
+ #ifdef IGD_V2
+-	/* PortMappingLeaseDuration can be either a value between 1 and
+-	 * 604800 seconds or the zero value (for infinite lease time).
+-	 * Note that an infinite lease time can be only set by out-of-band
+-	 * mechanisms like WWW-administration, remote management or local
+-	 * management.
+-	 * If a control point uses the value 0 to indicate an infinite lease
+-	 * time mapping, it is REQUIRED that gateway uses the maximum value
+-	 * instead (e.g. 604800 seconds) */
+-	if(leaseduration == 0 || leaseduration > 604800)
+-		leaseduration = 604800;
++	leaseduration = upnp_mapping_lease_duration(leaseduration_str);
++#else
++	leaseduration = leaseduration_str ? atoi(leaseduration_str) : 0;
+ #endif
+ 
+ 	syslog(LOG_INFO, "%s: ext port %hu to %s:%hu protocol %s for: %s leaseduration=%u rhost=%s",
+@@ -702,9 +705,7 @@ AddAnyPortMapping(struct upnphttp * h, c
+ 	desc = GetValueFromNameValueList(&data, "NewPortMappingDescription");
+ 	leaseduration_str = GetValueFromNameValueList(&data, "NewLeaseDuration");
+ 
+-	leaseduration = leaseduration_str ? atoi(leaseduration_str) : 0;
+-	if(leaseduration == 0)
+-		leaseduration = 604800;
++	leaseduration = upnp_mapping_lease_duration(leaseduration_str);
+ 
+ 	if (!int_ip || !ext_port || !int_port || !protocol)
+ 	{
