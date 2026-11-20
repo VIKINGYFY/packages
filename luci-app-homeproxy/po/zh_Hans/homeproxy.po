@@ -394,9 +394,9 @@ msgid ""
 "URLs."
 msgstr "仅用于获取 ECH 记录的 DNS 服务器，支持 https:// 和 udp:// URL。"
 
-#: luci-app-homeproxy/htdocs/luci-static/resources/view/homeproxy/node.js
-msgid "DNS server used to resolve the server address of this node. Subscriptions may fill this automatically from <code>proxy-server-nameserver</code>. Leave empty to use the global DNS."
-msgstr "用于解析该节点服务器地址的 DNS。订阅更新时会根据 <code>proxy-server-nameserver</code> 自动填充，留空则使用全局 DNS。"
+#: luci-app-homeproxy/htdocs/luci-static/resources/view/homeproxy/node.js:920
+msgid "Override the DNS server used to resolve the server address of this node. Leave empty to use the DNS delivered by the subscription or the global DNS."
+msgstr "覆盖用于解析该节点服务器地址的 DNS。留空则使用订阅下发的 DNS 或全局 DNS；此项由节点编辑单独保存，订阅更新不会覆盖。"
 
 #: luci-app-homeproxy/htdocs/luci-static/resources/view/homeproxy/server.js:633
 msgid "DNS-01 challenge"
@@ -796,9 +796,9 @@ msgstr "防火墙"
 msgid "Flow"
 msgstr "流控"
 
-#: luci-app-homeproxy/htdocs/luci-static/resources/view/homeproxy/node.js
-msgid "Follow global"
-msgstr "跟随全局"
+#: luci-app-homeproxy/htdocs/luci-static/resources/view/homeproxy/node.js:921
+msgid "Follow subscription / global"
+msgstr "跟随订阅 / 全局"
 
 #: luci-app-homeproxy/htdocs/luci-static/resources/view/homeproxy/node.js:1307
 msgid "GET"
@@ -1398,7 +1398,7 @@ msgstr "找不到有效分享链接。"
 msgid "Node"
 msgstr "节点"
 
-#: luci-app-homeproxy/htdocs/luci-static/resources/view/homeproxy/node.js
+#: luci-app-homeproxy/htdocs/luci-static/resources/view/homeproxy/node.js:919
 msgid "Node DNS"
 msgstr "节点 DNS"
 
@@ -1522,7 +1522,7 @@ msgstr "优先 IPv4"
 msgid "Prefer IPv6"
 msgstr "优先 IPv6"
 
-#: luci-app-homeproxy/htdocs/luci-static/resources/view/homeproxy/node.js
+#: luci-app-homeproxy/htdocs/luci-static/resources/view/homeproxy/node.js:1898
 msgid "Prefer the <code>proxy-server-nameserver</code> delivered by the subscription (Clash/Mihomo format) when resolving node server domains."
 msgstr "优先使用订阅（Clash/Mihomo 格式）下发的 <code>proxy-server-nameserver</code> 解析节点服务器域名。"
 
@@ -2297,7 +2297,7 @@ msgid ""
 "given."
 msgstr "用于验证返回证书上的主机名。如允许不安全连接，此配置无效。"
 
-#: luci-app-homeproxy/htdocs/luci-static/resources/view/homeproxy/node.js
+#: luci-app-homeproxy/htdocs/luci-static/resources/view/homeproxy/node.js:1897
 msgid "Use provider DNS"
 msgstr "使用机场 DNS"
 
@@ -2525,3 +2525,15 @@ msgstr "有效端口范围（port1:port2）"
 #: luci-app-homeproxy/htdocs/luci-static/resources/view/homeproxy/client.js:539
 msgid "valid port value"
 msgstr "有效端口值"
+
+#: luci-app-homeproxy/htdocs/luci-static/resources/view/homeproxy/node.js:1900
+msgid "Only enable this for subscriptions you trust: the provider then controls how node server domains are resolved."
+msgstr "请仅对信任的订阅启用：开启后，订阅提供方即可决定节点服务器域名如何解析。"
+
+#: luci-app-homeproxy/htdocs/luci-static/resources/view/homeproxy/node.js:929
+msgid "DNS addresses with a proxy suffix are not supported."
+msgstr "不支持带代理后缀（#）的 DNS 地址。"
+
+#: luci-app-homeproxy/htdocs/luci-static/resources/view/homeproxy/node.js:933
+msgid "a DNS server address"
+msgstr "DNS 服务器地址"

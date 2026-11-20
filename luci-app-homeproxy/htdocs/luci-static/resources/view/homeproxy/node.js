@@ -29,6 +29,27 @@ function allowInsecureConfirm(ev, _section_id, value) {
 		ev.target.firstElementChild.checked = null;
 }
 
+/* Share links and subscriptions express allowInsecure as a number, a boolean
+   or a string depending on the generator: accept all of them. */
+function parseInsecure(value) {
+	if (value === true || value === 1 || value === '1' ||
+		value === 'true' || value === 'True' || value === 'yes')
+		return '1';
+	if (value === false || value === 0 || value === '0' ||
+		value === 'false' || value === 'False' || value === 'no')
+		return '0';
+	return null;
+}
+
+function firstInsecure(a, b, c) {
+	for (let value of [ a, b, c ]) {
+		let parsed = parseInsecure(value);
+		if (parsed !== null)
+			return parsed;
+	}
+	return null;
+}
+
 function normalizeHysteriaHoppingPort(mport) {
 	if (!mport)
 		return null;
@@ -120,7 +141,7 @@ function parseShareLink(uri, features) {
 				password: url.username ? decodeURIComponent(url.username) : null,
 				tls: '1',
 				tls_sni: params.get('sni'),
-				tls_insecure: (params.get('insecure') === '1' || params.get('allowInsecure') === '1') ? '1' : '0',
+				tls_insecure: firstInsecure(params.get('insecure'), params.get('allowInsecure')) || '0',
 				tls_utls: features.with_utls ? anytls_fp : null
 			};
 
@@ -161,7 +182,7 @@ function parseShareLink(uri, features) {
 				hysteria_down_mbps: params.get('downmbps'),
 				hysteria_up_mbps: params.get('upmbps'),
 				tls: '1',
-				tls_insecure: (params.get('insecure') === '1' || params.get('allowInsecure') === '1') ? '1' : '0',
+				tls_insecure: firstInsecure(params.get('insecure'), params.get('allowInsecure')) || '0',
 				tls_sni: params.get('peer'),
 				tls_alpn: params.get('alpn')
 			};
@@ -188,7 +209,7 @@ function parseShareLink(uri, features) {
 				hysteria_obfs_type: params.get('obfs'),
 				hysteria_obfs_password: params.get('obfs-password'),
 				tls: '1',
-				tls_insecure: (params.get('insecure') === '1' || params.get('allowInsecure') === '1') ? '1' : '0',
+				tls_insecure: firstInsecure(params.get('insecure'), params.get('allowInsecure')) || '0',
 				tls_sni: params.get('sni')
 			};
 
@@ -269,7 +290,7 @@ function parseShareLink(uri, features) {
 				password: decodeURIComponent(url.username),
 				transport: params.get('type') !== 'tcp' ? params.get('type') : null,
 				tls: '1',
-				tls_insecure: (params.get('insecure') === '1' || params.get('allowInsecure') === '1') ? '1' : '0',
+				tls_insecure: firstInsecure(params.get('insecure'), params.get('allowInsecure')) || '0',
 				tls_sni: params.get('sni'),
 				tls_alpn: params.get('alpn') ? params.get('alpn').split(',') : null,
 				tls_utls: features.with_utls ? params.get('fp') : null,
@@ -318,7 +339,7 @@ function parseShareLink(uri, features) {
 				tuic_congestion_control: params.get('congestion_control'),
 				tuic_udp_relay_mode: params.get('udp_relay_mode'),
 				tls: '1',
-				tls_insecure: (params.get('insecure') === '1' || params.get('allowInsecure') === '1') ? '1' : '0',
+				tls_insecure: firstInsecure(params.get('insecure'), params.get('allowInsecure')) || '0',
 				tls_sni: params.get('sni'),
 				tls_alpn: params.get('alpn') ? decodeURIComponent(params.get('alpn')).split(',') : null
 			};
@@ -346,7 +367,7 @@ function parseShareLink(uri, features) {
 				uuid: url.username,
 				transport: params.get('type') !== 'tcp' ? params.get('type') : null,
 				tls: ['tls', 'xtls', 'reality'].includes(params.get('security')) ? '1' : '0',
-				tls_insecure: (params.get('insecure') === '1' || params.get('allowInsecure') === '1') ? '1' : '0',
+				tls_insecure: firstInsecure(params.get('insecure'), params.get('allowInsecure')) || '0',
 				tls_sni: params.get('sni'),
 				tls_alpn: params.get('alpn') ? decodeURIComponent(params.get('alpn')).split(',') : null,
 				tls_reality: (params.get('security') === 'reality') ? '1' : '0',
@@ -414,6 +435,7 @@ function parseShareLink(uri, features) {
 				vmess_encrypt: uri.scy || 'auto',
 				transport: (uri.net !== 'tcp') ? uri.net : null,
 				tls: uri.tls === 'tls' ? '1' : '0',
+				tls_insecure: firstInsecure(uri.allowInsecure, uri.insecure) || '0',
 				tls_sni: uri.sni || uri.host,
 				tls_alpn: uri.alpn ? uri.alpn.split(',') : null,
 				tls_utls: features.with_utls ? uri.fp : null,
@@ -895,12 +917,24 @@ function renderNodeSettings(section, data, features, main_node, node_latency_row
 	o.rmempty = false;
 
 	o = s.option(form.Value, 'node_dns_server', _('Node DNS'),
-		_('DNS server used to resolve the server address of this node. Subscriptions may fill this automatically from <code>proxy-server-nameserver</code>. Leave empty to use the global DNS.'));
-	o.placeholder = _('Follow global');
+		_('Override the DNS server used to resolve the server address of this node. Leave empty to use the DNS delivered by the subscription or the global DNS.'));
+	o.placeholder = _('Follow subscription / global');
 	o.datatype = 'string';
 	o.depends({'type': 'direct', '!reverse': true});
 	o.rmempty = true;
 	o.modalonly = true;
+	o.validate = function(section_id, value) {
+		if (section_id && value) {
+			if (value.includes('#'))
+				return _('DNS addresses with a proxy suffix are not supported.');
+			if (!/^(https|h3|tls|tcp|udp|quic):\/\/\S+$/.test(value) &&
+				!/^(\d{1,3}\.){3}\d{1,3}$/.test(value) &&
+				!/^\[?[0-9A-Fa-f:]+\]?$/.test(value))
+				return _('Expecting: %s').format(_('a DNS server address'));
+		}
+
+		return true;
+	};
 
 	o = s.option(form.Value, 'username', _('Username'));
 	o.depends('type', 'http');
@@ -1861,7 +1895,9 @@ return view.extend({
 		o.rmempty = false;
 
 		o = s.taboption('subscription', form.Flag, 'fetch_provider_dns', _('Use provider DNS'),
-			_('Prefer the <code>proxy-server-nameserver</code> delivered by the subscription (Clash/Mihomo format) when resolving node server domains.'));
+			_('Prefer the <code>proxy-server-nameserver</code> delivered by the subscription (Clash/Mihomo format) when resolving node server domains.') +
+			'<br/>' +
+			_('Only enable this for subscriptions you trust: the provider then controls how node server domains are resolved.'));
 		o.default = '1';
 		o.rmempty = false;
 

@@ -71,6 +71,7 @@ const ntp_server = uci.get(uciconfig, uciinfra, 'ntp_server') || 'time.apple.com
 const ipv6_support = uci.get(uciconfig, ucimain, 'ipv6_support') || '0';
 
 const main_node = uci.get(uciconfig, ucimain, 'main_node') || 'nil';
+const fetch_provider_dns = uci.get(uciconfig, 'subscription', 'fetch_provider_dns') || '1';
 
 const tailscale_tag = 'tailscale-out';
 const tailscale_enabled = uci.get(uciconfig, ucitalscale, 'enabled') === '1';
@@ -440,15 +441,46 @@ function parse_dnsserver(server_addr, default_protocol) {
    outbound server domain (equivalent of mihomo proxy-server-nameserver). */
 const node_dns_tags = {};
 
+/* Defensive check: the value may come from a hand-edited UCI option. */
+function usable_dns_server(server) {
+	if (isEmpty(server) || type(server) !== 'string' || match(server, /#/))
+		return false;
+	if (match(server, /^(https|h3|tls|tcp|udp|quic):\/\//))
+		return true;
+	if (match(server, /^[A-Za-z][A-Za-z0-9+.-]*:\/\//))
+		return false;
+	return validation('ipaddr', server) || validation('ip6addr', server);
+}
+
+/* A manual override always wins; subscription DNS is only honoured while the
+   user has the provider DNS switch enabled. */
+function effective_node_dns(node) {
+	if (!isEmpty(node.node_dns_server))
+		return node.node_dns_server;
+	if (fetch_provider_dns === '1' && !isEmpty(node.provider_dns_server))
+		return node.provider_dns_server;
+	return null;
+}
+
+function effective_node_dns_bootstrap(node) {
+	if (!isEmpty(node.node_dns_server) || fetch_provider_dns !== '1')
+		return null;
+	return node.provider_dns_bootstrap;
+}
+
+function set_node_domain_resolver(dial_object, node) {
+	if (!dial_object || node.type === 'direct')
+		return;
+	const dns = effective_node_dns(node);
+	if (!isEmpty(dns) && node_dns_tags[dns])
+		dial_object.domain_resolver = make_domain_resolver(node_dns_tags[dns]);
+}
+
 function generate_outbound(node) {
 	const outbound = renderOutbound(node);
 	if (outbound && node['.name'])
 		outbound.tag = get_node_outbound_tag(node['.name']);
-	if (outbound && node.type !== 'direct') {
-		const dns_tag = node_dns_tags[node.node_dns_server];
-		if (dns_tag)
-			outbound.domain_resolver = make_domain_resolver(dns_tag);
-	}
+	set_node_domain_resolver(outbound, node);
 	return outbound;
 }
 
@@ -456,6 +488,7 @@ function generate_endpoint(node) {
 	const endpoint = renderEndpoint(node);
 	if (endpoint && node['.name'])
 		endpoint.tag = get_node_outbound_tag(node['.name']);
+	set_node_domain_resolver(endpoint, node);
 	return endpoint;
 }
 
@@ -620,23 +653,69 @@ if (ipv6_support === '1') {
 }
 /* DNS end */
 
-/* Provider DNS servers for outbound server domains */
+/* Provider DNS servers for outbound server domains.
+   One server per distinct resolver, plus optional bootstrap resolvers taken
+   from default-nameserver. Malformed values are skipped instead of breaking
+   the whole sing-box config. */
 if (!isEmpty(main_node)) {
+	const dns_bootstrap = {};
 	uci.foreach(uciconfig, (node) => {
-		if (node['.type'] !== 'node' || isEmpty(node.node_dns_server))
+		if (node['.type'] !== 'node')
 			return;
-		if (node_dns_tags[node.node_dns_server])
+		const dns = effective_node_dns(node);
+		if (isEmpty(dns) || !usable_dns_server(dns))
 			return;
+		if (!(dns in dns_bootstrap))
+			dns_bootstrap[dns] = effective_node_dns_bootstrap(node);
+	});
 
-		const tag = 'node-dns-' + (length(keys(node_dns_tags)) + 1);
-		node_dns_tags[node.node_dns_server] = tag;
+	/* Bootstrap servers must exist before the servers referencing them. */
+	const bootstrap_tags = {};
+	let bootstrap_count = 0;
+	for (let dns in keys(dns_bootstrap)) {
+		const bootstrap = dns_bootstrap[dns];
+		if (isEmpty(bootstrap) || !usable_dns_server(bootstrap) ||
+		    bootstrap in bootstrap_tags)
+			continue;
+		let parsed;
+		try {
+			parsed = parse_dnsserver(bootstrap, 'udp');
+		} catch (e) {
+			parsed = null;
+		}
+		if (!parsed || isEmpty(parsed.server))
+			continue;
+		bootstrap_count = bootstrap_count + 1;
+		const tag = 'node-dns-bootstrap-' + bootstrap_count;
+		bootstrap_tags[bootstrap] = tag;
 		push(config.dns.servers, {
 			tag,
 			domain_resolver: make_domain_resolver(),
-			detour: null,
-			...parse_dnsserver(node.node_dns_server, 'udp')
+			...parsed
 		});
-	});
+	}
+
+	let dns_count = 0;
+	for (let dns in keys(dns_bootstrap)) {
+		let parsed;
+		try {
+			parsed = parse_dnsserver(dns, 'udp');
+		} catch (e) {
+			parsed = null;
+		}
+		if (!parsed || isEmpty(parsed.server))
+			continue;
+		const bootstrap = dns_bootstrap[dns];
+		const bootstrap_tag = isEmpty(bootstrap) ? null : bootstrap_tags[bootstrap];
+		dns_count = dns_count + 1;
+		const tag = 'node-dns-' + dns_count;
+		node_dns_tags[dns] = tag;
+		push(config.dns.servers, {
+			tag,
+			domain_resolver: make_domain_resolver(bootstrap_tag),
+			...parsed
+		});
+	}
 }
 
 /* Inbound start */

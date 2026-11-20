@@ -138,6 +138,27 @@ function to_string(value) {
 	return has_value(value) ? sprintf('%s', value) : null;
 }
 
+/* Subscriptions disagree on the type of allowInsecure / skip-cert-verify:
+   numbers, booleans and strings are all seen in the wild. */
+function parse_insecure(value) {
+	if (value === true || value === 1 || value === '1' ||
+	    value === 'true' || value === 'True' || value === 'yes')
+		return '1';
+	if (value === false || value === 0 || value === '0' ||
+	    value === 'false' || value === 'False' || value === 'no')
+		return '0';
+	return null;
+}
+
+function first_insecure(a, b, c) {
+	for (let value in [a, b, c]) {
+		const parsed = parse_insecure(value);
+		if (parsed !== null)
+			return parsed;
+	}
+	return null;
+}
+
 function bool_to_uci(value) {
 	if (value === true)
 		return '1';
@@ -306,9 +327,8 @@ function parse_mihomo_proxy(proxy) {
 	let config;
 	const tls_sni = proxy.servername || proxy.sni;
 	const tls_fingerprint = proxy['client-fingerprint'] || proxy.fingerprint;
-	const tls_insecure = (proxy['skip-cert-verify'] === true || proxy.insecure === '1' || proxy.allowInsecure === true || proxy.allowInsecure === '1') ? '1'
-		: (proxy['skip-cert-verify'] === false || proxy.insecure === '0' || proxy.allowInsecure === false || proxy.allowInsecure === '0') ? '0'
-		: null;
+	const tls_insecure = first_insecure(proxy['skip-cert-verify'], proxy.insecure,
+		proxy.allowInsecure);
 
 	switch (proxy.type) {
 	case 'anytls': {
@@ -611,7 +631,7 @@ function parse_uri(uri) {
 			port: url.port,
 			password: urldecode(url.username),
 			tls: '1',
-			tls_insecure: (params.insecure === '1' || params.allowInsecure === '1') ? '1' : '0',
+			tls_insecure: first_insecure(params.insecure, params.allowInsecure) || '0',
 			tls_sni: params.sni,
 			tls_utls: sing_features.with_utls ? anytls_fp : null
 		};
@@ -658,7 +678,7 @@ function parse_uri(uri) {
 				hysteria_down_mbps: params.downmbps,
 				hysteria_up_mbps: params.upmbps,
 				tls: '1',
-				tls_insecure: (params.insecure === '1' || params.allowInsecure === '1') ? '1' : '0',
+				tls_insecure: first_insecure(params.insecure, params.allowInsecure) || '0',
 				tls_sni: params.peer,
 				tls_alpn: params.alpn
 			};
@@ -687,7 +707,7 @@ function parse_uri(uri) {
 				hysteria_obfs_type: params.obfs,
 				hysteria_obfs_password: params['obfs-password'],
 				tls: '1',
-				tls_insecure: (params.insecure === '1' || params.allowInsecure === '1') ? '1' : '0',
+				tls_insecure: first_insecure(params.insecure, params.allowInsecure) || '0',
 				tls_sni: params.sni
 			};
 
@@ -757,7 +777,7 @@ function parse_uri(uri) {
 				password: urldecode(url.username),
 				transport: (params.type !== 'tcp') ? params.type : null,
 				tls: '1',
-				tls_insecure: (params.insecure === '1' || params.allowInsecure === '1') ? '1' : '0',
+				tls_insecure: first_insecure(params.insecure, params.allowInsecure) || '0',
 				tls_sni: params.sni,
 				tls_alpn: params.alpn ? split(params.alpn, ',') : null,
 				tls_utls: sing_features.with_utls ? params.fp : null,
@@ -808,7 +828,7 @@ function parse_uri(uri) {
 				tuic_congestion_control: params.congestion_control,
 				tuic_udp_relay_mode: params.udp_relay_mode,
 				tls: '1',
-				tls_insecure: (params.insecure === '1' || params.allowInsecure === '1') ? '1' : '0',
+				tls_insecure: first_insecure(params.insecure, params.allowInsecure) || '0',
 				tls_sni: params.sni,
 				tls_alpn: params.alpn ? split(urldecode(params.alpn), ',') : null,
 			};
@@ -840,7 +860,7 @@ function parse_uri(uri) {
 				uuid: url.username,
 				transport: (params.type !== 'tcp') ? params.type : null,
 				tls: (params.security in ['tls', 'xtls', 'reality']) ? '1' : '0',
-				tls_insecure: (params.insecure === '1' || params.allowInsecure === '1') ? '1' : '0',
+				tls_insecure: first_insecure(params.insecure, params.allowInsecure) || '0',
 				tls_sni: params.sni,
 				tls_alpn: params.alpn ? split(urldecode(params.alpn), ',') : null,
 				tls_reality: (params.security === 'reality') ? '1' : '0',
@@ -927,7 +947,7 @@ function parse_uri(uri) {
 				vmess_global_padding: '1',
 				transport: (uri.net !== 'tcp') ? uri.net : null,
 				tls: (uri.tls === 'tls') ? '1' : '0',
-				tls_insecure: (uri.allowInsecure === 1 || uri.allowInsecure === true || uri.allowInsecure === '1' || uri.insecure === 1 || uri.insecure === '1') ? '1' : '0',
+				tls_insecure: first_insecure(uri.allowInsecure, uri.insecure) || '0',
 				tls_sni: uri.sni || uri.host,
 				tls_alpn: uri.alpn ? split(uri.alpn, ',') : null,
 				tls_utls: sing_features.with_utls ? uri.fp : null,
@@ -1027,16 +1047,35 @@ function parse_mihomo_yaml(text) {
 	return length(proxies) ? proxies : null;
 }
 
-/* Extract the provider supplied proxy-server-nameserver from a Clash/Mihomo config. */
+/* Extract provider DNS settings from a Clash/Mihomo config.
+   proxy-server-nameserver resolves node server domains; nameserver is the
+   fallback; default-nameserver is used to resolve the DNS servers themselves. */
+function strip_yaml_comment(value) {
+	let quote = null, i = 0;
+	while (i < length(value)) {
+		const c = substr(value, i, 1);
+		if (quote) {
+			if (c === quote)
+				quote = null;
+		} else if (c === '"' || c === "'") {
+			quote = c;
+		} else if (c === '#' && (i === 0 || match(substr(value, i - 1, 1), /\s/))) {
+			return rtrim(substr(value, 0, i));
+		}
+		i++;
+	}
+	return rtrim(value);
+}
+
 function yaml_scalar(value) {
-	value = trim(value || '');
+	value = trim(strip_yaml_comment(trim(value || '')));
 	if (match(value, /^".*"$/) || match(value, /^'.*'$/))
 		value = substr(value, 1, length(value) - 2);
 	return trim(value);
 }
 
 function yaml_list(value) {
-	value = trim(value || '');
+	value = trim(strip_yaml_comment(trim(value || '')));
 	if (match(value, /^\[.*\]$/))
 		value = substr(value, 1, length(value) - 2);
 	let result = [];
@@ -1049,28 +1088,50 @@ function yaml_list(value) {
 }
 
 function usable_provider_dns(server) {
-	if (isEmpty(server) || server in ['system', 'fake-ip', 'localhost'])
+	if (isEmpty(server) || type(server) !== 'string' ||
+	    server in ['system', 'fake-ip', 'localhost'])
 		return false;
-	if (match(server, /^(https|tls|tcp|udp|quic):\/\//))
+	/* A '#' suffix asks mihomo to send the query through a named proxy group.
+	   We cannot map that to a sing-box detour, so reject it loudly instead of
+	   silently turning a proxied resolver into a direct one. */
+	if (match(server, /#/))
+		return false;
+	if (match(server, /^(https|h3|tls|tcp|udp|quic):\/\//))
 		return true;
+	/* Reject unsupported schemes (system://, dhcp://, rcode://, ...). */
+	if (match(server, /^[A-Za-z][A-Za-z0-9+.-]*:\/\//))
+		return false;
 	return validation('ipaddr', server) || validation('ip6addr', server);
+}
+
+function collect_provider_dns(servers, section, value) {
+	const item = yaml_scalar(value);
+	if (isEmpty(item))
+		return;
+	if (match(item, /#/)) {
+		log(sprintf('Ignoring provider DNS with proxy suffix: %s.', item));
+		return;
+	}
+	if (!usable_provider_dns(item))
+		return;
+	if (section === 'proxy-server-nameserver')
+		push(servers.proxy, item);
+	else if (section === 'nameserver')
+		push(servers.nameserver, item);
+	else if (section === 'default-nameserver')
+		push(servers.bootstrap, item);
 }
 
 function parse_provider_dns(text) {
 	if (isEmpty(text) || type(text) !== 'string')
 		return null;
 
-	let in_dns = false, child_indent = -1, section = null;
-	let servers = { proxy: [], nameserver: [] };
+	let in_dns = false, child_indent = -1, list_indent = -1, section = null;
+	let servers = { proxy: [], nameserver: [], bootstrap: [] };
 
 	for (let raw in split(text, sprintf('%c', 10))) {
 		raw = rtrim(raw);
 		const line = trim(raw);
-		if (!in_dns) {
-			if (match(line, /^dns:\s*$/))
-				in_dns = true;
-			continue;
-		}
 		if (isEmpty(line) || substr(line, 0, 1) === '#')
 			continue;
 
@@ -1078,45 +1139,70 @@ function parse_provider_dns(text) {
 		while (substr(raw, indent, 1) === ' ')
 			indent++;
 
+		/* Only the top-level dns: section; tolerate a BOM or trailing comment. */
+		if (!in_dns) {
+			if (indent === 0 && match(line, /^[^A-Za-z0-9_-]*dns\s*:/))
+				in_dns = true;
+			continue;
+		}
 		if (indent === 0)
 			break;
 		if (child_indent < 0)
 			child_indent = indent;
 
-		if (indent === child_indent) {
-			const m = match(line, /^([A-Za-z0-9_-]+):\s*(.*)$/);
-			if (!m) {
-				section = null;
-				continue;
-			}
-			section = (m[1] in ['proxy-server-nameserver', 'nameserver']) ? m[1] : null;
-			if (section && !isEmpty(m[2]))
-				for (let item in yaml_list(m[2])) {
-					if (!usable_provider_dns(item))
-						continue;
-					if (section === 'proxy-server-nameserver')
-						push(servers.proxy, item);
-					else
-						push(servers.nameserver, item);
-				}
+		/* YAML allows list items indented under the key or aligned with it. */
+		const lm = match(line, /^-\s+(.*)$/);
+		if (lm) {
+			if (section && (indent > child_indent || indent === list_indent))
+				collect_provider_dns(servers, section, lm[1]);
 			continue;
 		}
 
-		if (section && match(line, /^-\s+/)) {
-			const item = yaml_scalar(substr(line, 2));
-			if (!usable_provider_dns(item))
-				continue;
-			if (section === 'proxy-server-nameserver')
-				push(servers.proxy, item);
-			else
-				push(servers.nameserver, item);
+		if (indent !== child_indent)
+			continue;
+
+		const m = match(line, /^([A-Za-z0-9_-]+):\s*(.*)$/);
+		section = null;
+		list_indent = -1;
+		if (!m)
+			continue;
+		if (!(m[1] in ['proxy-server-nameserver', 'nameserver', 'default-nameserver']))
+			continue;
+
+		section = m[1];
+		if (!isEmpty(m[2])) {
+			for (let item in yaml_list(m[2]))
+				collect_provider_dns(servers, section, item);
+			section = null;
+		} else {
+			list_indent = child_indent;
 		}
 	}
 
 	if (!length(servers.proxy) && !length(servers.nameserver))
 		return null;
-
 	return servers;
+}
+
+/* Attach provider DNS to a parsed node before confHash is computed, so the
+   resolver choice is part of the deduplication key. */
+function apply_provider_dns(config, provider_dns) {
+	if (isEmpty(provider_dns) || isEmpty(config.address))
+		return;
+	if (validation('ipaddr', config.address) || validation('ip6addr', config.address))
+		return;
+
+	/* mihomo treats proxy-server-nameserver as a resolver group. Use its first
+	   entry for every node instead of spreading nodes across servers that may
+	   not all be reachable. */
+	const dns_list = length(provider_dns.proxy) ? provider_dns.proxy : provider_dns.nameserver;
+	if (!length(dns_list))
+		return;
+
+	/* Subscription-owned fields: the node editor owns node_dns_server. */
+	config.provider_dns_server = dns_list[0];
+	if (length(provider_dns.bootstrap))
+		config.provider_dns_bootstrap = provider_dns.bootstrap[0];
 }
 
 function main() {
@@ -1140,15 +1226,23 @@ function main() {
 				continue;
 			}
 
-			let provider_dns = (fetch_provider_dns === '1') ? parse_provider_dns(res) : null;
-			if (fetch_provider_dns === '1' && isEmpty(provider_dns)) {
-				const clash_res = wGET(url, 'clash-verge/v2.0.0', update_proxy);
-				if (!isEmpty(clash_res) && clash_res !== res)
-					provider_dns = parse_provider_dns(clash_res);
-			}
-			if (fetch_provider_dns === '1' && isEmpty(provider_dns) && !match(url, /[?&]clash=/)) {
-				const clash_url = url + (match(url, /\?/) ? '&clash=3' : '?clash=3');
-				provider_dns = parse_provider_dns(wGET(clash_url, 'clash-verge/v2.0.0', update_proxy));
+			let provider_dns = null;
+			if (fetch_provider_dns === '1') {
+				provider_dns = parse_provider_dns(res);
+				if (isEmpty(provider_dns)) {
+					/* Some providers only emit a Clash/Mihomo config when asked.
+					   One optional probe, isolated from the main update. */
+					try {
+						let probe_url = url;
+						if (!match(probe_url, /[?&]clash=/))
+							probe_url = probe_url + (match(probe_url, /\?/) ? '&clash=3' : '?clash=3');
+						const clash_res = wGET(probe_url, 'clash-verge/v2.0.0', update_proxy);
+						if (!isEmpty(clash_res) && clash_res !== res)
+							provider_dns = parse_provider_dns(clash_res);
+					} catch (e) {
+						log(sprintf('Failed to probe Clash config from %s.', url));
+					}
+				}
 			}
 
 			let nodes;
@@ -1183,6 +1277,7 @@ function main() {
 
 					const label = config.label;
 					config.label = null;
+					apply_provider_dns(config, provider_dns);
 					const confHash = md5(sprintf('%J', config));
 					config.label = label;
 
@@ -1205,15 +1300,6 @@ function main() {
 							config.tls_insecure = '1';
 						if (config.type in ['vless', 'vmess'] && isEmpty(config.packet_encoding))
 							config.packet_encoding = packet_encoding;
-
-						if (!isEmpty(provider_dns) &&
-						    !validation('ipaddr', config.address) && !validation('ip6addr', config.address)) {
-							const dns_list = length(provider_dns.proxy) ?
-								provider_dns.proxy : provider_dns.nameserver;
-							if (length(dns_list))
-								config.node_dns_server = length(provider_dns.proxy) ?
-									dns_list[count % length(dns_list)] : dns_list[0];
-						}
 
 						config.grouphash = groupHash;
 						config.__section_id = nameHash;
@@ -1290,14 +1376,22 @@ function main() {
 		} else {
 			const next = cached_group[cfg['.name']];
 			let changed = false;
+			/* node_dns_server is owned by the node editor, never by a subscription. */
+			const preserve_options = ['node_dns_server'];
 			for (let option in keys(cfg))
-				if (!match(option, /^\./) && !(option in next)) {
+				if (!match(option, /^\./) && !(option in next) &&
+				    !(option in preserve_options)) {
 					uci.delete(uciconfig, cfg['.name'], option);
 					changed = true;
 				}
 
 			for (let option in keys(next))
-				if (!match(option, /^__/) && option !== 'isExisting' && !values_equal(cfg[option], next[option])) {
+				/* Keep a manually enabled tls_insecure unless the subscription
+				   explicitly asks for insecure connections. */
+				if (!match(option, /^__/) && option !== 'isExisting' &&
+				    !(option === 'tls_insecure' && cfg.tls_insecure === '1' &&
+				      next.tls_insecure !== '1') &&
+				    !values_equal(cfg[option], next[option])) {
 					uci.set(uciconfig, cfg['.name'], option, next[option]);
 					changed = true;
 				}
