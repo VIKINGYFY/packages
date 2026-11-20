@@ -29,7 +29,7 @@
 
 | 软件包 | 版本 | 源码来源 |
 | --- | --- | --- |
-| `axonhub` | `20261119-r1` | [looplj/axonhub](https://github.com/looplj/axonhub) |
+| `axonhub` | `20261120-r1` | [looplj/axonhub](https://github.com/looplj/axonhub) |
 | `gecoosac` | `2.2.20251015-r1` | [www.cnrouter.com](http://www.cnrouter.com) |
 | `miniupnpd-nftables` | `20261119-r2` | [miniupnp/miniupnp](https://github.com/miniupnp/miniupnp) |
 | `miniupnpd-iptables` | `20261119-r2` | [miniupnp/miniupnp](https://github.com/miniupnp/miniupnp) |
