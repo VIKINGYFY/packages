@@ -31,6 +31,7 @@ const uciinfra = 'infra',
       ucisubscription = 'subscription';
 
 const allow_insecure = uci.get(uciconfig, ucisubscription, 'allow_insecure') || '0',
+      fetch_provider_dns = uci.get(uciconfig, ucisubscription, 'fetch_provider_dns') || '1',
       filter_mode = uci.get(uciconfig, ucisubscription, 'filter_nodes') || 'disabled',
       filter_keywords = uci.get(uciconfig, ucisubscription, 'filter_keywords') || [],
       packet_encoding = uci.get(uciconfig, ucisubscription, 'packet_encoding') || 'xudp',
@@ -1026,6 +1027,98 @@ function parse_mihomo_yaml(text) {
 	return length(proxies) ? proxies : null;
 }
 
+/* Extract the provider supplied proxy-server-nameserver from a Clash/Mihomo config. */
+function yaml_scalar(value) {
+	value = trim(value || '');
+	if (match(value, /^".*"$/) || match(value, /^'.*'$/))
+		value = substr(value, 1, length(value) - 2);
+	return trim(value);
+}
+
+function yaml_list(value) {
+	value = trim(value || '');
+	if (match(value, /^\[.*\]$/))
+		value = substr(value, 1, length(value) - 2);
+	let result = [];
+	for (let item in split(value, ',')) {
+		item = yaml_scalar(item);
+		if (!isEmpty(item))
+			push(result, item);
+	}
+	return result;
+}
+
+function usable_provider_dns(server) {
+	if (isEmpty(server) || server in ['system', 'fake-ip', 'localhost'])
+		return false;
+	if (match(server, /^(https|tls|tcp|udp|quic):\/\//))
+		return true;
+	return validation('ipaddr', server) || validation('ip6addr', server);
+}
+
+function parse_provider_dns(text) {
+	if (isEmpty(text) || type(text) !== 'string')
+		return null;
+
+	let in_dns = false, child_indent = -1, section = null;
+	let servers = { proxy: [], nameserver: [] };
+
+	for (let raw in split(text, sprintf('%c', 10))) {
+		raw = rtrim(raw);
+		const line = trim(raw);
+		if (!in_dns) {
+			if (match(line, /^dns:\s*$/))
+				in_dns = true;
+			continue;
+		}
+		if (isEmpty(line) || substr(line, 0, 1) === '#')
+			continue;
+
+		let indent = 0;
+		while (substr(raw, indent, 1) === ' ')
+			indent++;
+
+		if (indent === 0)
+			break;
+		if (child_indent < 0)
+			child_indent = indent;
+
+		if (indent === child_indent) {
+			const m = match(line, /^([A-Za-z0-9_-]+):\s*(.*)$/);
+			if (!m) {
+				section = null;
+				continue;
+			}
+			section = (m[1] in ['proxy-server-nameserver', 'nameserver']) ? m[1] : null;
+			if (section && !isEmpty(m[2]))
+				for (let item in yaml_list(m[2])) {
+					if (!usable_provider_dns(item))
+						continue;
+					if (section === 'proxy-server-nameserver')
+						push(servers.proxy, item);
+					else
+						push(servers.nameserver, item);
+				}
+			continue;
+		}
+
+		if (section && match(line, /^-\s+/)) {
+			const item = yaml_scalar(substr(line, 2));
+			if (!usable_provider_dns(item))
+				continue;
+			if (section === 'proxy-server-nameserver')
+				push(servers.proxy, item);
+			else
+				push(servers.nameserver, item);
+		}
+	}
+
+	if (!length(servers.proxy) && !length(servers.nameserver))
+		return null;
+
+	return servers;
+}
+
 function main() {
 	const seen_urls = {};
 	for (let configured_url in subscription_urls) {
@@ -1045,6 +1138,17 @@ function main() {
 			if (isEmpty(res)) {
 				log(sprintf('Failed to fetch resources from %s.', url));
 				continue;
+			}
+
+			let provider_dns = (fetch_provider_dns === '1') ? parse_provider_dns(res) : null;
+			if (fetch_provider_dns === '1' && isEmpty(provider_dns)) {
+				const clash_res = wGET(url, 'clash-verge/v2.0.0', update_proxy);
+				if (!isEmpty(clash_res) && clash_res !== res)
+					provider_dns = parse_provider_dns(clash_res);
+			}
+			if (fetch_provider_dns === '1' && isEmpty(provider_dns) && !match(url, /[?&]clash=/)) {
+				const clash_url = url + (match(url, /\?/) ? '&clash=3' : '?clash=3');
+				provider_dns = parse_provider_dns(wGET(clash_url, 'clash-verge/v2.0.0', update_proxy));
 			}
 
 			let nodes;
@@ -1101,6 +1205,15 @@ function main() {
 							config.tls_insecure = '1';
 						if (config.type in ['vless', 'vmess'] && isEmpty(config.packet_encoding))
 							config.packet_encoding = packet_encoding;
+
+						if (!isEmpty(provider_dns) &&
+						    !validation('ipaddr', config.address) && !validation('ip6addr', config.address)) {
+							const dns_list = length(provider_dns.proxy) ?
+								provider_dns.proxy : provider_dns.nameserver;
+							if (length(dns_list))
+								config.node_dns_server = length(provider_dns.proxy) ?
+									dns_list[count % length(dns_list)] : dns_list[0];
+						}
 
 						config.grouphash = groupHash;
 						config.__section_id = nameHash;

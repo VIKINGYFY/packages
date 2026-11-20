@@ -436,10 +436,19 @@ function parse_dnsserver(server_addr, default_protocol) {
 	}
 }
 
+/* DNS supplied by the subscription or the node itself, used to resolve the
+   outbound server domain (equivalent of mihomo proxy-server-nameserver). */
+const node_dns_tags = {};
+
 function generate_outbound(node) {
 	const outbound = renderOutbound(node);
 	if (outbound && node['.name'])
 		outbound.tag = get_node_outbound_tag(node['.name']);
+	if (outbound && node.type !== 'direct') {
+		const dns_tag = node_dns_tags[node.node_dns_server];
+		if (dns_tag)
+			outbound.domain_resolver = make_domain_resolver(dns_tag);
+	}
 	return outbound;
 }
 
@@ -610,6 +619,25 @@ if (ipv6_support === '1') {
 		config.dns.ipv6_by_outbound = ipv6_by_outbound;
 }
 /* DNS end */
+
+/* Provider DNS servers for outbound server domains */
+if (!isEmpty(main_node)) {
+	uci.foreach(uciconfig, (node) => {
+		if (node['.type'] !== 'node' || isEmpty(node.node_dns_server))
+			return;
+		if (node_dns_tags[node.node_dns_server])
+			return;
+
+		const tag = 'node-dns-' + (length(keys(node_dns_tags)) + 1);
+		node_dns_tags[node.node_dns_server] = tag;
+		push(config.dns.servers, {
+			tag,
+			domain_resolver: make_domain_resolver(),
+			detour: null,
+			...parse_dnsserver(node.node_dns_server, 'udp')
+		});
+	});
+}
 
 /* Inbound start */
 config.inbounds = [];

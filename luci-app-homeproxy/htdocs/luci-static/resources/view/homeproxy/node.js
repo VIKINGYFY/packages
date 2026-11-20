@@ -894,6 +894,14 @@ function renderNodeSettings(section, data, features, main_node, node_latency_row
 	o.depends({'type': 'direct', '!reverse': true});
 	o.rmempty = false;
 
+	o = s.option(form.Value, 'node_dns_server', _('Node DNS'),
+		_('DNS server used to resolve the server address of this node. Subscriptions may fill this automatically from <code>proxy-server-nameserver</code>. Leave empty to use the global DNS.'));
+	o.placeholder = _('Follow global');
+	o.datatype = 'string';
+	o.depends({'type': 'direct', '!reverse': true});
+	o.rmempty = true;
+	o.modalonly = true;
+
 	o = s.option(form.Value, 'username', _('Username'));
 	o.depends('type', 'http');
 	o.depends('type', 'socks');
@@ -1850,6 +1858,11 @@ return view.extend({
 
 		o = s.taboption('subscription', form.Flag, 'update_via_proxy', _('Update via proxy'),
 			_('Update resources and subscriptions via proxy.'));
+		o.rmempty = false;
+
+		o = s.taboption('subscription', form.Flag, 'fetch_provider_dns', _('Use provider DNS'),
+			_('Prefer the <code>proxy-server-nameserver</code> delivered by the subscription (Clash/Mihomo format) when resolving node server domains.'));
+		o.default = '1';
 		o.rmempty = false;
 
 		o = s.taboption('subscription', form.DynamicList, 'subscription_url', _('Subscription URLs'),
