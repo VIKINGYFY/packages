@@ -926,6 +926,7 @@ function parse_uri(uri) {
 				vmess_global_padding: '1',
 				transport: (uri.net !== 'tcp') ? uri.net : null,
 				tls: (uri.tls === 'tls') ? '1' : '0',
+				tls_insecure: (uri.allowInsecure === 1 || uri.allowInsecure === true || uri.allowInsecure === '1' || uri.insecure === 1 || uri.insecure === '1') ? '1' : '0',
 				tls_sni: uri.sni || uri.host,
 				tls_alpn: uri.alpn ? split(uri.alpn, ',') : null,
 				tls_utls: sing_features.with_utls ? uri.fp : null,
