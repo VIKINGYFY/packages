@@ -15,7 +15,7 @@ Base-Commit: 0896305eeee89435049575d55a813f72901f703b
 
 --- a/conf/conf.go
 +++ b/conf/conf.go
-@@ -358,6 +358,7 @@ func setDefaults(v *viper.Viper) {
+@@ -364,6 +364,7 @@ func setDefaults(v *viper.Viper) {
  	v.SetDefault("metrics.exporter.insecure", false)
  
  	// GC defaults
@@ -25,7 +25,7 @@ Base-Commit: 0896305eeee89435049575d55a813f72901f703b
  	v.SetDefault("gc.vacuum_full", false)
 --- a/config.example.yml
 +++ b/config.example.yml
-@@ -183,6 +183,8 @@ metrics:
+@@ -185,6 +185,8 @@ metrics:
  
  # Garbage Collection configuration
  gc:
@@ -202,3 +202,18 @@ Base-Commit: 0896305eeee89435049575d55a813f72901f703b
  	return worker, ctx, client, proj
  }
  
+--- a/internal/server/gql/system.resolvers_test.go
++++ b/internal/server/gql/system.resolvers_test.go
+@@ -40,7 +40,11 @@ func setupTestSystemMutationResolver(t *
+ func TestMutationResolver_TriggerGcCleanupUsesFreshTransactions(t *testing.T) {
+ 	resolver, ctx, client := setupTestSystemMutationResolver(t)
+ 	t.Cleanup(func() { require.NoError(t, client.Close()) })
+-	resolver.gcWorker = &gc.Worker{Ent: client, SystemService: resolver.systemService}
++	resolver.gcWorker = &gc.Worker{
++		Ent:           client,
++		SystemService: resolver.systemService,
++		Config:        gc.Config{BatchSize: 500, Timeout: 10 * time.Minute},
++	}
+ 
+ 	project, err := client.Project.Create().SetName("manual cleanup").Save(ctx)
+ 	require.NoError(t, err)

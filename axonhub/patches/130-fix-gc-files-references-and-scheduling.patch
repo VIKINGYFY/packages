@@ -21,7 +21,7 @@ Base-Commit: 0896305eeee89435049575d55a813f72901f703b
 
 --- a/conf/conf.go
 +++ b/conf/conf.go
-@@ -361,6 +361,9 @@ func setDefaults(v *viper.Viper) {
+@@ -367,6 +367,9 @@ func setDefaults(v *viper.Viper) {
  	v.SetDefault("gc.cron", "0 2 * * *") // Daily at 2:00 AM
  	v.SetDefault("gc.vacuum_enabled", true)
  	v.SetDefault("gc.vacuum_full", false)
@@ -33,7 +33,7 @@ Base-Commit: 0896305eeee89435049575d55a813f72901f703b
  	v.SetDefault("provider_quota.check_interval", "5m")
 --- a/config.example.yml
 +++ b/config.example.yml
-@@ -190,6 +190,9 @@ gc:
+@@ -192,6 +192,9 @@ gc:
                                   # "0 2 * * *"     - Daily at 2:00 AM
                                   # "0 3 * * 0"     - Weekly on Sunday at 3:00 AM
                                   # "0 4 1 * *"     - Monthly on 1st day at 4:00 AM
@@ -810,13 +810,12 @@ Base-Commit: 0896305eeee89435049575d55a813f72901f703b
  				continue
 --- a/internal/server/gc/gc_internal.go
 +++ b/internal/server/gc/gc_internal.go
-@@ -2,11 +2,34 @@ package gc
- 
- import (
+@@ -4,9 +4,35 @@ import (
  	"context"
-+	"github.com/looplj/axonhub/internal/log"
  
  	"github.com/looplj/axonhub/internal/authz"
++	"github.com/looplj/axonhub/internal/ent"
++	"github.com/looplj/axonhub/internal/log"
  )
  
 -func (w *Worker) runAutomaticCleanup(ctx context.Context) {
@@ -842,14 +841,24 @@ Base-Commit: 0896305eeee89435049575d55a813f72901f703b
 +				log.Error(ctx, "Manual cleanup panicked", log.Any("panic", recovered))
 +			}
 +		}()
-+		ctx = authz.WithSystemBypass(context.WithoutCancel(ctx), "manual-gc-cleanup")
-+		_ = w.runCleanupLocked(ctx, true, cleanupDays(input))
++		// Clear the mutation transaction before the worker opens its own.
++		bgCtx := ent.NewTxContext(context.WithoutCancel(ctx), nil)
++		bgCtx = authz.WithSystemBypass(bgCtx, "manual-gc-cleanup")
++		_ = w.runCleanupLocked(bgCtx, true, cleanupDays(input))
 +	}()
 +	return nil
  }
 --- a/internal/server/gql/system.resolvers.go
 +++ b/internal/server/gql/system.resolvers.go
-@@ -303,20 +303,9 @@ func (r *mutationResolver) TriggerGcClea
+@@ -14,7 +14,6 @@ import (
+ 	"github.com/looplj/axonhub/internal/authz"
+ 	"github.com/looplj/axonhub/internal/build"
+ 	"github.com/looplj/axonhub/internal/contexts"
+-	"github.com/looplj/axonhub/internal/ent"
+ 	"github.com/looplj/axonhub/internal/ent/channel"
+ 	"github.com/looplj/axonhub/internal/objects"
+ 	"github.com/looplj/axonhub/internal/scopes"
+@@ -304,22 +303,9 @@ func (r *mutationResolver) TriggerGcClea
  	if !scopes.UserHasScope(ctx, scopes.ScopeWriteSettings) {
  		return false, fmt.Errorf("permission denied: requires write:settings scope")
  	}
@@ -862,8 +871,10 @@ Base-Commit: 0896305eeee89435049575d55a813f72901f703b
 -			}
 -		}()
 -
--		// Use a detached context with system bypass for background execution
--		bgCtx := authz.WithSystemBypass(context.WithoutCancel(ctx), "manual-gc-cleanup")
+-		// WithoutCancel keeps context values. Let the worker open new transactions
+-		// instead of reusing the GraphQL transaction, which closes with the mutation.
+-		bgCtx := ent.NewTxContext(context.WithoutCancel(ctx), nil)
+-		bgCtx = authz.WithSystemBypass(bgCtx, "manual-gc-cleanup")
 -		_ = r.gcWorker.RunCleanupNow(bgCtx, input)
 -	}()
 -

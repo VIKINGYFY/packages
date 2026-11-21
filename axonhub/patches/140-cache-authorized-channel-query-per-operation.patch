@@ -99,7 +99,7 @@ Base-Commit: 52727fd5021302ab93f0a023304121f9159d64ee
 +}
 --- a/internal/server/gql/graphql.go
 +++ b/internal/server/gql/graphql.go
-@@ -137,6 +137,7 @@ func NewGraphqlHandlers(deps Dependencie
+@@ -135,6 +135,7 @@ func NewGraphqlHandlers(deps Dependencie
  	})
  	gqlSrv.Use(&loggingTracer{})
  	gqlSrv.AroundOperations(apiKeyReadOnly)
@@ -107,7 +107,7 @@ Base-Commit: 52727fd5021302ab93f0a023304121f9159d64ee
  	gqlSrv.Use(entgql.Transactioner{
  		TxOpener: deps.Ent,
  		// TestChannel performs long-running parallel provider requests whose database
-@@ -305,7 +306,7 @@ var guidTypeToNodeType = map[string]stri
+@@ -302,7 +303,7 @@ var guidTypeToNodeType = map[string]stri
  	ent.TypePrompt:                  prompt.Table,
  }
  
