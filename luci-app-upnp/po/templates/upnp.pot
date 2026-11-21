@@ -1,63 +1,87 @@
 msgid ""
 msgstr "Content-Type: text/plain; charset=UTF-8"
 
-#: luci-app-upnp/htdocs/luci-static/resources/view/upnp/upnp.js:89
-msgctxt ""
-"A 900s interval will result in %s (%s = SSDP) notifications with the minimum "
-"max-age of 1800s"
+#: luci-app-upnp/htdocs/luci-static/resources/view/upnp/upnp.js:210
 msgid ""
-"A 900s interval will result in %s notifications with the minimum max-age of "
-"1800s"
+"A custom MiniUPnPd configuration file is active. This page can set the "
+"service and logging switches."
 msgstr ""
 
-#: luci-app-upnp/htdocs/luci-static/resources/view/upnp/upnp.js:125
-msgid ""
-"ACL specify which client addresses and ports can be mapped, IPv6 always "
-"allowed."
-msgstr ""
-
-#: luci-app-upnp/htdocs/luci-static/resources/view/upnp/upnp.js:144
+#: luci-app-upnp/htdocs/luci-static/resources/view/upnp/upnp.js:170
 msgid "Action"
 msgstr ""
 
-#: luci-app-upnp/htdocs/luci-static/resources/view/upnp/upnp.js:34
-msgid "Active Service Port Maps"
+#: luci-app-upnp/htdocs/luci-static/resources/view/upnp/upnp.js:204
+msgid "Active IPv4 Port Mappings"
 msgstr ""
 
 #: luci-app-upnp/htdocs/luci-static/resources/view/status/include/80_upnp.js:6
-msgid "Active UPnP IGD & PCP/NAT-PMP Port Maps"
+msgid "Active UPnP IGD & PCP/NAT-PMP IPv4 Port Mappings"
 msgstr ""
 
-#: luci-app-upnp/htdocs/luci-static/resources/view/upnp/upnp.js:41
+#: luci-app-upnp/htdocs/luci-static/resources/view/upnp/upnp.js:214
 msgid "Advanced Settings"
 msgstr ""
 
-#: luci-app-upnp/htdocs/luci-static/resources/view/upnp/upnp.js:57
-msgid "Advertise as IGDv1 (IPv4 only) device instead of IGDv2"
+#: luci-app-upnp/htdocs/luci-static/resources/view/upnp/upnp.js:53
+msgid "Advertise an IGDv1 description for older UPnP clients."
 msgstr ""
 
-#: luci-app-upnp/htdocs/luci-static/resources/view/upnp/upnp.js:145
+#: luci-app-upnp/htdocs/luci-static/resources/view/upnp/upnp.js:97
+msgid "Advertised external IPv4 address"
+msgstr ""
+
+#: luci-app-upnp/htdocs/luci-static/resources/view/upnp/upnp.js:171
 msgid "Allow"
 msgstr ""
 
-#: luci-app-upnp/htdocs/luci-static/resources/view/upnp/upnp.js:84
-msgid "Allow adding port maps for requesting IP addresses only"
+#: luci-app-upnp/htdocs/luci-static/resources/view/upnp/upnp.js:116
+msgid ""
+"Allow UPnP clients to add or delete IPv4 mappings for their own address only."
 msgstr ""
 
-#: luci-app-upnp/htdocs/luci-static/resources/view/upnp/upnp.js:53
-msgid "Allow private IPv4"
+#: luci-app-upnp/htdocs/luci-static/resources/view/upnp/upnp.js:47
+msgid "Allow mappings on a private WAN IPv4 address"
 msgstr ""
 
-#: luci-app-upnp/htdocs/luci-static/resources/view/upnp/upnp.js:108
+#: luci-app-upnp/htdocs/luci-static/resources/view/upnp/upnp.js:48
+msgid ""
+"Allows local port mappings when the WAN address is private or reserved. "
+"Internet reachability depends on the upstream router and firewall."
+msgstr ""
+
+#: luci-app-upnp/htdocs/luci-static/resources/view/upnp/upnp.js:134
 msgid "Announced model number"
 msgstr ""
 
-#: luci-app-upnp/htdocs/luci-static/resources/view/upnp/upnp.js:111
+#: luci-app-upnp/htdocs/luci-static/resources/view/upnp/upnp.js:135
 msgid "Announced serial number"
 msgstr ""
 
+#: luci-app-upnp/htdocs/luci-static/resources/view/upnp/upnp.js:147
+msgid ""
+"Applies to IPv4 mappings for all enabled protocols. The first matching rule "
+"wins. Unmatched requests are allowed unless a final deny rule covers them."
+msgstr ""
+
+#: luci-app-upnp/htdocs/luci-static/resources/view/upnp/upnp.js:86
+msgid "Automatic"
+msgstr ""
+
+#: luci-app-upnp/htdocs/luci-static/resources/view/upnp/upnp.js:85
+msgid ""
+"Choose the WAN network used for IPv4 port mappings. Automatic selection "
+"follows the IPv4 default route or configured external firewall zone."
+msgstr ""
+
+#: luci-app-upnp/htdocs/luci-static/resources/view/upnp/upnp.js:73
+msgid ""
+"Choose the internal networks allowed to request port mappings. The default "
+"network is lan."
+msgstr ""
+
 #: luci-app-upnp/htdocs/luci-static/resources/upnp.js:88
-#: luci-app-upnp/htdocs/luci-static/resources/view/upnp/upnp.js:132
+#: luci-app-upnp/htdocs/luci-static/resources/view/upnp/upnp.js:155
 msgid "Client Address"
 msgstr ""
 
@@ -66,11 +90,11 @@ msgid "Client Name"
 msgstr ""
 
 #: luci-app-upnp/htdocs/luci-static/resources/upnp.js:89
-#: luci-app-upnp/htdocs/luci-static/resources/view/upnp/upnp.js:136
+#: luci-app-upnp/htdocs/luci-static/resources/view/upnp/upnp.js:160
 msgid "Client Port"
 msgstr ""
 
-#: luci-app-upnp/htdocs/luci-static/resources/view/upnp/upnp.js:130
+#: luci-app-upnp/htdocs/luci-static/resources/view/upnp/upnp.js:153
 msgid "Comment"
 msgstr ""
 
@@ -78,7 +102,7 @@ msgstr ""
 msgid "Delete"
 msgstr ""
 
-#: luci-app-upnp/htdocs/luci-static/resources/view/upnp/upnp.js:146
+#: luci-app-upnp/htdocs/luci-static/resources/view/upnp/upnp.js:172
 msgid "Deny"
 msgstr ""
 
@@ -86,36 +110,42 @@ msgstr ""
 msgid "Description"
 msgstr ""
 
-#: luci-app-upnp/htdocs/luci-static/resources/view/upnp/upnp.js:105
+#: luci-app-upnp/htdocs/luci-static/resources/view/upnp/upnp.js:95
+msgid ""
+"Detect the public IPv4 address and check whether the upstream NAT permits "
+"incoming traffic. A failed STUN request prevents the service from starting."
+msgstr ""
+
+#: luci-app-upnp/htdocs/luci-static/resources/view/upnp/upnp.js:133
 msgid "Device UUID"
 msgstr ""
 
-#: luci-app-upnp/htdocs/luci-static/resources/view/upnp/upnp.js:62
-msgid "Download speed"
-msgstr ""
-
-#: luci-app-upnp/htdocs/luci-static/resources/view/upnp/upnp.js:50
+#: luci-app-upnp/htdocs/luci-static/resources/view/upnp/upnp.js:41
 msgid "Enable PCP/NAT-PMP protocols"
 msgstr ""
 
-#: luci-app-upnp/htdocs/luci-static/resources/view/upnp/upnp.js:47
+#: luci-app-upnp/htdocs/luci-static/resources/view/upnp/upnp.js:38
 msgid "Enable UPnP IGD protocol"
 msgstr ""
 
-#: luci-app-upnp/htdocs/luci-static/resources/view/upnp/upnp.js:118
+#: luci-app-upnp/htdocs/luci-static/resources/view/upnp/upnp.js:223
 msgid "Enable additional logging"
 msgstr ""
 
-#: luci-app-upnp/htdocs/luci-static/resources/view/upnp/upnp.js:54
-msgid "Enable forwarding for private/reserved IPv4 address"
+#: luci-app-upnp/htdocs/luci-static/resources/view/upnp/upnp.js:45
+msgid "Enable at least one port mapping protocol."
 msgstr ""
 
-#: luci-app-upnp/htdocs/luci-static/resources/view/upnp/upnp.js:83
+#: luci-app-upnp/htdocs/luci-static/resources/view/upnp/upnp.js:115
 msgid "Enable secure mode"
 msgstr ""
 
+#: luci-app-upnp/htdocs/luci-static/resources/view/upnp/upnp.js:84
+msgid "External IPv4 network"
+msgstr ""
+
 #: luci-app-upnp/htdocs/luci-static/resources/upnp.js:90
-#: luci-app-upnp/htdocs/luci-static/resources/view/upnp/upnp.js:140
+#: luci-app-upnp/htdocs/luci-static/resources/view/upnp/upnp.js:165
 msgid "External Port"
 msgstr ""
 
@@ -131,11 +161,29 @@ msgstr ""
 msgid "Grant access to UPnP IGD & PCP/NAT-PMP"
 msgstr ""
 
-#: luci-app-upnp/htdocs/luci-static/resources/view/upnp/upnp.js:88
+#: luci-app-upnp/htdocs/luci-static/resources/view/upnp/upnp.js:146
+msgid "IPv4 Access Control List"
+msgstr ""
+
+#: luci-app-upnp/htdocs/luci-static/resources/view/upnp/upnp.js:140
+msgid "IPv4 lease file"
+msgstr ""
+
+#: luci-app-upnp/htdocs/luci-static/resources/view/upnp/upnp.js:72
+msgid "Listening networks"
+msgstr ""
+
+#: luci-app-upnp/htdocs/luci-static/resources/view/upnp/upnp.js:119
 msgid "Notify interval"
 msgstr ""
 
-#: luci-app-upnp/htdocs/luci-static/resources/view/upnp/upnp.js:100
+#: luci-app-upnp/htdocs/luci-static/resources/view/upnp/upnp.js:98
+msgid ""
+"Override the IPv4 address reported to clients. Leave empty to use the "
+"detected address."
+msgstr ""
+
+#: luci-app-upnp/htdocs/luci-static/resources/view/upnp/upnp.js:129
 msgid "Presentation URL"
 msgstr ""
 
@@ -143,7 +191,7 @@ msgstr ""
 msgid "Protocol"
 msgstr ""
 
-#: luci-app-upnp/htdocs/luci-static/resources/view/upnp/upnp.js:119
+#: luci-app-upnp/htdocs/luci-static/resources/view/upnp/upnp.js:224
 msgid "Puts extra debugging information into the system log"
 msgstr ""
 
@@ -151,59 +199,78 @@ msgstr ""
 msgid "Remaining Time"
 msgstr ""
 
-#: luci-app-upnp/htdocs/luci-static/resources/view/upnp/upnp.js:101
+#: luci-app-upnp/htdocs/luci-static/resources/view/upnp/upnp.js:130
 msgid "Report custom router web interface (presentation) URL"
 msgstr ""
 
-#: luci-app-upnp/htdocs/luci-static/resources/view/upnp/upnp.js:63
-msgid "Report maximum download speed in kByte/s"
-msgstr ""
-
-#: luci-app-upnp/htdocs/luci-static/resources/view/upnp/upnp.js:67
-msgid "Report maximum upload speed in kByte/s"
-msgstr ""
-
-#: luci-app-upnp/htdocs/luci-static/resources/view/upnp/upnp.js:114
+#: luci-app-upnp/htdocs/luci-static/resources/view/upnp/upnp.js:137
 msgid "Report system instead of service uptime"
 msgstr ""
 
-#: luci-app-upnp/htdocs/luci-static/resources/view/upnp/upnp.js:95
-msgid "SOAP/HTTP port"
+#: luci-app-upnp/htdocs/luci-static/resources/view/upnp/upnp.js:58
+msgid "Reported download speed"
 msgstr ""
 
-#: luci-app-upnp/htdocs/luci-static/resources/view/upnp/upnp.js:74
-msgid "STUN host"
+#: luci-app-upnp/htdocs/luci-static/resources/view/upnp/upnp.js:57
+msgid ""
+"Reported to UPnP clients in KiB/s. Leave empty or enter 0 to use the "
+"detected WAN link speed."
 msgstr ""
 
-#: luci-app-upnp/htdocs/luci-static/resources/view/upnp/upnp.js:78
-msgid "STUN port"
+#: luci-app-upnp/htdocs/luci-static/resources/view/upnp/upnp.js:61
+msgid "Reported upload speed"
 msgstr ""
 
 #: luci-app-upnp/htdocs/luci-static/resources/view/upnp/upnp.js:124
-msgid "Service Access Control List"
+msgid "SOAP/HTTP port"
 msgstr ""
 
-#: luci-app-upnp/htdocs/luci-static/resources/view/upnp/upnp.js:38
+#: luci-app-upnp/htdocs/luci-static/resources/view/upnp/upnp.js:120
+msgid ""
+"SSDP announcement interval in seconds. Announcements advertise a lifetime of "
+"twice this value."
+msgstr ""
+
+#: luci-app-upnp/htdocs/luci-static/resources/view/upnp/upnp.js:101
+msgid ""
+"STUN and a manually configured external IPv4 address are mutually exclusive."
+msgstr ""
+
+#: luci-app-upnp/htdocs/luci-static/resources/view/upnp/upnp.js:103
+msgid "STUN host"
+msgstr ""
+
+#: luci-app-upnp/htdocs/luci-static/resources/view/upnp/upnp.js:109
+msgid "STUN port"
+msgstr ""
+
+#: luci-app-upnp/htdocs/luci-static/resources/view/upnp/upnp.js:76
+msgid "Select at least one listening network."
+msgstr ""
+
+#: luci-app-upnp/htdocs/luci-static/resources/view/upnp/upnp.js:209
 msgid "Service Settings"
 msgstr ""
 
-#: luci-app-upnp/htdocs/luci-static/resources/view/upnp/upnp.js:40
+#: luci-app-upnp/htdocs/luci-static/resources/view/upnp/upnp.js:213
 msgid "Service Setup"
 msgstr ""
 
-#: luci-app-upnp/htdocs/luci-static/resources/view/upnp/upnp.js:121
-msgid "Service lease file"
-msgstr ""
-
-#: luci-app-upnp/htdocs/luci-static/resources/view/upnp/upnp.js:44
+#: luci-app-upnp/htdocs/luci-static/resources/view/upnp/upnp.js:217
 msgid "Start autonomous port mapping service"
 msgstr ""
 
-#: luci-app-upnp/htdocs/luci-static/resources/view/upnp/upnp.js:43
+#: luci-app-upnp/htdocs/luci-static/resources/view/upnp/upnp.js:216
 msgid "Start service"
 msgstr ""
 
-#: luci-app-upnp/htdocs/luci-static/resources/view/upnp/upnp.js:25
+#: luci-app-upnp/htdocs/luci-static/resources/view/upnp/upnp.js:141
+msgid ""
+"Stores IPv4 mapping descriptions and expiry times and is used when deleting "
+"mappings. Leave empty to use the default path."
+msgstr ""
+
+#: luci-app-upnp/htdocs/luci-static/resources/view/upnp/upnp.js:195
 msgctxt ""
 "The %s (%s = UPnP IGD & PCP/NAT-PMP) protocols allow clients on the local "
 "network to configure port maps/forwards on the router autonomously."
@@ -212,24 +279,27 @@ msgid ""
 "forwards on the router autonomously."
 msgstr ""
 
-#: luci-app-upnp/htdocs/luci-static/resources/upnp.js:52
-msgid "There are no active port maps."
+#: luci-app-upnp/htdocs/luci-static/resources/view/upnp/upnp.js:125
+msgid "The default is 5000. Enter 0 to select a port automatically."
 msgstr ""
 
-#: luci-app-upnp/htdocs/luci-static/resources/view/upnp/upnp.js:72
-msgid ""
-"To detect the public IPv4 address for unrestricted full-cone/one-to-one NATs"
+#: luci-app-upnp/htdocs/luci-static/resources/view/upnp/upnp.js:88
+msgid "The external network must differ from the listening networks."
+msgstr ""
+
+#: luci-app-upnp/htdocs/luci-static/resources/upnp.js:52
+msgid "There are no active port maps."
 msgstr ""
 
 #: luci-app-upnp/root/usr/share/luci/menu.d/luci-app-upnp.json:3
 msgid "UPnP IGD & PCP"
 msgstr ""
 
-#: luci-app-upnp/htdocs/luci-static/resources/view/upnp/upnp.js:24
+#: luci-app-upnp/htdocs/luci-static/resources/view/upnp/upnp.js:194
 msgid "UPnP IGD & PCP/NAT-PMP Service"
 msgstr ""
 
-#: luci-app-upnp/htdocs/luci-static/resources/view/upnp/upnp.js:56
+#: luci-app-upnp/htdocs/luci-static/resources/view/upnp/upnp.js:52
 msgid "UPnP IGDv1 compatibility mode"
 msgstr ""
 
@@ -237,11 +307,6 @@ msgstr ""
 msgid "Unknown"
 msgstr ""
 
-#: luci-app-upnp/htdocs/luci-static/resources/view/upnp/upnp.js:66
-msgid "Upload speed"
-msgstr ""
-
-#: luci-app-upnp/htdocs/luci-static/resources/view/upnp/upnp.js:70
-msgctxt "Use %s (%s = STUN)"
-msgid "Use %s"
+#: luci-app-upnp/htdocs/luci-static/resources/view/upnp/upnp.js:94
+msgid "Use STUN"
 msgstr ""

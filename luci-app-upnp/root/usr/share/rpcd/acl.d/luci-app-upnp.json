@@ -3,7 +3,8 @@
 		"description": "Grant access to UPnP IGD & PCP/NAT-PMP",
 		"read": {
 			"ubus": {
-				"luci.upnp": [ "get_status" ]
+				"luci.upnp": [ "get_status" ],
+				"network.interface": [ "dump" ]
 			},
 			"uci": [ "upnpd" ]
 		},
