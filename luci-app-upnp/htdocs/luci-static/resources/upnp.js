@@ -81,16 +81,17 @@ return baseclass.extend({
 	updateTable: updateTable,
 
 	renderTable: function(status) {
+		// LuCI copies the caption classes to the corresponding data cells.
 		const table = E('table', { 'class': 'table cbi-section-table upnp-status-table' }, [
 			E('tr', { 'class': 'tr table-titles' }, [
-				E('th', { 'class': 'th' }, _('Client Name')),
-				E('th', { 'class': 'th' }, _('Client Address')),
-				E('th', { 'class': 'th' }, _('Client Port')),
-				E('th', { 'class': 'th' }, _('External Port')),
-				E('th', { 'class': 'th' }, _('Protocol')),
-				E('th', { 'class': 'th right' }, _('Expires')),
-				E('th', { 'class': 'th' }, _('Description')),
-				E('th', { 'class': 'th cbi-section-actions' }, '')
+				E('th', { 'class': 'th left' }, _('Client Name')),
+				E('th', { 'class': 'th left' }, _('Client Address')),
+				E('th', { 'class': 'th left' }, _('Client Port')),
+				E('th', { 'class': 'th left' }, _('External Port')),
+				E('th', { 'class': 'th left' }, _('Protocol')),
+				E('th', { 'class': 'th left' }, _('Remaining Time')),
+				E('th', { 'class': 'th left' }, _('Description')),
+				E('th', { 'class': 'th left cbi-section-actions' }, '')
 			])
 		]);
 		updateTable(table, status);

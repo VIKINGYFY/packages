@@ -73,16 +73,16 @@ msgstr "通告的设备型号"
 msgid "Announced serial number"
 msgstr "通告的设备序列号"
 
-#: luci-app-upnp/htdocs/luci-static/resources/upnp.js:87
+#: luci-app-upnp/htdocs/luci-static/resources/upnp.js:88
 #: luci-app-upnp/htdocs/luci-static/resources/view/upnp/upnp.js:132
 msgid "Client Address"
 msgstr "客户端地址"
 
-#: luci-app-upnp/htdocs/luci-static/resources/upnp.js:86
+#: luci-app-upnp/htdocs/luci-static/resources/upnp.js:87
 msgid "Client Name"
 msgstr "客户端名称"
 
-#: luci-app-upnp/htdocs/luci-static/resources/upnp.js:88
+#: luci-app-upnp/htdocs/luci-static/resources/upnp.js:89
 #: luci-app-upnp/htdocs/luci-static/resources/view/upnp/upnp.js:136
 msgid "Client Port"
 msgstr "客户端端口"
@@ -99,7 +99,7 @@ msgstr "删除"
 msgid "Deny"
 msgstr "拒绝"
 
-#: luci-app-upnp/htdocs/luci-static/resources/upnp.js:92
+#: luci-app-upnp/htdocs/luci-static/resources/upnp.js:93
 msgid "Description"
 msgstr "描述"
 
@@ -131,11 +131,7 @@ msgstr "允许转发 IPv4 内网/保留地址"
 msgid "Enable secure mode"
 msgstr "启用安全模式"
 
-#: luci-app-upnp/htdocs/luci-static/resources/upnp.js:91
-msgid "Expires"
-msgstr "剩余有效期"
-
-#: luci-app-upnp/htdocs/luci-static/resources/upnp.js:89
+#: luci-app-upnp/htdocs/luci-static/resources/upnp.js:90
 #: luci-app-upnp/htdocs/luci-static/resources/view/upnp/upnp.js:140
 msgid "External Port"
 msgstr "外部端口"
@@ -160,13 +156,17 @@ msgstr "通知间隔"
 msgid "Presentation URL"
 msgstr "服务网址"
 
-#: luci-app-upnp/htdocs/luci-static/resources/upnp.js:90
+#: luci-app-upnp/htdocs/luci-static/resources/upnp.js:91
 msgid "Protocol"
 msgstr "协议"
 
 #: luci-app-upnp/htdocs/luci-static/resources/view/upnp/upnp.js:119
 msgid "Puts extra debugging information into the system log"
 msgstr "将额外的调试信息输出到系统日志中"
+
+#: luci-app-upnp/htdocs/luci-static/resources/upnp.js:92
+msgid "Remaining Time"
+msgstr "剩余时间"
 
 #: luci-app-upnp/htdocs/luci-static/resources/view/upnp/upnp.js:101
 msgid "Report custom router web interface (presentation) URL"

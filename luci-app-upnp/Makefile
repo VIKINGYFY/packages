@@ -7,8 +7,8 @@
 include $(TOPDIR)/rules.mk
 
 PKG_NAME:=luci-app-upnp
-PKG_VERSION:=20261027
-PKG_RELEASE:=7
+PKG_VERSION:=20261121
+PKG_RELEASE:=4
 PKG_PO_VERSION:=$(PKG_VERSION)-r$(PKG_RELEASE)
 
 LUCI_TITLE:=UPnP IGD & PCP/NAT-PMP configuration module | Universal Plug and Play

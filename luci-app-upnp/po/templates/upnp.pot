@@ -56,16 +56,16 @@ msgstr ""
 msgid "Announced serial number"
 msgstr ""
 
-#: luci-app-upnp/htdocs/luci-static/resources/upnp.js:87
+#: luci-app-upnp/htdocs/luci-static/resources/upnp.js:88
 #: luci-app-upnp/htdocs/luci-static/resources/view/upnp/upnp.js:132
 msgid "Client Address"
 msgstr ""
 
-#: luci-app-upnp/htdocs/luci-static/resources/upnp.js:86
+#: luci-app-upnp/htdocs/luci-static/resources/upnp.js:87
 msgid "Client Name"
 msgstr ""
 
-#: luci-app-upnp/htdocs/luci-static/resources/upnp.js:88
+#: luci-app-upnp/htdocs/luci-static/resources/upnp.js:89
 #: luci-app-upnp/htdocs/luci-static/resources/view/upnp/upnp.js:136
 msgid "Client Port"
 msgstr ""
@@ -82,7 +82,7 @@ msgstr ""
 msgid "Deny"
 msgstr ""
 
-#: luci-app-upnp/htdocs/luci-static/resources/upnp.js:92
+#: luci-app-upnp/htdocs/luci-static/resources/upnp.js:93
 msgid "Description"
 msgstr ""
 
@@ -114,11 +114,7 @@ msgstr ""
 msgid "Enable secure mode"
 msgstr ""
 
-#: luci-app-upnp/htdocs/luci-static/resources/upnp.js:91
-msgid "Expires"
-msgstr ""
-
-#: luci-app-upnp/htdocs/luci-static/resources/upnp.js:89
+#: luci-app-upnp/htdocs/luci-static/resources/upnp.js:90
 #: luci-app-upnp/htdocs/luci-static/resources/view/upnp/upnp.js:140
 msgid "External Port"
 msgstr ""
@@ -143,12 +139,16 @@ msgstr ""
 msgid "Presentation URL"
 msgstr ""
 
-#: luci-app-upnp/htdocs/luci-static/resources/upnp.js:90
+#: luci-app-upnp/htdocs/luci-static/resources/upnp.js:91
 msgid "Protocol"
 msgstr ""
 
 #: luci-app-upnp/htdocs/luci-static/resources/view/upnp/upnp.js:119
 msgid "Puts extra debugging information into the system log"
+msgstr ""
+
+#: luci-app-upnp/htdocs/luci-static/resources/upnp.js:92
+msgid "Remaining Time"
 msgstr ""
 
 #: luci-app-upnp/htdocs/luci-static/resources/view/upnp/upnp.js:101
