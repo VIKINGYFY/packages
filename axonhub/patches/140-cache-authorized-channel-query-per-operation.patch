@@ -11,7 +11,7 @@ Serialize concurrent lookups to avoid duplicate reads. Mutations use
 direct authorized queries so credential or permission changes are read
 immediately, and no authorization result survives the operation.
 
-Base-Commit: 52727fd5021302ab93f0a023304121f9159d64ee
+Base-Commit: c5795678840ee54ecdef8f03f9741650bd8ab302
 
 ---
 
@@ -104,10 +104,10 @@ Base-Commit: 52727fd5021302ab93f0a023304121f9159d64ee
  	gqlSrv.Use(&loggingTracer{})
  	gqlSrv.AroundOperations(apiKeyReadOnly)
 +	gqlSrv.AroundOperations(cacheChannelLookups)
- 	gqlSrv.Use(entgql.Transactioner{
- 		TxOpener: deps.Ent,
- 		// TestChannel performs long-running parallel provider requests whose database
-@@ -302,7 +303,7 @@ var guidTypeToNodeType = map[string]stri
+ 	gqlSrv.Use(graphqlTransactions(deps.Ent))
+ 	gqlSrv.SetErrorPresenter(presentGraphqlError)
+ 
+@@ -320,7 +321,7 @@ var guidTypeToNodeType = map[string]stri
  	ent.TypePrompt:                  prompt.Table,
  }
  
