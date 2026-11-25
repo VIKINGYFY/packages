@@ -1,27 +1,12 @@
-From: VIKINGYFY <viking.yfy@qq.com>
-Date: Tue, 13 Oct 2026 18:57:04 +0800
-Subject: [PATCH] gc: retain failed deletions and protect referenced records
-
-Whole-record GC currently drops database rows after external deletion
-fails, omits tracked media, and can remove traces or threads that still
-have live children.
-
-Delete only successfully cleaned IDs and advance a bounded ID cursor so
-failed rows remain retryable without blocking later batches. Load media
-storage references, protect surviving executions and pending/processing
-rows, and clean requests, traces and threads in child-to-parent order.
-
-Share an admission lock across manual and scheduled GC. Bound cleanup
-with configurable batch size, cancellable pacing and timeout. Propagate
-cleanup errors, publish scheduler errors, and log completion and counts.
-
-Base-Commit: 0896305eeee89435049575d55a813f72901f703b
-
----
+Subject: [PATCH] gc: protect retained data and control scheduled cleanup
 
 --- a/conf/conf.go
 +++ b/conf/conf.go
-@@ -367,6 +367,9 @@ func setDefaults(v *viper.Viper) {
+@@ -364,9 +364,13 @@ func setDefaults(v *viper.Viper) {
+ 	v.SetDefault("metrics.exporter.insecure", false)
+ 
+ 	// GC defaults
++	v.SetDefault("gc.enabled", true)
  	v.SetDefault("gc.cron", "0 2 * * *") // Daily at 2:00 AM
  	v.SetDefault("gc.vacuum_enabled", true)
  	v.SetDefault("gc.vacuum_full", false)
@@ -33,7 +18,16 @@ Base-Commit: 0896305eeee89435049575d55a813f72901f703b
  	v.SetDefault("provider_quota.check_interval", "5m")
 --- a/config.example.yml
 +++ b/config.example.yml
-@@ -192,6 +192,9 @@ gc:
+@@ -185,6 +185,8 @@ metrics:
+ 
+ # Garbage Collection configuration
+ gc:
++  enabled: true                  # Enable scheduled cleanup (env: AXONHUB_GC_ENABLED)
++                                 # Manual cleanup remains available when disabled
+   cron: "0 2 * * *"              # Cron expression for GC execution (env: AXONHUB_GC_CRON)
+                                  # This example runs daily at 2:00 AM
+                                  # Format: minute hour day month day_of_week
+@@ -192,6 +194,9 @@ gc:
                                   # "0 2 * * *"     - Daily at 2:00 AM
                                   # "0 3 * * 0"     - Weekly on Sunday at 3:00 AM
                                   # "0 4 1 * *"     - Monthly on 1st day at 4:00 AM
@@ -55,23 +49,24 @@ Base-Commit: 0896305eeee89435049575d55a813f72901f703b
  	"time"
  
  	"entgo.io/ent/dialect"
-@@ -26,6 +28,8 @@ import (
+@@ -24,7 +26,7 @@ import (
+ 	"github.com/looplj/axonhub/internal/server/scheduler"
+ )
  
- var defaultBatchSize = 500
- 
+-var defaultBatchSize = 500
 +var ErrCleanupInProgress = errors.New("cleanup already running")
-+
+ 
  type TriggerGcCleanupInput struct {
  	RequestsCleanupDays       int `json:"requests_cleanup_days"`
- 	UsageLogsCleanupDays      int `json:"usage_logs_cleanup_days"`
-@@ -42,12 +46,17 @@ type GcCleanupPreviewItem struct {
+@@ -42,12 +44,18 @@ type GcCleanupPreviewItem struct {
  }
  
  type Config struct {
 -	CRON          string `json:"cron" yaml:"cron" conf:"cron" validate:"required"`
 -	VacuumEnabled bool   `json:"vacuum_enabled" yaml:"vacuum_enabled" conf:"vacuum_enabled"`
 -	VacuumFull    bool   `json:"vacuum_full" yaml:"vacuum_full" conf:"vacuum_full"`
-+	BatchSize     int           `json:"batch_size" yaml:"batch_size" conf:"batch_size" validate:"gte=0,lte=10000"`
++	Enabled       bool          `json:"enabled" yaml:"enabled" conf:"enabled"`
++	BatchSize     int           `json:"batch_size" yaml:"batch_size" conf:"batch_size" validate:"gt=0,lte=10000"`
 +	BatchInterval time.Duration `json:"batch_interval" yaml:"batch_interval" conf:"batch_interval" validate:"gte=0"`
 +	Timeout       time.Duration `json:"timeout" yaml:"timeout" conf:"timeout" validate:"gt=0"`
 +	CRON          string        `json:"cron" yaml:"cron" conf:"cron" validate:"required"`
@@ -85,16 +80,40 @@ Base-Commit: 0896305eeee89435049575d55a813f72901f703b
  	SystemService      *biz.SystemService
  	DataStorageService *biz.DataStorageService
  	Ent                *ent.Client
-@@ -75,7 +84,7 @@ func NewWorker(params Params) *Worker {
+@@ -63,7 +71,13 @@ type Params struct {
+ 	Client             *ent.Client
+ }
+ 
+-func NewWorker(params Params) *Worker {
++func NewWorker(params Params) (*Worker, error) {
++	if params.Config.BatchSize <= 0 || params.Config.BatchSize > 10000 {
++		return nil, fmt.Errorf("gc.batch_size must be between 1 and 10000")
++	}
++	if params.Config.Timeout <= 0 || params.Config.BatchInterval < 0 {
++		return nil, fmt.Errorf("gc.timeout must be positive and gc.batch_interval must be non-negative")
++	}
+ 	w := &Worker{
+ 		SystemService:      params.SystemService,
+ 		DataStorageService: params.DataStorageService,
+@@ -71,11 +85,15 @@ func NewWorker(params Params) *Worker {
+ 		Config:             params.Config,
+ 	}
+ 
+-	return w
++	return w, nil
  }
  
  func (w *Worker) RegisterScheduledTasks(ctx context.Context, s *scheduler.Scheduler) error {
 -	return s.Register(ctx, scheduler.TaskSpec{
++	if !w.Config.Enabled {
++		log.Info(ctx, "Scheduled request history cleanup is disabled")
++		return nil
++	}
 +	return s.RegisterWithError(ctx, scheduler.TaskSpec{
  		Name:        "gc",
  		Description: "Garbage collection — cleanup old requests, stored bodies, traces, usage logs, and channel probes",
  		CronExpr:    w.Config.CRON,
-@@ -88,6 +97,9 @@ func (w *Worker) deleteInBatches(ctx con
+@@ -88,6 +106,9 @@ func (w *Worker) deleteInBatches(ctx con
  	totalDeleted := 0
  
  	for {
@@ -104,14 +123,12 @@ Base-Commit: 0896305eeee89435049575d55a813f72901f703b
  		deleted, err := deleteFunc()
  		if err != nil {
  			return totalDeleted, fmt.Errorf("failed to delete batch: %w", err)
-@@ -106,144 +118,112 @@ func (w *Worker) deleteInBatches(ctx con
+@@ -106,144 +127,105 @@ func (w *Worker) deleteInBatches(ctx con
  
  // getBatchSize returns the appropriate batch size for cleanup operations.
  func (w *Worker) getBatchSize() int {
-+	if w.Config.BatchSize > 0 {
-+		return w.Config.BatchSize
-+	}
- 	return defaultBatchSize
+-	return defaultBatchSize
++	return w.Config.BatchSize
  }
  
 -// runCleanup executes the cleanup process based on storage policy.
@@ -246,21 +263,17 @@ Base-Commit: 0896305eeee89435049575d55a813f72901f703b
 +func (w *Worker) runCleanup(ctx context.Context, manual bool, manualDays map[string]int) error {
 +	if err := ctx.Err(); err != nil {
 +		return err
- 	}
++	}
 +	if !w.cleanupMu.TryLock() {
 +		return ErrCleanupInProgress
-+	}
+ 	}
 +	defer w.cleanupMu.Unlock()
 +	return w.runCleanupLocked(ctx, manual, manualDays)
 +}
  
 -	err = w.cleanupChannelProbes(ctx, 3, manual)
 +func (w *Worker) runCleanupLocked(ctx context.Context, manual bool, manualDays map[string]int) (result error) {
-+	timeout := w.Config.Timeout
-+	if timeout <= 0 {
-+		timeout = 10 * time.Minute
-+	}
-+	ctx, cancel := context.WithTimeout(ctx, timeout)
++	ctx, cancel := context.WithTimeout(ctx, w.Config.Timeout)
 +	defer cancel()
 +	started := time.Now()
 +	log.Info(ctx, "Starting cleanup process", log.Bool("manual", manual), log.Time("started_at", started))
@@ -300,10 +313,10 @@ Base-Commit: 0896305eeee89435049575d55a813f72901f703b
 +	for _, option := range policy.CleanupOptions {
 +		if err := ctx.Err(); err != nil {
 +			return errors.Join(result, err)
- 		}
++		}
 +		if !option.Enabled && !manual {
 +			continue
-+		}
+ 		}
 +		days := option.CleanupDays
 +		if manual && manualDays != nil {
 +			var ok bool
@@ -343,7 +356,7 @@ Base-Commit: 0896305eeee89435049575d55a813f72901f703b
  }
  
  func (w *Worker) cleanupRequestBodyChunks(ctx context.Context) error {
-@@ -267,218 +247,186 @@ func (w *Worker) cleanupRequests(ctx con
+@@ -267,218 +249,186 @@ func (w *Worker) cleanupRequests(ctx con
  
  	cutoffTime := time.Now().AddDate(0, 0, -cleanupDays)
  
@@ -563,14 +576,14 @@ Base-Commit: 0896305eeee89435049575d55a813f72901f703b
 -
 -	if ds == nil || ds.Primary {
 -		return
--	}
++		return fmt.Errorf("load data storage %d: %w", storageID, err)
+ 	}
 -
 -	keys := []string{
 -		biz.GenerateExecutionRequestBodyKey(exec.ProjectID, exec.RequestID, exec.ID),
 -		biz.GenerateExecutionResponseBodyKey(exec.ProjectID, exec.RequestID, exec.ID),
 -		biz.GenerateExecutionResponseChunksKey(exec.ProjectID, exec.RequestID, exec.ID),
-+		return fmt.Errorf("load data storage %d: %w", storageID, err)
- 	}
+-	}
 -
 -	// Directory-marker keys only exist as real directories on filesystem-like
 -	// backends. On object stores (S3/GCS) they were never created, so deleting
@@ -676,7 +689,7 @@ Base-Commit: 0896305eeee89435049575d55a813f72901f703b
  }
  
  // hasRealDirectories reports whether the storage backend materializes
-@@ -561,6 +509,7 @@ func (w *Worker) cleanupThreads(ctx cont
+@@ -561,6 +511,7 @@ func (w *Worker) cleanupThreads(ctx cont
  			Where(
  				thread.CreatedAtLT(cutoffTime),
  				thread.StatusNEQ(thread.StatusRetained),
@@ -684,7 +697,7 @@ Base-Commit: 0896305eeee89435049575d55a813f72901f703b
  			).
  			Order(ent.Asc(thread.FieldID)).
  			Limit(batchSize).
-@@ -600,6 +549,7 @@ func (w *Worker) cleanupTraces(ctx conte
+@@ -600,6 +551,7 @@ func (w *Worker) cleanupTraces(ctx conte
  			Where(
  				trace.CreatedAtLT(cutoffTime),
  				trace.StatusNEQ(trace.StatusRetained),
@@ -692,7 +705,7 @@ Base-Commit: 0896305eeee89435049575d55a813f72901f703b
  			).
  			Order(ent.Asc(trace.FieldID)).
  			Limit(batchSize).
-@@ -717,6 +667,10 @@ func (w *Worker) RunVacuumNow(ctx contex
+@@ -717,6 +669,10 @@ func (w *Worker) RunVacuumNow(ctx contex
  
  // RunCleanupNow manually triggers the cleanup process with the specified days.
  func (w *Worker) RunCleanupNow(ctx context.Context, input TriggerGcCleanupInput) error {
@@ -703,7 +716,7 @@ Base-Commit: 0896305eeee89435049575d55a813f72901f703b
  	manualDays := make(map[string]int)
  	if input.RequestsCleanupDays > 0 {
  		manualDays[biz.CleanupResourceRequests] = input.RequestsCleanupDays
-@@ -733,8 +687,7 @@ func (w *Worker) RunCleanupNow(ctx conte
+@@ -733,8 +689,7 @@ func (w *Worker) RunCleanupNow(ctx conte
  	if input.ResponseChunksCleanupDays > 0 {
  		manualDays[biz.CleanupResourceResponseChunks] = input.ResponseChunksCleanupDays
  	}
@@ -808,6 +821,40 @@ Base-Commit: 0896305eeee89435049575d55a813f72901f703b
  				failed++
  
  				continue
+--- a/internal/server/gc/gc_bodies_test.go
++++ b/internal/server/gc/gc_bodies_test.go
+@@ -238,6 +238,7 @@ func setupBodyCleanupWorker(t *testing.T
+ 	require.NoError(t, err)
+ 
+ 	worker := &Worker{
++		Config:             Config{BatchSize: 500, Timeout: 10 * time.Minute, Enabled: true},
+ 		SystemService:      systemService,
+ 		DataStorageService: dataStorageService,
+ 		Ent:                client,
+@@ -578,6 +579,7 @@ func TestCleanupRequestBodies_PostgresIm
+ 	require.NoError(t, err)
+ 
+ 	worker := &Worker{
++		Config:             Config{BatchSize: 500, Timeout: 10 * time.Minute, Enabled: true},
+ 		SystemService:      systemService,
+ 		DataStorageService: dataStorageService,
+ 		Ent:                client,
+--- a/internal/server/gc/gc_chunks_test.go
++++ b/internal/server/gc/gc_chunks_test.go
+@@ -172,7 +172,12 @@ func setupChunkBodyCleanupWorker(t *test
+ 	proj := client.Project.Create().SetName("chunk-body-cleanup").SaveX(ctx)
+ 	client.DataStorage.Create().SetName("primary").SetDescription("primary database").
+ 		SetPrimary(true).SetType(datastorage.TypeDatabase).SetSettings(&objects.DataStorageSettings{}).SaveX(ctx)
+-	worker := &Worker{SystemService: systemService, DataStorageService: dataStorageService, Ent: client}
++	worker := &Worker{
++		SystemService:      systemService,
++		DataStorageService: dataStorageService,
++		Ent:                client,
++		Config:             Config{BatchSize: 500, Timeout: 10 * time.Minute},
++	}
+ 	return worker, ctx, client, proj
+ }
+ 
 --- a/internal/server/gc/gc_internal.go
 +++ b/internal/server/gc/gc_internal.go
 @@ -4,9 +4,35 @@ import (
@@ -848,6 +895,63 @@ Base-Commit: 0896305eeee89435049575d55a813f72901f703b
 +	}()
 +	return nil
  }
+--- a/internal/server/gc/gc_test.go
++++ b/internal/server/gc/gc_test.go
+@@ -23,27 +23,10 @@ import (
+ )
+ 
+ func TestWorker_getBatchSize(t *testing.T) {
+-	worker := &Worker{
+-		Ent:    nil,
+-		Config: Config{CRON: "0 0 * * *"},
+-	}
+-
+-	// Test default batch size
+-	batchSize := worker.getBatchSize()
+-	if batchSize != defaultBatchSize {
+-		t.Errorf("Expected batch size %d, got %d", defaultBatchSize, batchSize)
+-	}
+-
+-	// Test with overridden batch size
+-	originalBatchSize := defaultBatchSize
+-	defaultBatchSize = 20
+-
+-	defer func() { defaultBatchSize = originalBatchSize }()
+-
+-	batchSize = worker.getBatchSize()
+-	if batchSize != 20 {
+-		t.Errorf("Expected batch size 20, got %d", batchSize)
+-	}
++	worker := &Worker{Config: Config{BatchSize: 500}}
++	require.Equal(t, 500, worker.getBatchSize())
++	worker.Config.BatchSize = 20
++	require.Equal(t, 20, worker.getBatchSize())
+ }
+ 
+ func TestWorker_cleanupRequestExternalStorageDeletesFsArtifacts(t *testing.T) {
+@@ -198,6 +181,7 @@ func setupWorkerWithFSStorage(t *testing
+ 	require.NoError(t, err)
+ 
+ 	worker := &Worker{
++		Config:             Config{BatchSize: 500, Timeout: 10 * time.Minute, Enabled: true},
+ 		SystemService:      systemService,
+ 		DataStorageService: dataStorageService,
+ 		Ent:                client,
+@@ -301,13 +285,7 @@ func TestWorker_cleanupChannelProbesDele
+ 	ctx := authz.WithTestBypass(context.Background())
+ 	ctx = ent.NewContext(ctx, client)
+ 
+-	originalBatchSize := defaultBatchSize
+-	defaultBatchSize = 2
+-	t.Cleanup(func() {
+-		defaultBatchSize = originalBatchSize
+-	})
+-
+-	worker := &Worker{Ent: client, Config: Config{CRON: "0 0 * * *"}}
++	worker := &Worker{Ent: client, Config: Config{CRON: "0 0 * * *", BatchSize: 2}}
+ 	oldTimestamp := time.Now().AddDate(0, 0, -5).Unix()
+ 	recentTimestamp := time.Now().Unix()
+ 
 --- a/internal/server/gql/system.resolvers.go
 +++ b/internal/server/gql/system.resolvers.go
 @@ -14,7 +14,6 @@ import (
@@ -884,6 +988,21 @@ Base-Commit: 0896305eeee89435049575d55a813f72901f703b
  	return true, nil
  }
  
+--- a/internal/server/gql/system.resolvers_test.go
++++ b/internal/server/gql/system.resolvers_test.go
+@@ -40,7 +40,11 @@ func setupTestSystemMutationResolver(t *
+ func TestMutationResolver_TriggerGcCleanupUsesFreshTransactions(t *testing.T) {
+ 	resolver, ctx, client := setupTestSystemMutationResolver(t)
+ 	t.Cleanup(func() { require.NoError(t, client.Close()) })
+-	resolver.gcWorker = &gc.Worker{Ent: client, SystemService: resolver.systemService}
++	resolver.gcWorker = &gc.Worker{
++		Ent:           client,
++		SystemService: resolver.systemService,
++		Config:        gc.Config{BatchSize: 500, Timeout: 10 * time.Minute},
++	}
+ 
+ 	project, err := client.Project.Create().SetName("manual cleanup").Save(ctx)
+ 	require.NoError(t, err)
 --- a/internal/server/scheduler/scheduler.go
 +++ b/internal/server/scheduler/scheduler.go
 @@ -27,6 +27,11 @@ func New(exec executors.ScheduledExecuto
