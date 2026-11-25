@@ -73,7 +73,7 @@ Base-Commit: 0896305eeee89435049575d55a813f72901f703b
    host: "0.0.0.0"               # Server host (env: AXONHUB_SERVER_HOST)
 --- a/internal/server/biz/system.go
 +++ b/internal/server/biz/system.go
-@@ -673,6 +673,7 @@ type SystemServiceParams struct {
+@@ -674,6 +674,7 @@ type SystemServiceParams struct {
  	SafeguardsConfig safeguards.Config `optional:"true"`
  	CacheConfig      xcache.Config
  	Ent              *ent.Client
@@ -81,7 +81,7 @@ Base-Commit: 0896305eeee89435049575d55a813f72901f703b
  }
  
  func NewSystemService(params SystemServiceParams) *SystemService {
-@@ -683,6 +684,7 @@ func NewSystemService(params SystemServi
+@@ -684,6 +685,7 @@ func NewSystemService(params SystemServi
  		safeguardsDefaults: params.SafeguardsConfig,
  		CacheConfig:        params.CacheConfig,
  		Cache:              xcache.NewFromConfig[ent.System](params.CacheConfig),
@@ -89,7 +89,7 @@ Base-Commit: 0896305eeee89435049575d55a813f72901f703b
  	}
  }
  
-@@ -691,8 +693,9 @@ type SystemService struct {
+@@ -692,8 +694,9 @@ type SystemService struct {
  
  	safeguardsDefaults safeguards.Config
  
@@ -101,7 +101,7 @@ Base-Commit: 0896305eeee89435049575d55a813f72901f703b
  
  	mu           sync.RWMutex
  	timeLocation *time.Location
-@@ -824,8 +827,16 @@ func (s *SystemService) Initialize(ctx c
+@@ -825,8 +828,16 @@ func (s *SystemService) Initialize(ctx c
  		return fmt.Errorf("failed to create primary data storage: %w", err)
  	}
  

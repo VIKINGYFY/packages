@@ -99,7 +99,7 @@ Base-Commit: c5795678840ee54ecdef8f03f9741650bd8ab302
 +}
 --- a/internal/server/gql/graphql.go
 +++ b/internal/server/gql/graphql.go
-@@ -135,6 +135,7 @@ func NewGraphqlHandlers(deps Dependencie
+@@ -134,6 +134,7 @@ func NewGraphqlHandlers(deps Dependencie
  	})
  	gqlSrv.Use(&loggingTracer{})
  	gqlSrv.AroundOperations(apiKeyReadOnly)
@@ -107,7 +107,7 @@ Base-Commit: c5795678840ee54ecdef8f03f9741650bd8ab302
  	gqlSrv.Use(graphqlTransactions(deps.Ent))
  	gqlSrv.SetErrorPresenter(presentGraphqlError)
  
-@@ -320,7 +321,7 @@ var guidTypeToNodeType = map[string]stri
+@@ -318,7 +319,7 @@ var guidTypeToNodeType = map[string]stri
  	ent.TypePrompt:                  prompt.Table,
  }
  
