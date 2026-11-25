@@ -107,7 +107,7 @@ Base-Commit: c5795678840ee54ecdef8f03f9741650bd8ab302
  	gqlSrv.Use(graphqlTransactions(deps.Ent))
  	gqlSrv.SetErrorPresenter(presentGraphqlError)
  
-@@ -318,7 +319,7 @@ var guidTypeToNodeType = map[string]stri
+@@ -331,7 +332,7 @@ var guidTypeToNodeType = map[string]stri
  	ent.TypePrompt:                  prompt.Table,
  }
  

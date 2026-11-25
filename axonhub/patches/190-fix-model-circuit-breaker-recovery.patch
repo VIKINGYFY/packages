@@ -1,0 +1,2185 @@
+Subject: [PATCH] axonhub: recover model circuits across request paths
+
+Reserve probes atomically and classify each upstream attempt once.
+Preserve usable candidates across cooldown, retries and protocol changes.
+Use the provider terminal outcome for streaming health and bound recovery.
+
+Base-Commit: 9be15a35d7646a5d93759c36b6193fd79bcc693f
+
+--- a/internal/server/biz/channel.go
++++ b/internal/server/biz/channel.go
+@@ -113,7 +113,8 @@ type ChannelServiceParams struct {
+ 
+ func NewChannelService(params ChannelServiceParams) *ChannelService {
+ 	svc := &ChannelService{
+-		modelCache: params.ModelCache,
++		modelCache:     params.ModelCache,
++		circuitBreaker: NewModelCircuitBreaker(),
+ 		AbstractService: &AbstractService{
+ 			db: params.Ent,
+ 		},
+@@ -164,6 +165,11 @@ func NewChannelService(params ChannelSer
+ 	return svc
+ }
+ 
++// ModelCircuitBreaker shares model health across the protocol handlers.
++func (svc *ChannelService) ModelCircuitBreaker() *ModelCircuitBreaker {
++	return svc.circuitBreaker
++}
++
+ func (svc *ChannelService) Stop() {
+ 	svc.enabledChannelsCache.Stop()
+ }
+@@ -171,7 +177,8 @@ func (svc *ChannelService) Stop() {
+ type ChannelService struct {
+ 	*AbstractService
+ 
+-	modelCache *ModelCacheService
++	modelCache     *ModelCacheService
++	circuitBreaker *ModelCircuitBreaker
+ 
+ 	SystemService   *SystemService
+ 	WebhookNotifier *WebhookNotifier
+--- a/internal/server/biz/model_circuit_breaker.go
++++ b/internal/server/biz/model_circuit_breaker.go
+@@ -3,9 +3,7 @@ package biz
+ import (
+ 	"context"
+ 	"fmt"
+-	"math"
+ 	"sync"
+-	"sync/atomic"
+ 	"time"
+ 
+ 	"github.com/looplj/axonhub/internal/log"
+@@ -39,7 +37,7 @@ type ModelCircuitBreakerPolicy struct {
+ 	// Failure stats TTL (recommended: 30m). Counters reset if no new errors occur within this duration.
+ 	FailureStatsTTL time.Duration `json:"failure_stats_ttl" yaml:"failure_stats_ttl"`
+ 
+-	// Probe interval after entering Open state (recommended: 5m)
++	// Initial cooldown after entering Open state
+ 	ProbeInterval time.Duration `json:"probe_interval" yaml:"probe_interval"`
+ 
+ 	// [Weight Control]
+@@ -51,7 +49,7 @@ var defaultModelCircuitBreakerPolicy = M
+ 	HalfOpenThreshold: 3,
+ 	OpenThreshold:     5,
+ 	FailureStatsTTL:   30 * time.Minute,
+-	ProbeInterval:     5 * time.Minute,
++	ProbeInterval:     15 * time.Second,
+ 	HalfOpenWeight:    0.3,
+ }
+ 
+@@ -93,9 +91,10 @@ type ModelCircuitBreakerStats struct {
+ 	// Recovery Control
+ 	NextProbeAt time.Time // Next allowed probe time (used for Open state)
+ 
+-	// Probe Control (to prevent concurrent penetration)
+-	probingInProgress int32 // atomic operation
+-	probeAttempts     int   // number of probe attempts, used for exponential backoff
++	probe         *ModelCircuitAttempt
++	probeUntil    time.Time
++	probeAttempts int
++	epoch         uint64
+ }
+ 
+ // ModelCircuitBreaker manages the circuit breaker status of models across channels.
+@@ -148,79 +147,58 @@ func (m *ModelCircuitBreaker) GetPolicy(
+ 	return DefaultModelCircuitBreakerPolicy()
+ }
+ 
+-// RecordError records an error for the specified channel and model.
+-// wasProbe indicates whether the error occurred during an active probe request.
+-// When the circuit is Open, exponential backoff is only applied for probe failures,
+-// preventing regular (rejected) requests from pushing recovery further away.
+-func (m *ModelCircuitBreaker) RecordError(ctx context.Context, channelID int, modelID string, wasProbe bool) {
++// RecordError records a failure outside a reserved probe.
++func (m *ModelCircuitBreaker) RecordError(ctx context.Context, channelID int, modelID string) {
+ 	stats := m.getStats(channelID, modelID)
+ 
+ 	stats.Lock()
+ 	defer stats.Unlock()
+ 
+ 	now := time.Now()
++	m.expireFailuresLocked(ctx, stats, now)
++	if stats.State != StateOpen {
++		m.recordErrorLocked(ctx, stats, now, false)
++	}
++}
++
++func (m *ModelCircuitBreaker) recordErrorLocked(ctx context.Context, stats *ModelCircuitBreakerStats, now time.Time, wasProbe bool) {
+ 	policy := m.GetPolicy(ctx)
+ 
+-	// 1. TTL Check: prevent zombie counts
+-	if stats.ConsecutiveFailures > 0 {
+-		if now.Sub(stats.LastFailureAt) > policy.FailureStatsTTL {
+-			log.Info(ctx, "Resetting expired failure stats for model",
+-				log.Int("channel_id", channelID),
+-				log.String("model_id", modelID),
+-				log.Int("old_failures", stats.ConsecutiveFailures),
+-			)
+-			stats.ConsecutiveFailures = 0
+-		}
++	if !wasProbe && now.Sub(stats.LastFailureAt) > policy.FailureStatsTTL {
++		stats.ConsecutiveFailures = 0
+ 	}
+-
+-	// 2. Update counter
+ 	stats.ConsecutiveFailures++
+ 	stats.LastFailureAt = now
+ 
+-	// 3. State transition judgment
+-	// Prioritize Open state, then Half-Open state
+-	if stats.ConsecutiveFailures >= policy.OpenThreshold {
+-		if stats.State != StateOpen {
+-			stats.State = StateOpen
+-			stats.NextProbeAt = now.Add(policy.ProbeInterval) // Set next probe time
+-			stats.probeAttempts = 0                           // Reset probe count
+-
+-			log.Warn(ctx, "model turn to break due to consecutive failures",
+-				log.Int("channel_id", channelID),
+-				log.String("model_id", modelID),
+-				log.Int("failures", stats.ConsecutiveFailures),
+-			)
+-		} else if wasProbe {
+-			// Only apply exponential backoff when an actual probe failed.
+-			// Non-probe errors (e.g. requests rejected by circuit breaker) must not
+-			// push NextProbeAt further into the future, otherwise recovery is delayed
+-			// indefinitely even after the upstream service recovers.
+-			backoffMultiplier := math.Pow(2, float64(stats.probeAttempts))
+-			if backoffMultiplier > 8 { // Max 8x
+-				backoffMultiplier = 8
+-			}
+-
+-			nextInterval := time.Duration(float64(policy.ProbeInterval) * backoffMultiplier)
+-			stats.NextProbeAt = now.Add(nextInterval)
+-			stats.probeAttempts++
+-
+-			log.Debug(ctx, "updated probe time for open model after probe failure",
+-				log.Int("channel_id", channelID),
+-				log.String("model_id", modelID),
+-				log.Time("next_probe_at", stats.NextProbeAt),
+-				log.Int("probe_attempts", stats.probeAttempts),
+-			)
+-		}
+-	} else if stats.ConsecutiveFailures >= policy.HalfOpenThreshold {
+-		if stats.State != StateHalfOpen {
+-			stats.State = StateHalfOpen
+-
+-			log.Warn(ctx, "model turn to half-open due to consecutive failures",
+-				log.Int("channel_id", channelID),
+-				log.String("model_id", modelID),
+-				log.Int("failures", stats.ConsecutiveFailures),
+-			)
+-		}
++	if wasProbe {
++		multiplier := time.Duration(1 << min(stats.probeAttempts, 3))
++		stats.NextProbeAt = now.Add(multiplier * policy.ProbeInterval)
++		stats.probeAttempts++
++		log.Debug(ctx, "updated probe time for open model after probe failure",
++			log.Int("channel_id", stats.ChannelID),
++			log.String("model_id", stats.ModelID),
++			log.Time("next_probe_at", stats.NextProbeAt),
++			log.Int("probe_attempts", stats.probeAttempts),
++		)
++		return
++	}
++	switch {
++	case stats.ConsecutiveFailures >= policy.OpenThreshold:
++		stats.State = StateOpen
++		stats.epoch++
++		stats.NextProbeAt = now.Add(policy.ProbeInterval)
++		log.Warn(ctx, "model turn to break due to consecutive failures",
++			log.Int("channel_id", stats.ChannelID),
++			log.String("model_id", stats.ModelID),
++			log.Int("failures", stats.ConsecutiveFailures),
++		)
++	case stats.ConsecutiveFailures >= policy.HalfOpenThreshold && stats.State != StateHalfOpen:
++		stats.State = StateHalfOpen
++		log.Warn(ctx, "model turn to half-open due to consecutive failures",
++			log.Int("channel_id", stats.ChannelID),
++			log.String("model_id", stats.ModelID),
++			log.Int("failures", stats.ConsecutiveFailures),
++		)
+ 	}
+ }
+ 
+@@ -231,23 +209,38 @@ func (m *ModelCircuitBreaker) RecordSucc
+ 	stats.Lock()
+ 	defer stats.Unlock()
+ 
++	m.recordSuccessLocked(ctx, stats)
++}
++
++func (m *ModelCircuitBreaker) recordSuccessLocked(ctx context.Context, stats *ModelCircuitBreakerStats) {
+ 	stats.LastSuccessAt = time.Now()
+ 
+ 	// Reset all negative status immediately upon a single success
+ 	if stats.State != StateClosed {
+ 		log.Info(ctx, "model recovered to closed state",
+-			log.Int("channel_id", channelID),
+-			log.String("model_id", modelID),
++			log.Int("channel_id", stats.ChannelID),
++			log.String("model_id", stats.ModelID),
+ 			log.String("previous_state", string(stats.State)),
+ 			log.Int("previous_failures", stats.ConsecutiveFailures),
+ 		)
+ 	}
+ 
++	if stats.State == StateOpen {
++		stats.reset()
++	} else {
++		stats.State = StateClosed
++		stats.ConsecutiveFailures = 0
++	}
++}
++
++func (stats *ModelCircuitBreakerStats) reset() {
++	stats.epoch++
+ 	stats.State = StateClosed
+ 	stats.ConsecutiveFailures = 0
+-	stats.NextProbeAt = time.Time{} // Clear probe time
+-	stats.probingInProgress = 0     // Reset probing flag
+-	stats.probeAttempts = 0         // Reset probe count
++	stats.NextProbeAt = time.Time{}
++	stats.probe = nil
++	stats.probeUntil = time.Time{}
++	stats.probeAttempts = 0
+ }
+ 
+ // GetModelCircuitBreakerStats returns the current state and statistics of a model.
+@@ -267,93 +260,148 @@ func (m *ModelCircuitBreaker) GetModelCi
+ 		LastSuccessAt:       stats.LastSuccessAt,
+ 		NextProbeAt:         stats.NextProbeAt,
+ 		probeAttempts:       stats.probeAttempts,
+-		probingInProgress:   atomic.LoadInt32(&stats.probingInProgress),
+ 	}
+ }
+ 
+-// GetEffectiveWeight calculates the effective weight for a model based on its circuit breaker state.
+-// When the failure stats have exceeded the TTL (no new failures for FailureStatsTTL duration),
+-// the circuit breaker is lazily reset to allow recovery even if no background goroutine is running.
+-func (m *ModelCircuitBreaker) GetEffectiveWeight(ctx context.Context, channelID int, modelID string, baseWeight float64) float64 {
+-	stats := m.getStats(channelID, modelID)
++// CircuitAttemptOutcome describes the upstream health evidence from one attempt.
++type CircuitAttemptOutcome uint8
+ 
+-	stats.RLock()
+-	policy := m.GetPolicy(ctx)
++const (
++	CircuitAttemptNeutral CircuitAttemptOutcome = iota
++	CircuitAttemptSuccess
++	CircuitAttemptFailure
++)
+ 
+-	// Lazy TTL-based auto-recovery: if no failures occurred within the TTL window
+-	// while the circuit is Open or HalfOpen, reset to Closed so the channel can
+-	// recover without requiring a manual restart or background goroutine.
+-	if stats.State != StateClosed && stats.ConsecutiveFailures > 0 &&
+-		!stats.LastFailureAt.IsZero() && time.Since(stats.LastFailureAt) > policy.FailureStatsTTL {
+-		stats.RUnlock()
+-		stats.Lock()
+-		// Double-check under write lock to avoid races with concurrent RecordError.
+-		if stats.State != StateClosed && stats.ConsecutiveFailures > 0 &&
+-			!stats.LastFailureAt.IsZero() && time.Since(stats.LastFailureAt) > policy.FailureStatsTTL {
+-			log.Info(ctx, "Circuit breaker auto-recovered due to TTL expiry",
+-				log.Int("channel_id", channelID),
+-				log.String("model_id", modelID),
+-				log.String("previous_state", string(stats.State)),
+-				log.Int("previous_failures", stats.ConsecutiveFailures),
+-				log.Duration("time_since_last_failure", time.Since(stats.LastFailureAt)),
+-			)
+-			stats.State = StateClosed
+-			stats.ConsecutiveFailures = 0
+-			stats.NextProbeAt = time.Time{}
+-			stats.probeAttempts = 0
+-			atomic.StoreInt32(&stats.probingInProgress, 0)
++// ModelCircuitAttempt owns one admission decision. An open circuit grants a
++// bounded lease so a stalled response cannot keep later probes waiting forever.
++type ModelCircuitAttempt struct {
++	breaker  *ModelCircuitBreaker
++	stats    *ModelCircuitBreakerStats
++	epoch    uint64
++	isProbe  bool
++	finished bool // protected by stats.mu
++}
++
++func (a *ModelCircuitAttempt) IsProbe() bool {
++	return a.isProbe
++}
++
++// Finish updates health and releases a probe under the same lock. An earlier
++// probe cannot change health or release the lease of a later probe.
++func (a *ModelCircuitAttempt) Finish(ctx context.Context, outcome CircuitAttemptOutcome) {
++	stats := a.stats
++	stats.Lock()
++	defer stats.Unlock()
++
++	if a.finished {
++		return
++	}
++	a.finished = true
++	if a.epoch != stats.epoch {
++		return
++	}
++	if a.isProbe {
++		if stats.probe != a {
++			return
+ 		}
+-		stats.Unlock()
+-		stats.RLock()
++		stats.probe = nil
++		stats.probeUntil = time.Time{}
+ 	}
+ 
+-	defer stats.RUnlock()
+-
+-	switch stats.State {
+-	case StateClosed:
+-		return baseWeight
++	switch outcome {
++	case CircuitAttemptSuccess:
++		a.breaker.recordSuccessLocked(ctx, stats)
++	case CircuitAttemptFailure:
++		a.breaker.recordErrorLocked(ctx, stats, time.Now(), a.isProbe)
++	}
++}
+ 
+-	case StateHalfOpen:
+-		// Half-Open: reduce weight to decrease traffic, but retain probing capability
+-		return baseWeight * policy.HalfOpenWeight
+-
+-	case StateOpen:
+-		// Open: default weight is 0
+-		// [Key] Lazy Probe logic:
+-		// If current time has passed NextProbeAt, allow only ONE request for probing
+-		if time.Now().After(stats.NextProbeAt) {
+-			if atomic.LoadInt32(&stats.probingInProgress) == 0 {
+-				return baseWeight * policy.HalfOpenWeight
+-			}
+-		}
++// BeginAttempt makes the availability check and probe reservation atomic.
++func (m *ModelCircuitBreaker) BeginAttempt(ctx context.Context, channelID int, modelID string) (*ModelCircuitAttempt, time.Time) {
++	stats := m.getStats(channelID, modelID)
++	stats.Lock()
++	defer stats.Unlock()
+ 
+-		return 0.0
++	now := time.Now()
++	m.expireFailuresLocked(ctx, stats, now)
++	if retryAt := stats.retryAt(now); !retryAt.IsZero() {
++		return nil, retryAt
++	}
+ 
+-	default:
+-		return baseWeight
++	attempt := &ModelCircuitAttempt{breaker: m, stats: stats, epoch: stats.epoch, isProbe: stats.State == StateOpen}
++	if attempt.isProbe {
++		stats.probe = attempt
++		stats.probeUntil = now.Add(4 * m.GetPolicy(ctx).ProbeInterval)
+ 	}
++	return attempt, time.Time{}
+ }
+ 
+-func (m *ModelCircuitBreaker) TryBeginProbe(ctx context.Context, channelID int, modelID string) bool {
+-	stats := m.getStats(channelID, modelID)
+-
++// RetryAt is zero when a request can enter the circuit right now.
++func (m *ModelCircuitBreaker) RetryAt(ctx context.Context, channelID int, modelID string) time.Time {
++	stats, ok := m.modelStats.Load(m.ChannelModelKey(channelID, modelID))
++	if !ok {
++		return time.Time{}
++	}
+ 	stats.Lock()
+ 	defer stats.Unlock()
+ 
++	now := time.Now()
++	m.expireFailuresLocked(ctx, stats, now)
++	return stats.retryAt(now)
++}
++
++func (stats *ModelCircuitBreakerStats) retryAt(now time.Time) time.Time {
+ 	if stats.State != StateOpen {
+-		return false
++		return time.Time{}
++	}
++	if now.Before(stats.probeUntil) {
++		return stats.probeUntil
++	}
++	if now.Before(stats.NextProbeAt) {
++		return stats.NextProbeAt
+ 	}
++	return time.Time{}
++}
+ 
+-	if stats.NextProbeAt.IsZero() || time.Now().Before(stats.NextProbeAt) {
+-		return false
++func (m *ModelCircuitBreaker) expireFailuresLocked(ctx context.Context, stats *ModelCircuitBreakerStats, now time.Time) {
++	if stats.State == StateClosed || now.Before(stats.probeUntil) ||
++		stats.LastFailureAt.IsZero() || now.Sub(stats.LastFailureAt) <= m.GetPolicy(ctx).FailureStatsTTL {
++		return
+ 	}
+ 
+-	return atomic.CompareAndSwapInt32(&stats.probingInProgress, 0, 1)
++	log.Info(ctx, "Circuit breaker auto-recovered due to TTL expiry",
++		log.Int("channel_id", stats.ChannelID),
++		log.String("model_id", stats.ModelID),
++		log.String("previous_state", string(stats.State)),
++		log.Int("previous_failures", stats.ConsecutiveFailures),
++	)
++	stats.reset()
+ }
+ 
+-func (m *ModelCircuitBreaker) EndProbe(channelID int, modelID string) {
+-	stats := m.getStats(channelID, modelID)
+-	atomic.StoreInt32(&stats.probingInProgress, 0)
++// GetEffectiveWeight gives an eligible open circuit the same reduced weight as
++// a half-open circuit. Admission still reserves the probe under the lock.
++func (m *ModelCircuitBreaker) GetEffectiveWeight(ctx context.Context, channelID int, modelID string, baseWeight float64) float64 {
++	stats, ok := m.modelStats.Load(m.ChannelModelKey(channelID, modelID))
++	if !ok {
++		return baseWeight
++	}
++	stats.Lock()
++	defer stats.Unlock()
++
++	now := time.Now()
++	m.expireFailuresLocked(ctx, stats, now)
++	if !stats.retryAt(now).IsZero() {
++		return 0
++	}
++	if stats.State == StateOpen {
++		// Give an eligible probe a chance against healthy peers at the same
++		// priority. BeginAttempt still admits only one concurrent probe.
++		return baseWeight * 2
++	}
++	if stats.State == StateClosed {
++		return baseWeight
++	}
++	return baseWeight * m.GetPolicy(ctx).HalfOpenWeight
+ }
+ 
+ // GetAllNonClosedModels returns all models that are not in closed state.
+@@ -374,7 +422,6 @@ func (m *ModelCircuitBreaker) GetAllNonC
+ 				LastSuccessAt:       stats.LastSuccessAt,
+ 				NextProbeAt:         stats.NextProbeAt,
+ 				probeAttempts:       stats.probeAttempts,
+-				probingInProgress:   atomic.LoadInt32(&stats.probingInProgress),
+ 			})
+ 		}
+ 
+@@ -404,7 +451,6 @@ func (m *ModelCircuitBreaker) GetChannel
+ 				LastSuccessAt:       stats.LastSuccessAt,
+ 				NextProbeAt:         stats.NextProbeAt,
+ 				probeAttempts:       stats.probeAttempts,
+-				probingInProgress:   atomic.LoadInt32(&stats.probingInProgress),
+ 			})
+ 		}
+ 
+@@ -425,11 +471,7 @@ func (m *ModelCircuitBreaker) ResetModel
+ 	defer stats.Unlock()
+ 
+ 	oldState := stats.State
+-	stats.State = StateClosed
+-	stats.ConsecutiveFailures = 0
+-	stats.NextProbeAt = time.Time{}
+-	stats.probeAttempts = 0
+-	atomic.StoreInt32(&stats.probingInProgress, 0)
++	stats.reset()
+ 
+ 	log.Info(ctx, "Model circuit breaker manually reset to closed",
+ 		log.Int("channel_id", channelID),
+--- a/internal/server/biz/model_circuit_breaker_test.go
++++ b/internal/server/biz/model_circuit_breaker_test.go
+@@ -2,8 +2,11 @@ package biz
+ 
+ import (
+ 	"context"
++	"sync"
+ 	"testing"
+ 	"time"
++
++	"github.com/stretchr/testify/require"
+ )
+ 
+ func TestModelCircuitBreakerProbeLock_SingleBeginAndExplicitEnd(t *testing.T) {
+@@ -14,7 +17,7 @@ func TestModelCircuitBreakerProbeLock_Si
+ 	modelID := "gpt-test"
+ 
+ 	for range 5 {
+-		cb.RecordError(ctx, channelID, modelID, false)
++		cb.RecordError(ctx, channelID, modelID)
+ 	}
+ 
+ 	stats := cb.getStats(channelID, modelID)
+@@ -27,21 +30,20 @@ func TestModelCircuitBreakerProbeLock_Si
+ 		t.Fatalf("expected positive probe weight, got %v", got)
+ 	}
+ 
+-	ok := cb.TryBeginProbe(ctx, channelID, modelID)
+-	if !ok {
+-		t.Fatalf("expected to begin probe")
+-	}
++	probe, retryAt := cb.BeginAttempt(ctx, channelID, modelID)
++	require.NotNil(t, probe)
++	require.True(t, retryAt.IsZero())
++	require.True(t, probe.IsProbe())
+ 
+ 	if got := cb.GetEffectiveWeight(ctx, channelID, modelID, 1.0); got != 0.0 {
+ 		t.Fatalf("expected zero weight while probe in progress, got %v", got)
+ 	}
+ 
+-	ok2 := cb.TryBeginProbe(ctx, channelID, modelID)
+-	if ok2 {
+-		t.Fatalf("expected second begin probe to fail")
+-	}
++	second, retryAt := cb.BeginAttempt(ctx, channelID, modelID)
++	require.Nil(t, second)
++	require.True(t, retryAt.After(time.Now()))
+ 
+-	cb.EndProbe(channelID, modelID)
++	probe.Finish(ctx, CircuitAttemptNeutral)
+ 
+ 	if got := cb.GetEffectiveWeight(ctx, channelID, modelID, 1.0); got <= 0 {
+ 		t.Fatalf("expected positive probe weight after end, got %v", got)
+@@ -50,7 +52,7 @@ func TestModelCircuitBreakerProbeLock_Si
+ 
+ // TestRecordError_OpenState_BackoffOnlyOnProbe verifies that when the circuit
+ // breaker is in Open state, exponential backoff on NextProbeAt is only applied
+-// when the error came from an actual probe request (wasProbe=true). Non-probe
++// when the error came from an actual probe request. Non-probe
+ // errors must not push NextProbeAt further away, fixing the auto-recovery bug.
+ func TestRecordError_OpenState_BackoffOnlyOnProbe(t *testing.T) {
+ 	ctx := context.Background()
+@@ -61,7 +63,7 @@ func TestRecordError_OpenState_BackoffOn
+ 
+ 	// Push to Open state.
+ 	for range 5 {
+-		cb.RecordError(ctx, channelID, modelID, false)
++		cb.RecordError(ctx, channelID, modelID)
+ 	}
+ 
+ 	stats := cb.getStats(channelID, modelID)
+@@ -70,14 +72,14 @@ func TestRecordError_OpenState_BackoffOn
+ 		t.Fatalf("expected Open state, got %s", stats.State)
+ 	}
+ 	// Pin NextProbeAt to a known time that is before what a fresh backoff would produce.
+-	// The backoff formula for probeAttempts=0 is now + ProbeInterval(5min),
++	// The backoff formula for probeAttempts=0 is now + ProbeInterval,
+ 	// so pinning to now-1s ensures the new value will be strictly after the pin.
+ 	pinnedProbeAt := time.Now().Add(-time.Second)
+ 	stats.NextProbeAt = pinnedProbeAt
+ 	stats.Unlock()
+ 
+ 	// Simulate a non-probe error (e.g. request rejected by CB).
+-	cb.RecordError(ctx, channelID, modelID, false)
++	cb.RecordError(ctx, channelID, modelID)
+ 
+ 	stats.Lock()
+ 	if !stats.NextProbeAt.Equal(pinnedProbeAt) {
+@@ -87,7 +89,9 @@ func TestRecordError_OpenState_BackoffOn
+ 	stats.Unlock()
+ 
+ 	// Now simulate an actual probe failure.
+-	cb.RecordError(ctx, channelID, modelID, true)
++	probe, _ := cb.BeginAttempt(ctx, channelID, modelID)
++	require.NotNil(t, probe)
++	probe.Finish(ctx, CircuitAttemptFailure)
+ 
+ 	stats.Lock()
+ 	if stats.NextProbeAt.Equal(pinnedProbeAt) {
+@@ -112,7 +116,7 @@ func TestGetEffectiveWeight_TTLAutoRecov
+ 
+ 	// Push to Open state.
+ 	for range 5 {
+-		cb.RecordError(ctx, channelID, modelID, false)
++		cb.RecordError(ctx, channelID, modelID)
+ 	}
+ 
+ 	stats := cb.getStats(channelID, modelID)
+@@ -140,3 +144,70 @@ func TestGetEffectiveWeight_TTLAutoRecov
+ 	}
+ 	stats.Unlock()
+ }
++
++func TestModelCircuitBreaker_ExpiredProbeCannotChangeReplacement(t *testing.T) {
++	ctx := t.Context()
++	cb := NewModelCircuitBreaker()
++	const model = "gpt-test"
++	oldNormal, _ := cb.BeginAttempt(ctx, 1, model)
++	for range cb.GetPolicy(ctx).OpenThreshold {
++		cb.RecordError(ctx, 1, model)
++	}
++	stats := cb.getStats(1, model)
++	stats.Lock()
++	stats.NextProbeAt = time.Now().Add(-time.Second)
++	stats.Unlock()
++
++	const requests = 32
++	results := make(chan *ModelCircuitAttempt, requests)
++	var concurrent sync.WaitGroup
++	for range requests {
++		concurrent.Go(func() {
++			attempt, _ := cb.BeginAttempt(ctx, 1, model)
++			results <- attempt
++		})
++	}
++	concurrent.Wait()
++	close(results)
++	var first *ModelCircuitAttempt
++	for attempt := range results {
++		if attempt != nil {
++			require.Nil(t, first)
++			first = attempt
++		}
++	}
++	require.NotNil(t, first)
++
++	stats.Lock()
++	stats.probeUntil = time.Now().Add(-time.Second)
++	stats.Unlock()
++	replacement, _ := cb.BeginAttempt(ctx, 1, model)
++	require.NotNil(t, replacement)
++
++	oldNormal.Finish(ctx, CircuitAttemptSuccess)
++	first.Finish(ctx, CircuitAttemptFailure)
++	require.Equal(t, StateOpen, cb.GetModelCircuitBreakerStats(ctx, 1, model).State)
++	require.False(t, cb.RetryAt(ctx, 1, model).IsZero())
++	replacement.Finish(ctx, CircuitAttemptSuccess)
++	replacement.Finish(ctx, CircuitAttemptFailure)
++	require.Equal(t, StateClosed, cb.GetModelCircuitBreakerStats(ctx, 1, model).State)
++	require.True(t, cb.RetryAt(ctx, 1, model).IsZero())
++}
++
++func TestModelCircuitBreaker_AdmissionRecoversExpiredStats(t *testing.T) {
++	ctx := t.Context()
++	cb := NewModelCircuitBreaker()
++	const model = "gpt-test"
++	for range cb.GetPolicy(ctx).OpenThreshold {
++		cb.RecordError(ctx, 1, model)
++	}
++	stats := cb.getStats(1, model)
++	stats.Lock()
++	stats.LastFailureAt = time.Now().Add(-2 * cb.GetPolicy(ctx).FailureStatsTTL)
++	stats.Unlock()
++
++	attempt, retryAt := cb.BeginAttempt(ctx, 1, model)
++	require.NotNil(t, attempt)
++	require.False(t, attempt.IsProbe())
++	require.True(t, retryAt.IsZero())
++}
+--- a/internal/server/orchestrator/candidates.go
++++ b/internal/server/orchestrator/candidates.go
+@@ -682,6 +682,7 @@ func (s *SelectedChannelsSelector) Selec
+ 
+ // LoadBalancedSelector is a decorator that sorts candidates using load balancing strategies.
+ type LoadBalancedSelector struct {
++	circuitBreaker          *biz.ModelCircuitBreaker
+ 	wrapped                 CandidateSelector
+ 	loadBalancer            *LoadBalancer
+ 	loadBalancers           map[string]*LoadBalancer
+@@ -780,11 +781,22 @@ func (s *LoadBalancedSelector) Select(ct
+ 		stickyID, stickyOK = s.resolveStickyChannelID(ctx, req, candidates)
+ 	}
+ 
+-	var quotaFallback []*ChannelModelsCandidate
++	var lastResort []*ChannelModelsCandidate
+ 	if s.quotaGate != nil {
+-		var lastResort []*ChannelModelsCandidate
+ 		candidates, lastResort = s.quotaGate.Filter(ctx, candidates, req, stickyID)
+-		quotaFallback = quotaFallbackCandidates(lastResort, quotaFallbackLimit(retryPolicy))
++	}
++	fallbackLimit := quotaFallbackLimit(retryPolicy)
++	var retryAt time.Time
++	if s.circuitBreaker != nil && s.effectiveRoutingPolicy != nil &&
++		s.effectiveRoutingPolicy.LoadBalancerStrategy == biz.LoadBalancerStrategyCircuitBreaker {
++		candidates = filterCircuitCandidates(ctx, s.circuitBreaker, candidates, &retryAt)
++		if fallbackLimit > 0 {
++			lastResort = filterCircuitCandidates(ctx, s.circuitBreaker, lastResort, &retryAt)
++		}
++	}
++	quotaFallback := quotaFallbackCandidates(lastResort, fallbackLimit)
++	if len(candidates) == 0 && len(quotaFallback) == 0 && !retryAt.IsZero() {
++		return nil, circuitUnavailable(req.Model, retryAt)
+ 	}
+ 
+ 	// Prefer the parent only after quota admission, before load balancing trims
+@@ -823,6 +835,55 @@ func (s *LoadBalancedSelector) Select(ct
+ 	return result, nil
+ }
+ 
++// Do not spend a priority, sticky, or retry slot on a route in cooldown.
++func filterCircuitCandidates(
++	ctx context.Context,
++	breaker *biz.ModelCircuitBreaker,
++	candidates []*ChannelModelsCandidate,
++	retryAt *time.Time,
++) []*ChannelModelsCandidate {
++	available := make([]*ChannelModelsCandidate, 0, len(candidates))
++	for _, candidate := range candidates {
++		if candidate == nil || candidate.Channel == nil || len(candidate.Models) == 0 {
++			continue
++		}
++		pairedFormats := len(candidate.modelAPIFormats) == len(candidate.Models)
++		var filtered *ChannelModelsCandidate
++		for i, model := range candidate.Models {
++			next := breaker.RetryAt(ctx, candidate.Channel.ID, model.ActualModel)
++			if !next.IsZero() {
++				if retryAt.IsZero() || next.Before(*retryAt) {
++					*retryAt = next
++				}
++				if filtered == nil {
++					copy := *candidate
++					copy.Models = slices.Clone(candidate.Models[:i])
++					if pairedFormats {
++						copy.modelAPIFormats = slices.Clone(candidate.modelAPIFormats[:i])
++					}
++					filtered = &copy
++				}
++				continue
++			}
++			if filtered != nil {
++				filtered.Models = append(filtered.Models, model)
++				if pairedFormats {
++					filtered.modelAPIFormats = append(filtered.modelAPIFormats, candidate.modelAPIFormats[i])
++				}
++			}
++		}
++		if filtered == nil {
++			available = append(available, candidate)
++		} else if len(filtered.Models) > 0 {
++			if pairedFormats {
++				filtered.APIFormat = filtered.modelAPIFormats[0]
++			}
++			available = append(available, filtered)
++		}
++	}
++	return available
++}
++
+ func resolveLoadBalancer(loadBalancers map[string]*LoadBalancer, strategy string) (*LoadBalancer, string) {
+ 	if loadBalancer := loadBalancers[strategy]; loadBalancer != nil {
+ 		return loadBalancer, strategy
+--- a/internal/server/orchestrator/inbound.go
++++ b/internal/server/orchestrator/inbound.go
+@@ -58,6 +58,7 @@ type InboundPersistentStream struct {
+ 	state           *PersistenceState
+ 	terminalTracker *StreamTerminalTracker
+ 	lifecycle       *streamLifecycle
++	autoAggregated  bool
+ }
+ 
+ var _ streams.Stream[*httpclient.StreamEvent] = (*InboundPersistentStream)(nil)
+@@ -309,7 +310,13 @@ func (ts *InboundPersistentStream) Close
+ 	// The lifecycle finalizes the upstream attempt before the chain is closed:
+ 	// closing the chain may cancel the attempt's transport before its tail is read.
+ 	if ts.lifecycle != nil {
+-		ts.lifecycle.Close()
++		if ts.autoAggregated {
++			// A forced-stream attempt can still fail over before the response
++			// is returned. Closing it must leave the whole request alive.
++			ts.lifecycle.closeAttempt()
++		} else {
++			ts.lifecycle.Close()
++		}
+ 		_ = ts.stream.Close()
+ 	}
+ 
+@@ -542,6 +549,9 @@ func (p *PersistentInboundTransformer) T
+ 		p.state.Perf,
+ 		p.state,
+ 	)
++	persistentStream.autoAggregated = p.state.LlmRequest != nil &&
++		p.state.LlmRequest.Stream != nil && *p.state.LlmRequest.Stream &&
++		(p.state.OriginalRequestStream == nil || !*p.state.OriginalRequestStream)
+ 
+ 	return persistentStream, nil
+ }
+--- a/internal/server/orchestrator/lb_simuation_cb_test.go
++++ b/internal/server/orchestrator/lb_simuation_cb_test.go
+@@ -96,7 +96,7 @@ func TestCircuitBreakerStrategy_Simulati
+ 	// 2. Simulate failures for channel-1 until it hits Half-Open
+ 	// HalfOpenThreshold is 3 by default. HalfOpenWeight is 0.3.
+ 	for range 3 {
+-		cb.RecordError(ctx, 1, modelID, false)
++		cb.RecordError(ctx, 1, modelID)
+ 	}
+ 
+ 	stats1 := cb.GetModelCircuitBreakerStats(ctx, 1, modelID)
+@@ -120,7 +120,7 @@ func TestCircuitBreakerStrategy_Simulati
+ 
+ 	// 3. Simulate failures for Ch2 until it also hits Half-Open
+ 	for range 3 {
+-		cb.RecordError(ctx, 2, modelID, false)
++		cb.RecordError(ctx, 2, modelID)
+ 	}
+ 
+ 	// Ch1 score: 160 (half-open)
+@@ -159,7 +159,7 @@ func TestCircuitBreakerStrategy_Simulati
+ 	// 5. Simulate all channels Open
+ 	for _, ch := range channels {
+ 		for range 5 {
+-			cb.RecordError(ctx, ch.ID, modelID, false)
++			cb.RecordError(ctx, ch.ID, modelID)
+ 		}
+ 	}
+ 
+--- a/internal/server/orchestrator/lb_strategy_model_aware_circuit_breaker.go
++++ b/internal/server/orchestrator/lb_strategy_model_aware_circuit_breaker.go
+@@ -109,7 +109,7 @@ func (s *ModelAwareCircuitBreakerStrateg
+ 
+ 		if stats.State == biz.StateOpen && !stats.NextProbeAt.IsZero() {
+ 			details["next_probe_at"] = stats.NextProbeAt
+-			details["can_probe"] = time.Now().After(stats.NextProbeAt)
++			details["can_probe"] = effectiveWeight > 0
+ 		}
+ 	}
+ 
+--- a/internal/server/orchestrator/load_balancer.go
++++ b/internal/server/orchestrator/load_balancer.go
+@@ -109,6 +109,16 @@ func requestedModelFromContext(ctx conte
+ 	return ""
+ }
+ 
++func contextForCandidateModel(ctx context.Context, candidate *ChannelModelsCandidate) context.Context {
++	if len(candidate.Models) > 0 {
++		model := candidate.Models[0].ActualModel
++		if model != "" && model != requestedModelFromContext(ctx) {
++			return contextWithRequestedModel(ctx, model)
++		}
++	}
++	return ctx
++}
++
+ func contextWithRequestStream(ctx context.Context, stream bool) context.Context {
+ 	return context.WithValue(ctx, streamContextKey{}, stream)
+ }
+@@ -233,9 +243,10 @@ func (lb *LoadBalancer) sortProduction(
+ 		metrics, _ := lb.channelMetrics(ctx, c.Channel)
+ 
+ 		totalScore := 0.0
+-		// Apply all strategies
++		// The circuit strategy ranks the first available upstream model.
++		scoreCtx := contextForCandidateModel(ctx, c)
+ 		for _, strategy := range lb.strategies {
+-			totalScore += strategy.Score(ctx, c.Channel, metrics)
++			totalScore += strategy.Score(scoreCtx, c.Channel, metrics)
+ 		}
+ 
+ 		scored[i] = candidateScore{
+@@ -359,9 +370,10 @@ func (lb *LoadBalancer) sortWithDebug(
+ 		strategyScores := make([]StrategyScore, 0, len(lb.strategies))
+ 
+ 		// Apply all strategies and collect detailed scores
++		scoreCtx := contextForCandidateModel(ctx, c)
+ 		for _, strategy := range lb.strategies {
+ 			scoreStart := time.Now()
+-			score, strategyScore := strategy.ScoreWithDebug(ctx, c.Channel, metrics)
++			score, strategyScore := strategy.ScoreWithDebug(scoreCtx, c.Channel, metrics)
+ 			strategyScore.Duration = time.Since(scoreStart)
+ 			strategyScores = append(strategyScores, strategyScore)
+ 			totalScore += score
+--- a/internal/server/orchestrator/local_admission_error.go
++++ b/internal/server/orchestrator/local_admission_error.go
+@@ -1,10 +1,13 @@
+ package orchestrator
+ 
++import "errors"
++
+ // isLocalAdmissionError identifies local capacity rejections before dispatch.
+ // They must not penalize upstream performance, credentials, circuit health, or
+ // cooldown. Their retry/failover and execution-persistence policies may differ:
+ // plugin overload stops failover and precedes creation of this attempt's record;
+ // channel queue/RPM rejection may fail over and has a record to finish.
+ func isLocalAdmissionError(err error) bool {
+-	return isChannelQueueError(err) || isLocalRPMExhaustedError(err) || isPluginOverloaded(err)
++	return isChannelQueueError(err) || isLocalRPMExhaustedError(err) || isPluginOverloaded(err) ||
++		errors.Is(err, errSkipCandidateByCircuitBreaker)
+ }
+--- a/internal/server/orchestrator/local_admission_error_test.go
++++ b/internal/server/orchestrator/local_admission_error_test.go
+@@ -54,7 +54,10 @@ func TestLocalAdmissionDoesNotPenalizeHe
+ 			wrapped := fmt.Errorf("raw middleware: %w", err)
+ 			previous := biz.PerformanceRecord{ChannelID: 7, Success: true, RequestCompleted: true, CompletionTokens: 12}
+ 			perf := previous
+-			candidate := &ChannelModelsCandidate{Channel: &biz.Channel{Channel: &ent.Channel{ID: 42, Name: "next"}}}
++			candidate := &ChannelModelsCandidate{
++				Channel: &biz.Channel{Channel: &ent.Channel{ID: 42, Name: "next"}},
++				Models:  []biz.ChannelModelEntry{{ActualModel: "m"}},
++			}
+ 			state := &PersistenceState{
+ 				Perf: &perf, OriginalModel: "m", CurrentCandidate: candidate,
+ 				ChannelModelsCandidates: []*ChannelModelsCandidate{candidate, {}},
+@@ -66,13 +69,13 @@ func TestLocalAdmissionDoesNotPenalizeHe
+ 			(&performanceRecording{outbound: outbound}).OnOutboundRawError(ctx, wrapped)
+ 			require.Equal(t, previous, perf)
+ 			cb := biz.NewModelCircuitBreaker()
+-			cb.RecordError(ctx, 42, "m", false)
+-			circuit := withModelCircuitBreaker(outbound, cb).(*modelCircuitBreakerTracker)
+-			circuit.probeActive = true
+-			circuit.probeChannelID = 42
+-			circuit.probeModelID = "m"
++			cb.RecordError(ctx, 42, "m")
++			circuit := withModelCircuitBreaker(outbound, cb)
++			_, err := circuit.OnOutboundRawRequest(ctx, &httpclient.Request{})
++			require.NoError(t, err)
+ 			circuit.OnOutboundRawError(ctx, wrapped)
+-			require.False(t, circuit.probeActive, "admission failure still releases a probe lease")
++			circuit.OnOutboundAttemptResult(ctx, nil, wrapped)
++			require.Nil(t, state.circuitAttempt)
+ 			require.Equal(t, 1, cb.GetModelCircuitBreakerStats(ctx, 42, "m").ConsecutiveFailures)
+ 			tracker := NewChannelRequestTracker()
+ 			rate := &rateLimitTracking{outbound: outbound, tracker: tracker}
+--- a/internal/server/orchestrator/model_circuit_breaker.go
++++ b/internal/server/orchestrator/model_circuit_breaker.go
+@@ -3,31 +3,46 @@ package orchestrator
+ import (
+ 	"context"
+ 	"errors"
++	"fmt"
++	"net/http"
++	"sync"
++	"time"
++
++	"github.com/tidwall/gjson"
+ 
+-	"github.com/looplj/axonhub/internal/log"
+ 	"github.com/looplj/axonhub/internal/server/biz"
+ 	"github.com/looplj/axonhub/llm"
+ 	"github.com/looplj/axonhub/llm/httpclient"
+ 	"github.com/looplj/axonhub/llm/pipeline"
+ 	"github.com/looplj/axonhub/llm/streams"
++	"github.com/looplj/axonhub/llm/transformer"
++	"github.com/looplj/axonhub/llm/transformer/shared"
+ )
+ 
+-func withModelCircuitBreaker(outbound *PersistentOutboundTransformer, modelCircuitBreaker *biz.ModelCircuitBreaker) pipeline.Middleware {
+-	return &modelCircuitBreakerTracker{
+-		outbound:            outbound,
+-		modelCircuitBreaker: modelCircuitBreaker,
++var errSkipCandidateByCircuitBreaker = errors.New("skip candidate by circuit breaker")
++
++func circuitUnavailable(model string, retryAt time.Time) *llm.ResponseError {
++	return &llm.ResponseError{
++		StatusCode: http.StatusServiceUnavailable,
++		Detail: llm.ErrorDetail{
++			Code:    "model_circuit_open",
++			Type:    "service_unavailable",
++			Message: fmt.Sprintf("Model %q is temporarily unavailable. Retry after %s.", model, retryAt.UTC().Format(time.RFC3339Nano)),
++		},
++		Cause: errSkipCandidateByCircuitBreaker,
+ 	}
+ }
+ 
++func withModelCircuitBreaker(outbound *PersistentOutboundTransformer, breaker *biz.ModelCircuitBreaker) *modelCircuitBreakerTracker {
++	return &modelCircuitBreakerTracker{outbound: outbound, breaker: breaker}
++}
++
+ type modelCircuitBreakerTracker struct {
+ 	pipeline.DummyMiddleware
+ 
+-	outbound            *PersistentOutboundTransformer
+-	modelCircuitBreaker *biz.ModelCircuitBreaker
+-
+-	probeActive    bool
+-	probeChannelID int
+-	probeModelID   string
++	outbound *PersistentOutboundTransformer
++	breaker  *biz.ModelCircuitBreaker
++	failures map[biz.ChannelModelKey]bool
+ }
+ 
+ func (m *modelCircuitBreakerTracker) Name() string {
+@@ -35,184 +50,280 @@ func (m *modelCircuitBreakerTracker) Nam
+ }
+ 
+ func (m *modelCircuitBreakerTracker) OnOutboundRawRequest(ctx context.Context, request *httpclient.Request) (*httpclient.Request, error) {
+-	if m.outbound == nil || m.outbound.state == nil ||
+-		m.outbound.state.RoutingPolicy.LoadBalancerStrategy != biz.LoadBalancerStrategyCircuitBreaker ||
+-		m.modelCircuitBreaker == nil {
++	state := m.outbound.state
++	if state.RoutingPolicy.LoadBalancerStrategy != biz.LoadBalancerStrategyCircuitBreaker || m.breaker == nil {
+ 		return request, nil
+ 	}
+ 
+ 	channel := m.outbound.GetCurrentChannel()
+-	modelID := m.outbound.GetRequestedModel()
+-	if channel == nil || modelID == "" {
++	model := m.outbound.GetCurrentModelID()
++	if channel == nil || model == "" {
+ 		return request, nil
+ 	}
+ 
+-	stats := m.modelCircuitBreaker.GetModelCircuitBreakerStats(ctx, channel.ID, modelID)
+-	if stats == nil || stats.State != biz.StateOpen {
+-		return request, nil
++	admission, retryAt := m.breaker.BeginAttempt(ctx, channel.ID, model)
++	if admission == nil {
++		return nil, circuitUnavailable(m.outbound.GetRequestedModel(), retryAt)
+ 	}
+ 
+-	if !m.modelCircuitBreaker.TryBeginProbe(ctx, channel.ID, modelID) {
+-		log.Debug(ctx, "skipping candidate by circuit breaker: probe conditions not met or another probe in progress",
+-			log.Int("channel_id", channel.ID),
+-			log.String("model_id", modelID),
+-		)
+-
+-		return nil, errSkipCandidateByCircuitBreaker
++	state.circuitAttempt = &circuitAttempt{
++		admission: admission,
++		key:       biz.ChannelModelKey{ChannelID: channel.ID, ModelID: model},
+ 	}
+-
+-	m.probeActive = true
+-	m.probeChannelID = channel.ID
+-	m.probeModelID = modelID
+-
+ 	return request, nil
+ }
+ 
+-func (m *modelCircuitBreakerTracker) OnOutboundLlmResponse(ctx context.Context, response *llm.Response) (*llm.Response, error) {
+-	if !m.shouldTrack() {
+-		return response, nil
++func (m *modelCircuitBreakerTracker) OnOutboundRawError(_ context.Context, err error) {
++	if attempt := m.outbound.state.circuitAttempt; attempt != nil {
++		// Some provider adapters discard the structured detail while converting
++		// HTTP errors. Retain it alongside the pipeline's final classification.
++		attempt.rawError = err
+ 	}
++}
+ 
+-	m.releaseProbeLease()
+-
+-	channel := m.outbound.GetCurrentChannel()
+-	modelID := m.outbound.GetRequestedModel()
+-	if channel == nil || modelID == "" {
++func (m *modelCircuitBreakerTracker) OnOutboundRawResponse(_ context.Context, response *httpclient.Response) (*httpclient.Response, error) {
++	attempt := m.outbound.state.circuitAttempt
++	if attempt == nil || response == nil {
+ 		return response, nil
+ 	}
+-	m.modelCircuitBreaker.RecordSuccess(ctx, channel.ID, modelID)
+-
++	format := m.outbound.APIFormat()
++	if response.Request != nil && response.Request.APIFormat != "" {
++		format = llm.APIFormat(response.Request.APIFormat)
++	}
++	if isResponsesFormat(format) {
++		switch gjson.GetBytes(response.Body, "status").String() {
++		case "failed":
++			attempt.responseOutcome = circuitProviderEventError(response.Body)
++		case "cancelled", "canceled":
++			attempt.responseOutcome = biz.CircuitAttemptNeutral
++		case "incomplete":
++			attempt.responseOutcome = circuitProviderIncomplete(response.Body)
++		default:
++			attempt.responseOutcome = biz.CircuitAttemptSuccess
++		}
++	} else {
++		attempt.responseOutcome = biz.CircuitAttemptSuccess
++	}
++	attempt.gotResponse = true
+ 	return response, nil
+ }
+ 
+-func (m *modelCircuitBreakerTracker) OnOutboundRawError(ctx context.Context, err error) {
+-	if isLocalAdmissionError(err) || llm.IsContentPolicyRejection(err) {
+-		m.releaseProbeLease()
+-		return
++func (m *modelCircuitBreakerTracker) OnOutboundLlmResponse(_ context.Context, response *llm.Response) (*llm.Response, error) {
++	if attempt := m.outbound.state.circuitAttempt; attempt != nil && response != nil && response.Error != nil {
++		attempt.responseOutcome = circuitUpstreamError(response.Error)
+ 	}
+-	if !m.shouldTrack() {
+-		return
++	return response, nil
++}
++
++func (m *modelCircuitBreakerTracker) OnOutboundLlmStream(_ context.Context, stream streams.Stream[*llm.Response]) (streams.Stream[*llm.Response], error) {
++	if attempt := m.outbound.state.circuitAttempt; attempt != nil {
++		return &circuitResponseStream{Stream: stream, attempt: attempt}, nil
+ 	}
++	return stream, nil
++}
+ 
+-	// Capture whether this attempt was an active probe BEFORE releasing the lease,
+-	// so RecordError can decide whether to apply exponential backoff.
+-	wasProbe := m.probeActive
+-	m.releaseProbeLease()
++type circuitResponseStream struct {
++	streams.Stream[*llm.Response]
++	attempt *circuitAttempt
++}
+ 
+-	if errors.Is(err, context.Canceled) {
+-		return
++func (s *circuitResponseStream) Next() bool {
++	if s.Stream.Next() {
++		return true
+ 	}
++	s.attempt.streamError = s.Stream.Err()
++	return false
++}
+ 
+-	// Local skips never reached upstream — must not count as model errors.
+-	if errors.Is(err, errSkipCandidateByCircuitBreaker) {
++func (m *modelCircuitBreakerTracker) OnOutboundAttemptResult(ctx context.Context, result *pipeline.Result, err error) {
++	attempt := m.outbound.state.circuitAttempt
++	if attempt == nil {
+ 		return
+ 	}
++	m.outbound.state.circuitAttempt = nil
+ 
+-	channel := m.outbound.GetCurrentChannel()
+-	modelID := m.outbound.GetRequestedModel()
+-	if channel == nil || modelID == "" {
++	if err == nil && result.Stream {
++		attempt.handOffStream(ctx, m.finishAttempt)
+ 		return
+ 	}
+-	m.modelCircuitBreaker.RecordError(ctx, channel.ID, modelID, wasProbe)
+-}
+-
+-func (m *modelCircuitBreakerTracker) OnOutboundLlmStream(ctx context.Context, stream streams.Stream[*llm.Response]) (streams.Stream[*llm.Response], error) {
+-	if !m.shouldTrack() {
+-		return stream, nil
+-	}
+ 
+-	channelID := 0
+-	modelID := m.outbound.GetRequestedModel()
+-	if channel := m.outbound.GetCurrentChannel(); channel != nil {
+-		channelID = channel.ID
++	outcome := biz.CircuitAttemptSuccess
++	switch {
++	case err != nil:
++		outcome = classifyCircuitAttempt(ctx, err, attempt.rawError)
++		if errors.Is(err, pipeline.ErrEmptyResponse) && attempt.hasNeutralProviderOutcome() {
++			outcome = biz.CircuitAttemptNeutral
++		}
++	case attempt.gotResponse:
++		outcome = attempt.responseOutcome
++	default:
++		// A forced upstream stream is consumed by the pipeline before the
++		// non-streaming result is returned.
++		outcome = attempt.closedStreamOutcome()
++	}
++	m.finishAttempt(ctx, attempt, outcome)
++}
++
++func (m *modelCircuitBreakerTracker) OnProcessEnd() {
++	if attempt := m.outbound.state.circuitAttempt; attempt != nil {
++		m.outbound.state.circuitAttempt = nil
++		attempt.admission.Finish(context.Background(), biz.CircuitAttemptNeutral)
+ 	}
++}
+ 
+-	return &probeReleasingStream{
+-		ctx:       ctx,
+-		stream:    stream,
+-		state:     m.outbound.state,
+-		channelID: channelID,
+-		modelID:   modelID,
+-		release: func() {
+-			if m.outbound != nil {
+-				m.releaseProbeLease()
++func (m *modelCircuitBreakerTracker) finishAttempt(ctx context.Context, attempt *circuitAttempt, outcome biz.CircuitAttemptOutcome) {
++	if outcome == biz.CircuitAttemptFailure && !attempt.admission.IsProbe() {
++		// One client request may make several attempts against this route.
++		// A single outage observation should count only once per request.
++		if m.failures[attempt.key] {
++			outcome = biz.CircuitAttemptNeutral
++		} else {
++			if m.failures == nil {
++				m.failures = make(map[biz.ChannelModelKey]bool)
+ 			}
+-		},
+-		released:            false,
+-		recorded:            false,
+-		modelCircuitBreaker: m.modelCircuitBreaker,
+-	}, nil
++			m.failures[attempt.key] = true
++		}
++	}
++	attempt.admission.Finish(ctx, outcome)
+ }
+ 
+-func (m *modelCircuitBreakerTracker) shouldTrack() bool {
+-	return m.outbound != nil &&
+-		m.outbound.state != nil &&
+-		m.outbound.state.RoutingPolicy.LoadBalancerStrategy == biz.LoadBalancerStrategyCircuitBreaker &&
+-		m.modelCircuitBreaker != nil
++// A raw stream may close during pre-reading, before the pipeline has classified
++// the attempt's final error. Only a stream handed to the caller owns its result.
++type circuitAttempt struct {
++	admission       *biz.ModelCircuitAttempt
++	key             biz.ChannelModelKey
++	rawError        error
++	gotResponse     bool
++	responseOutcome biz.CircuitAttemptOutcome
++	streamError     error // accessed by stream consumption and synchronous finalization
++
++	mu               sync.Mutex
++	streamClosed     bool
++	providerTerminal bool
++	streamOutcome    biz.CircuitAttemptOutcome
++	finishStream     func(context.Context, *circuitAttempt, biz.CircuitAttemptOutcome)
+ }
+ 
+-func (m *modelCircuitBreakerTracker) releaseProbeLease() {
+-	if m.outbound == nil || m.outbound.state == nil || m.modelCircuitBreaker == nil {
+-		return
++func (a *circuitAttempt) handOffStream(ctx context.Context, finish func(context.Context, *circuitAttempt, biz.CircuitAttemptOutcome)) {
++	a.mu.Lock()
++	defer a.mu.Unlock()
++	if a.streamClosed {
++		finish(ctx, a, a.streamOutcome)
++	} else {
++		a.finishStream = finish
+ 	}
++}
+ 
+-	if !m.probeActive {
+-		return
++func (a *circuitAttempt) closeStream(ctx context.Context, outcome biz.CircuitAttemptOutcome, providerTerminal bool) {
++	a.mu.Lock()
++	defer a.mu.Unlock()
++	a.streamClosed = true
++	a.providerTerminal = providerTerminal
++	a.streamOutcome = outcome
++	if a.finishStream != nil {
++		a.finishStream(ctx, a, outcome)
+ 	}
+-
+-	m.modelCircuitBreaker.EndProbe(m.probeChannelID, m.probeModelID)
+-	m.probeActive = false
+ }
+ 
+-//nolint:containedctx // Checked.
+-type probeReleasingStream struct {
+-	ctx      context.Context
+-	stream   streams.Stream[*llm.Response]
+-	state    *PersistenceState
+-	release  func()
+-	released bool
+-	recorded bool
++func (a *circuitAttempt) closedStreamOutcome() biz.CircuitAttemptOutcome {
++	a.mu.Lock()
++	defer a.mu.Unlock()
++	return a.streamOutcome
++}
+ 
+-	modelCircuitBreaker *biz.ModelCircuitBreaker
+-	channelID           int
+-	modelID             string
++func (a *circuitAttempt) hasNeutralProviderOutcome() bool {
++	a.mu.Lock()
++	defer a.mu.Unlock()
++	return (a.gotResponse && a.responseOutcome == biz.CircuitAttemptNeutral) ||
++		(a.providerTerminal && a.streamOutcome == biz.CircuitAttemptNeutral)
+ }
+ 
+-func (s *probeReleasingStream) Next() bool {
+-	return s.stream.Next()
++func isNeutralCircuitError(err error) bool {
++	return errors.Is(err, context.Canceled) ||
++		isLocalAdmissionError(err) ||
++		errors.Is(err, transformer.ErrUnsupportedConversion) ||
++		errors.Is(err, pipeline.ErrPreCommitBufferExceeded) ||
++		errors.Is(err, httpclient.ErrStreamEventTooLarge) ||
++		llm.IsContentPolicyRejection(err) ||
++		shared.IsResponsesRecoveryError(err)
+ }
+ 
+-func (s *probeReleasingStream) Current() *llm.Response {
+-	event := s.stream.Current()
+-	if event == nil {
+-		return nil
++func classifyCircuitAttempt(ctx context.Context, err, raw error) biz.CircuitAttemptOutcome {
++	if ctx.Err() != nil || circuitCallerCanceled(ctx) || isNeutralCircuitError(err) || isNeutralCircuitError(raw) {
++		return biz.CircuitAttemptNeutral
+ 	}
+ 
+-	if s.modelCircuitBreaker == nil {
+-		return event
++	if pipeline.IsUpstreamError(err) {
++		if circuitUpstreamError(err) == biz.CircuitAttemptNeutral {
++			return biz.CircuitAttemptNeutral
++		}
++		if raw != nil && ExtractStatusCodeFromError(raw) != 0 {
++			return circuitUpstreamError(raw)
++		}
++		return biz.CircuitAttemptFailure
+ 	}
++	if errors.Is(err, pipeline.ErrStreamFirstEventTimeout) ||
++		errors.Is(err, pipeline.ErrNonStreamResponseTimeout) ||
++		errors.Is(err, pipeline.ErrEmptyResponse) ||
++		errors.Is(err, pipeline.ErrEmptyStreamChunks) ||
++		errors.Is(err, pipeline.ErrEmptyAggregatedBody) ||
++		errors.Is(err, llm.ErrStreamIncomplete) {
++		return biz.CircuitAttemptFailure
++	}
++
++	return biz.CircuitAttemptNeutral
++}
+ 
+-	if !s.recorded {
+-		if tokenCount := event.Usage.GetCompletionTokens(); tokenCount != nil && *tokenCount > 0 {
+-			if s.channelID != 0 && s.modelID != "" {
+-				s.modelCircuitBreaker.RecordSuccess(s.ctx, s.channelID, s.modelID)
++func circuitCallerCanceled(ctx context.Context) bool {
++	owner := streamLifecycleFromContext(ctx)
++	return owner != nil && (owner.downstream.Err() != nil || (owner.shutdown != nil && owner.shutdown.Err() != nil))
++}
++
++func circuitUpstreamError(err error) biz.CircuitAttemptOutcome {
++	status := ExtractStatusCodeFromError(err)
++	if isNeutralCircuitError(err) || (status >= 400 && status < 500 && status != http.StatusRequestTimeout) {
++		return biz.CircuitAttemptNeutral
++	}
++	if providerError, ok := errors.AsType[*llm.ResponseError](err); ok && status != http.StatusRequestTimeout {
++		for _, kind := range []string{providerError.Detail.Code, providerError.Detail.Type} {
++			switch kind {
++			case "invalid_request_error", "context_length_exceeded", "rate_limit_exceeded", "rate_limit_error",
++				"authentication_error", "permission_error", "insufficient_quota", "model_not_found", "not_found_error":
++				return biz.CircuitAttemptNeutral
+ 			}
+-			s.recorded = true
+ 		}
+ 	}
+-
+-	return event
++	return biz.CircuitAttemptFailure
+ }
+ 
+-func (s *probeReleasingStream) Err() error {
+-	return s.stream.Err()
++func circuitProviderEventError(body []byte) biz.CircuitAttemptOutcome {
++	detail := llm.ErrorDetail{
++		Code: gjson.GetBytes(body, "response.error.code").String(),
++	}
++	if detail.Code == "" {
++		detail.Code = gjson.GetBytes(body, "error.code").String()
++	}
++	if detail.Code == "" {
++		detail.Code = gjson.GetBytes(body, "code").String()
++	}
++	detail.Type = gjson.GetBytes(body, "response.error.type").String()
++	if detail.Type == "" {
++		detail.Type = gjson.GetBytes(body, "error.type").String()
++	}
++	status := int(gjson.GetBytes(body, "status_code").Int())
++	if status == 0 {
++		status = int(gjson.GetBytes(body, "status").Int())
++	}
++	return circuitUpstreamError(&llm.ResponseError{StatusCode: status, Detail: detail})
+ }
+ 
+-func (s *probeReleasingStream) Close() error {
+-	if !s.released && s.release != nil {
+-		s.released = true
+-		s.release()
++func circuitProviderIncomplete(body []byte) biz.CircuitAttemptOutcome {
++	reason := gjson.GetBytes(body, "response.incomplete_details.reason").String()
++	if reason == "" {
++		reason = gjson.GetBytes(body, "incomplete_details.reason").String()
+ 	}
+-
+-	return s.stream.Close()
++	if reason == "max_output_tokens" {
++		return biz.CircuitAttemptSuccess
++	}
++	return biz.CircuitAttemptNeutral
+ }
+--- a/internal/server/orchestrator/model_circuit_breaker_test.go
++++ b/internal/server/orchestrator/model_circuit_breaker_test.go
+@@ -1,212 +1,274 @@
++// 职责: 验证熔断决策与实际请求、重试和流式收尾一致。
++// 关联文件:
++//   internal/server/orchestrator/model_circuit_breaker.go
++//   internal/server/orchestrator/outbound.go
++//   internal/server/orchestrator/select_candidates.go
++
+ package orchestrator
+ 
+ import (
+ 	"context"
++	"errors"
++	"io"
+ 	"net/http"
+ 	"testing"
+ 
+ 	"github.com/stretchr/testify/require"
+ 
++	"github.com/looplj/axonhub/internal/contexts"
+ 	"github.com/looplj/axonhub/internal/ent"
++	"github.com/looplj/axonhub/internal/objects"
+ 	"github.com/looplj/axonhub/internal/server/biz"
+ 	"github.com/looplj/axonhub/llm"
+ 	"github.com/looplj/axonhub/llm/httpclient"
++	"github.com/looplj/axonhub/llm/pipeline"
+ 	"github.com/looplj/axonhub/llm/streams"
++	"github.com/looplj/axonhub/llm/transformer/openai"
++	"github.com/looplj/axonhub/llm/transformer/openai/responses"
++	"github.com/looplj/axonhub/llm/transformer/shared"
+ )
+ 
+-type stubResponseStream struct {
+-	events []*llm.Response
+-	index  int
+-}
+-
+-func (s *stubResponseStream) Next() bool {
+-	if s.index >= len(s.events) {
+-		return false
++func TestCircuitBreaker_ErrorClassification(t *testing.T) {
++	ctx := t.Context()
++	for _, tc := range []struct {
++		name string
++		err  error
++		raw  error
++		want biz.CircuitAttemptOutcome
++	}{
++		{"provider failure", pipeline.WrapUpstreamError(&llm.ResponseError{StatusCode: 502}), nil, biz.CircuitAttemptFailure},
++		{"provider timeout", pipeline.WrapUpstreamError(context.DeadlineExceeded), nil, biz.CircuitAttemptFailure},
++		{"first event timeout", pipeline.ErrStreamFirstEventTimeout, nil, biz.CircuitAttemptFailure},
++		{"request timeout", pipeline.ErrNonStreamResponseTimeout, nil, biz.CircuitAttemptFailure},
++		{"disconnect", pipeline.WrapUpstreamError(io.ErrUnexpectedEOF), nil, biz.CircuitAttemptFailure},
++		{"empty response", pipeline.ErrEmptyResponse, nil, biz.CircuitAttemptFailure},
++		{"structured policy HTTP 451", pipeline.WrapUpstreamError(&llm.ResponseError{StatusCode: 502}), &httpclient.Error{
++			StatusCode: 451, Body: []byte(`{"error":{"code":"cyber_policy"}}`),
++		}, biz.CircuitAttemptNeutral},
++		{"policy rejection event", pipeline.WrapUpstreamError(&llm.ResponseError{Detail: llm.ErrorDetail{Code: "cyber_policy"}}), nil, biz.CircuitAttemptNeutral},
++		{"model not found", pipeline.WrapUpstreamError(&llm.ResponseError{StatusCode: 404}), nil, biz.CircuitAttemptNeutral},
++		{"rate limit", pipeline.WrapUpstreamError(&llm.ResponseError{StatusCode: 429}), nil, biz.CircuitAttemptNeutral},
++		{"cancellation", pipeline.WrapUpstreamError(context.Canceled), nil, biz.CircuitAttemptNeutral},
++		{"continuation recovery", pipeline.WrapUpstreamError(shared.ResponsesRecoveryError()), nil, biz.CircuitAttemptNeutral},
++		{"local conversion failure", errors.New("inbound transform failed"), nil, biz.CircuitAttemptNeutral},
++	} {
++		t.Run(tc.name, func(t *testing.T) {
++			require.Equal(t, tc.want, classifyCircuitAttempt(ctx, tc.err, tc.raw))
++		})
+ 	}
+-	s.index++
+-	return true
+ }
+ 
+-func (s *stubResponseStream) Current() *llm.Response {
+-	if s.index == 0 || s.index > len(s.events) {
+-		return nil
+-	}
+-	return s.events[s.index-1]
++func TestCircuitBreaker_SameRouteRetriesCountOnceAndCooldownReturns503(t *testing.T) {
++	ctx, client := setupTest(t)
++	project := createTestProject(t, ctx, client)
++	ch := createTestChannel(t, ctx, client)
++	ctx = contexts.WithProjectID(ctx, project.ID)
++	provider, err := openai.NewOutboundTransformer(ch.BaseURL, ch.Credentials.APIKey)
++	require.NoError(t, err)
++	selector := &staticChannelSelector{candidates: []*ChannelModelsCandidate{{
++		Channel: &biz.Channel{Channel: ch, Outbound: provider},
++		Models:  []biz.ChannelModelEntry{{RequestModel: "alias", ActualModel: "gpt-4"}},
++	}}}
++	executor := &sequenceExecutor{}
++	orch := newTestOrchestrator(t, selector, client, executor)
++	breaker := orch.ChannelService.ModelCircuitBreaker()
++	orch.modelCircuitBreaker = breaker
++	orch.circuitBreakerLoadBalancer = NewLoadBalancer(nil, nil, NewModelAwareCircuitBreakerStrategy(breaker))
++	require.NoError(t, orch.SystemService.SetRetryPolicy(ctx, &biz.RetryPolicy{
++		Enabled: true, MaxSingleChannelRetries: 1, LoadBalancerStrategy: biz.LoadBalancerStrategyCircuitBreaker,
++	}))
++	threshold := breaker.GetPolicy(ctx).OpenThreshold
++	for i := range threshold {
++		executor.steps = append(executor.steps,
++			executorStep{err: &httpclient.Error{StatusCode: 502, Body: []byte(`{"error":{"message":"unavailable"}}`)}},
++			executorStep{err: &httpclient.Error{StatusCode: 502, Body: []byte(`{"error":{"message":"unavailable"}}`)}},
++		)
++		_, err = orch.Process(ctx, buildTestRequest("alias", "Hello", false))
++		require.Error(t, err)
++		require.Equal(t, i+1, breaker.GetModelCircuitBreakerStats(ctx, ch.ID, "gpt-4").ConsecutiveFailures)
++	}
++	require.Zero(t, breaker.GetModelCircuitBreakerStats(ctx, ch.ID, "alias").ConsecutiveFailures)
++	before := breaker.GetModelCircuitBreakerStats(ctx, ch.ID, "gpt-4")
++	calls := len(executor.requests)
++	_, err = orch.Process(ctx, buildTestRequest("alias", "Hello", false))
++	var unavailable *llm.ResponseError
++	require.ErrorAs(t, err, &unavailable)
++	require.Equal(t, http.StatusServiceUnavailable, unavailable.StatusCode)
++	require.Equal(t, "model_circuit_open", unavailable.Detail.Code)
++	require.Len(t, executor.requests, calls)
++	require.Equal(t, before.NextProbeAt, breaker.GetModelCircuitBreakerStats(ctx, ch.ID, "gpt-4").NextProbeAt)
++	requests, err := client.Request.Query().All(ctx)
++	require.NoError(t, err)
++	require.Len(t, requests, threshold+1)
+ }
+ 
+-func (s *stubResponseStream) Err() error { return nil }
+-
+-func (s *stubResponseStream) Close() error { return nil }
+-
+-func TestModelCircuitBreakerTracker_StreamSuccessUsesCurrentChannel(t *testing.T) {
+-	cb := biz.NewModelCircuitBreaker()
+-	ctx := context.Background()
+-	policy := biz.DefaultModelCircuitBreakerPolicy()
+-	for i := 0; i < policy.OpenThreshold; i++ {
+-		cb.RecordError(ctx, 42, "gpt-4", false)
+-	}
+-	require.Equal(t, biz.StateOpen, cb.GetModelCircuitBreakerStats(ctx, 42, "gpt-4").State)
+-
+-	outbound := &PersistentOutboundTransformer{
+-		state: &PersistenceState{
+-			OriginalModel: "gpt-4",
+-			RoutingPolicy: EffectiveRoutingPolicy{
+-				LoadBalancerStrategy: biz.LoadBalancerStrategyCircuitBreaker,
+-			},
+-			CurrentCandidate: &ChannelModelsCandidate{
+-				Channel: &biz.Channel{
+-					Channel: &ent.Channel{ID: 42, Name: "primary"},
+-				},
+-			},
+-		},
+-	}
+-	tracker := withModelCircuitBreaker(outbound, cb).(*modelCircuitBreakerTracker)
+-
+-	stream, err := tracker.OnOutboundLlmStream(ctx, &stubResponseStream{
+-		events: []*llm.Response{{
+-			Usage: &llm.Usage{CompletionTokens: 8},
+-		}},
+-	})
++func TestCircuitBreaker_FiltersBeforePriorityStickyAndModelFallback(t *testing.T) {
++	ctx := t.Context()
++	breaker := biz.NewModelCircuitBreaker()
++	channel := func(id int) *biz.Channel { return &biz.Channel{Channel: &ent.Channel{ID: id}} }
++	primary := &ChannelModelsCandidate{Channel: channel(1), Priority: 0, TraceSticky: true,
++		Models: []biz.ChannelModelEntry{{ActualModel: "upstream-a"}}}
++	backup := &ChannelModelsCandidate{Channel: channel(2), Priority: 1,
++		Models: []biz.ChannelModelEntry{{ActualModel: "upstream-b"}}}
++	for range breaker.GetPolicy(ctx).OpenThreshold {
++		breaker.RecordError(ctx, 1, "upstream-a")
++	}
++	state := EffectiveRoutingPolicy{}
++	strategy := biz.LoadBalancerStrategyCircuitBreaker
++	policy := &biz.RetryPolicy{LoadBalancerStrategy: strategy}
++	selector := &staticChannelSelector{candidates: []*ChannelModelsCandidate{primary, backup}}
++	balanced := WithRoutingPolicyLoadBalancedSelector(selector,
++		map[string]*LoadBalancer{strategy: NewLoadBalancer(nil, nil, NewModelAwareCircuitBreakerStrategy(breaker))},
++		policy, nil, nil, &state, nil)
++	balanced.circuitBreaker = breaker
++	found, err := balanced.Select(ctx, &llm.Request{Model: "alias"})
+ 	require.NoError(t, err)
++	require.Equal(t, []*ChannelModelsCandidate{backup}, found)
+ 
+-	require.True(t, stream.Next())
+-	require.NotNil(t, stream.Current())
+-	require.NoError(t, stream.Close())
+-
+-	stats := cb.GetModelCircuitBreakerStats(ctx, 42, "gpt-4")
+-	require.Equal(t, biz.StateClosed, stats.State)
+-	require.Zero(t, stats.ConsecutiveFailures)
+-}
+-
+-func TestModelCircuitBreakerTracker_SkipCandidateDoesNotRecordError(t *testing.T) {
+-	cb := biz.NewModelCircuitBreaker()
+-	ctx := context.Background()
+-	outbound := &PersistentOutboundTransformer{
+-		state: &PersistenceState{
+-			OriginalModel: "gpt-4",
+-			RoutingPolicy: EffectiveRoutingPolicy{
+-				LoadBalancerStrategy: biz.LoadBalancerStrategyCircuitBreaker,
+-			},
+-			CurrentCandidate: &ChannelModelsCandidate{
+-				Channel: &biz.Channel{
+-					Channel: &ent.Channel{ID: 42, Name: "primary"},
+-				},
+-			},
+-		},
+-	}
+-	tracker := withModelCircuitBreaker(outbound, cb).(*modelCircuitBreakerTracker)
+-
+-	// Force open so the next request is skipped instead of probed.
+-	policy := biz.DefaultModelCircuitBreakerPolicy()
+-	for i := 0; i < policy.OpenThreshold; i++ {
+-		cb.RecordError(ctx, 42, "gpt-4", false)
+-	}
+-	before := cb.GetModelCircuitBreakerStats(ctx, 42, "gpt-4")
+-	require.Equal(t, biz.StateOpen, before.State)
+-	failuresBefore := before.ConsecutiveFailures
+-	lastFailureBefore := before.LastFailureAt
+-
+-	_, err := tracker.OnOutboundRawRequest(ctx, &httpclient.Request{})
+-	require.ErrorIs(t, err, errSkipCandidateByCircuitBreaker)
+-	tracker.OnOutboundRawError(ctx, err)
+-
+-	after := cb.GetModelCircuitBreakerStats(ctx, 42, "gpt-4")
+-	require.Equal(t, failuresBefore, after.ConsecutiveFailures)
+-	require.Equal(t, lastFailureBefore, after.LastFailureAt)
++	primary.Models = append(primary.Models, biz.ChannelModelEntry{ActualModel: "upstream-c"})
++	primary.modelAPIFormats = []string{"openai/chat", "openai/responses"}
++	found, err = balanced.Select(ctx, &llm.Request{Model: "alias"})
++	require.NoError(t, err)
++	require.Len(t, found, 1)
++	require.Equal(t, []biz.ChannelModelEntry{{ActualModel: "upstream-c"}}, found[0].Models)
++	require.Equal(t, "openai/responses", found[0].APIFormat)
++	require.Len(t, primary.Models, 2)
+ }
+ 
+-func TestModelCircuitBreakerTracker_ContentPolicyRejectionPreservesHealth(t *testing.T) {
+-	ctx := t.Context()
+-	cb := biz.NewModelCircuitBreaker()
+-	outbound := &PersistentOutboundTransformer{
+-		state: &PersistenceState{
+-			OriginalModel: "gpt-4",
+-			RoutingPolicy: EffectiveRoutingPolicy{
+-				LoadBalancerStrategy: biz.LoadBalancerStrategyCircuitBreaker,
+-			},
+-			CurrentCandidate: &ChannelModelsCandidate{
+-				Channel: &biz.Channel{Channel: &ent.Channel{ID: 42}},
+-			},
+-		},
+-	}
+-	tracker := withModelCircuitBreaker(outbound, cb).(*modelCircuitBreakerTracker)
+-	tracker.OnOutboundRawError(ctx, &httpclient.Error{
+-		StatusCode: http.StatusUnavailableForLegalReasons,
+-		Body:       []byte(`{"error":{"code":"provider_unavailable","message":"cyber_policy is not the error code"}}`),
+-	})
+-	before := cb.GetModelCircuitBreakerStats(ctx, 42, "gpt-4")
+-	require.Equal(t, 1, before.ConsecutiveFailures)
+-
+-	tests := []struct {
+-		name string
+-		err  error
++func TestCircuitBreaker_StreamLifecycle(t *testing.T) {
++	for _, tc := range []struct {
++		name    string
++		events  []*httpclient.StreamEvent
++		pending error
++		cancel  bool
++		want    biz.CircuitAttemptOutcome
+ 	}{
+-		{
+-			name: "stream failure",
+-			err: &llm.ResponseError{
+-				StatusCode: http.StatusBadRequest,
+-				Detail:     llm.ErrorDetail{Code: llm.ErrorCodeCyberPolicy, Type: "invalid_request"},
+-			},
+-		},
+-		{
+-			name: "HTTP 451 from provider",
+-			err: &httpclient.Error{
+-				StatusCode: http.StatusUnavailableForLegalReasons,
+-				Body:       []byte(`{"error":{"code":"cyber_policy","type":"invalid_request","message":"request rejected"}}`),
+-			},
+-		},
+-	}
+-	for _, tt := range tests {
+-		t.Run(tt.name, func(t *testing.T) {
+-			for range biz.DefaultModelCircuitBreakerPolicy().OpenThreshold {
+-				tracker.OnOutboundRawError(ctx, tt.err)
++		{"success without usage", []*httpclient.StreamEvent{
++			{Type: "response.completed", Data: []byte(`{"type":"response.completed","response":{"id":"resp_1","status":"completed"}}`)},
++		}, nil, false, biz.CircuitAttemptSuccess},
++		{"failed after usage", []*httpclient.StreamEvent{
++			{Data: []byte(`{"type":"response.in_progress","response":{"usage":{"output_tokens":9}}}`)},
++			{Type: "response.failed", Data: []byte(`{"type":"response.failed","response":{"error":{"code":"server_error"}}}`)},
++		}, nil, false, biz.CircuitAttemptFailure},
++		{"bare done without terminal", []*httpclient.StreamEvent{&llm.DoneStreamEvent}, nil, false, biz.CircuitAttemptFailure},
++		{"content filter", []*httpclient.StreamEvent{
++			{Type: "response.incomplete", Data: []byte(`{"type":"response.incomplete","response":{"incomplete_details":{"reason":"content_filter"}}}`)},
++		}, nil, false, biz.CircuitAttemptNeutral},
++		{"token limit", []*httpclient.StreamEvent{
++			{Type: "response.incomplete", Data: []byte(`{"type":"response.incomplete","response":{"incomplete_details":{"reason":"max_output_tokens"}}}`)},
++		}, nil, false, biz.CircuitAttemptSuccess},
++		{"disconnect", nil, io.ErrUnexpectedEOF, false, biz.CircuitAttemptFailure},
++		{"client cancellation", nil, context.Canceled, true, biz.CircuitAttemptNeutral},
++	} {
++		t.Run(tc.name, func(t *testing.T) {
++			ctx, cancel := context.WithCancel(t.Context())
++			defer cancel()
++			cb := biz.NewModelCircuitBreaker()
++			cb.RecordError(ctx, 42, "provider-model")
++			state := &PersistenceState{
++				OriginalModel: "alias",
++				RoutingPolicy: EffectiveRoutingPolicy{LoadBalancerStrategy: biz.LoadBalancerStrategyCircuitBreaker},
++				CurrentCandidate: &ChannelModelsCandidate{
++					Channel: &biz.Channel{Channel: &ent.Channel{ID: 42}},
++					Models:  []biz.ChannelModelEntry{{ActualModel: "provider-model"}},
++				},
+ 			}
+-
+-			after := cb.GetModelCircuitBreakerStats(ctx, 42, "gpt-4")
+-			require.Equal(t, biz.StateClosed, after.State)
+-			require.Equal(t, before.ConsecutiveFailures, after.ConsecutiveFailures)
+-			require.Equal(t, before.LastFailureAt, after.LastFailureAt)
++			outbound := &PersistentOutboundTransformer{state: state}
++			tracker := withModelCircuitBreaker(outbound, cb)
++			_, err := tracker.OnOutboundRawRequest(ctx, &httpclient.Request{})
++			require.NoError(t, err)
++			provider, err := responses.NewOutboundTransformer("http://127.0.0.1", "test-key")
++			require.NoError(t, err)
++			source := &errorAfterEventsStream{items: tc.events, err: tc.pending}
++			stream := NewOutboundPersistentStream(ctx, source, nil, nil, nil, nil, provider, nil, state)
++			tracker.OnOutboundAttemptResult(ctx, &pipeline.Result{Stream: true}, nil)
++			tracker.OnProcessEnd()
++			require.Equal(t, 1, cb.GetModelCircuitBreakerStats(ctx, 42, "provider-model").ConsecutiveFailures)
++			if tc.cancel {
++				cancel()
++			}
++			for stream.Next() {
++				_ = stream.Current()
++			}
++			require.NoError(t, stream.Close())
++			require.NoError(t, stream.Close())
++			want := map[biz.CircuitAttemptOutcome]int{
++				biz.CircuitAttemptSuccess: 0, biz.CircuitAttemptNeutral: 1, biz.CircuitAttemptFailure: 2,
++			}[tc.want]
++			require.Equal(t, want, cb.GetModelCircuitBreakerStats(ctx, 42, "provider-model").ConsecutiveFailures)
+ 		})
+ 	}
+ }
+ 
+-func TestModelCircuitBreakerTracker_NonCircuitBreakerSkipsStreamTracking(t *testing.T) {
+-	cb := biz.NewModelCircuitBreaker()
+-	ctx := context.Background()
+-	policy := biz.DefaultModelCircuitBreakerPolicy()
+-	for i := 0; i < policy.OpenThreshold; i++ {
+-		cb.RecordError(ctx, 42, "gpt-4", false)
+-	}
+-	require.Equal(t, biz.StateOpen, cb.GetModelCircuitBreakerStats(ctx, 42, "gpt-4").State)
++func TestCircuitBreaker_StreamClosedDuringPreReadUsesPipelineError(t *testing.T) {
++	ctx := t.Context()
++	breaker := biz.NewModelCircuitBreaker()
++	admission, _ := breaker.BeginAttempt(ctx, 1, "model")
++	state := &PersistenceState{circuitAttempt: &circuitAttempt{admission: admission}}
++	tracker := withModelCircuitBreaker(&PersistentOutboundTransformer{state: state}, breaker)
++	state.circuitAttempt.closeStream(ctx, biz.CircuitAttemptNeutral, false)
++	tracker.OnOutboundAttemptResult(ctx, nil, pipeline.ErrStreamFirstEventTimeout)
++	require.Equal(t, 1, breaker.GetModelCircuitBreakerStats(ctx, 1, "model").ConsecutiveFailures)
++}
+ 
+-	outbound := &PersistentOutboundTransformer{
+-		state: &PersistenceState{
+-			OriginalModel: "gpt-4",
+-			RoutingPolicy: EffectiveRoutingPolicy{
+-				LoadBalancerStrategy: biz.LoadBalancerStrategyAdaptive,
+-			},
+-			CurrentCandidate: &ChannelModelsCandidate{
+-				Channel: &biz.Channel{
+-					Channel: &ent.Channel{ID: 42, Name: "primary"},
+-				},
+-			},
+-		},
+-	}
+-	tracker := withModelCircuitBreaker(outbound, cb).(*modelCircuitBreakerTracker)
++type forcedStreamBreakerExecutor struct {
++	mockExecutor
++	calls int
++}
+ 
+-	raw := &stubResponseStream{
+-		events: []*llm.Response{{
+-			Usage: &llm.Usage{CompletionTokens: 8},
++func (e *forcedStreamBreakerExecutor) DoStream(ctx context.Context, request *httpclient.Request) (streams.Stream[*httpclient.StreamEvent], error) {
++	e.calls++
++	if e.calls > 1 {
++		return e.mockExecutor.DoStream(ctx, request)
++	}
++	return &errorAfterEventsStream{
++		items: []*httpclient.StreamEvent{{
++			Data: []byte(`{"id":"abc","object":"chat.completion.chunk","model":"gpt-4","choices":[{"index":0,"delta":{"content":"partial"}}]}`),
+ 		}},
+-	}
+-	stream, err := tracker.OnOutboundLlmStream(ctx, raw)
+-	require.NoError(t, err)
+-	require.Equal(t, streams.Stream[*llm.Response](raw), stream)
+-
+-	require.True(t, stream.Next())
+-	require.NotNil(t, stream.Current())
++		err: io.ErrUnexpectedEOF,
++	}, nil
++}
+ 
+-	stats := cb.GetModelCircuitBreakerStats(ctx, 42, "gpt-4")
+-	require.Equal(t, biz.StateOpen, stats.State)
+-	require.Equal(t, policy.OpenThreshold, stats.ConsecutiveFailures)
++func TestCircuitBreaker_ForcedStreamFailureCanUseNextChannel(t *testing.T) {
++	ctx, client := setupTest(t)
++	project := createTestProject(t, ctx, client)
++	ctx = contexts.WithProjectID(ctx, project.ID)
++	first := createTestChannel(t, ctx, client)
++	first.Policies.Stream = objects.CapabilityPolicyRequire
++	second, err := client.Channel.Create().
++		SetType(first.Type).
++		SetName("backup circuit channel").
++		SetBaseURL(first.BaseURL).
++		SetCredentials(first.Credentials).
++		SetSupportedModels([]string{"gpt-4"}).
++		SetDefaultTestModel("gpt-4").
++		SetPolicies(objects.ChannelPolicies{Stream: objects.CapabilityPolicyRequire}).
++		Save(ctx)
++	require.NoError(t, err)
++	provider, err := openai.NewOutboundTransformer(first.BaseURL, first.Credentials.APIKey)
++	require.NoError(t, err)
++	models := []biz.ChannelModelEntry{{RequestModel: "gpt-4", ActualModel: "gpt-4"}}
++	selector := &staticChannelSelector{candidates: []*ChannelModelsCandidate{
++		{Channel: &biz.Channel{Channel: first, Outbound: provider}, Models: models, Priority: 0},
++		{Channel: &biz.Channel{Channel: second, Outbound: provider}, Models: models, Priority: 1},
++	}}
++	executor := &forcedStreamBreakerExecutor{mockExecutor: mockExecutor{streamEvents: []*httpclient.StreamEvent{
++		{Data: []byte(`{"id":"ok","object":"chat.completion.chunk","model":"gpt-4","choices":[{"index":0,"delta":{"content":"recovered"}}]}`)},
++		{Data: []byte(`{"id":"ok","object":"chat.completion.chunk","model":"gpt-4","choices":[{"index":0,"delta":{},"finish_reason":"stop"}]}`)},
++		&llm.DoneStreamEvent,
++	}}}
++	orch := newTestOrchestrator(t, selector, client, executor)
++	breaker := orch.ChannelService.ModelCircuitBreaker()
++	orch.modelCircuitBreaker = breaker
++	orch.circuitBreakerLoadBalancer = NewLoadBalancer(nil, nil, NewModelAwareCircuitBreakerStrategy(breaker))
++	require.NoError(t, orch.SystemService.SetRetryPolicy(ctx, &biz.RetryPolicy{
++		Enabled: true, MaxChannelRetries: 1, LoadBalancerStrategy: biz.LoadBalancerStrategyCircuitBreaker,
++	}))
++	result, err := orch.Process(ctx, buildTestRequest("gpt-4", "Hello", false))
++	require.NoError(t, err)
++	require.Equal(t, second.ID, result.Route.ChannelID)
++	require.Equal(t, 2, executor.calls)
++	require.Contains(t, string(result.ChatCompletion.Body), "recovered")
++	require.Equal(t, 1, breaker.GetModelCircuitBreakerStats(ctx, first.ID, "gpt-4").ConsecutiveFailures)
++	require.Zero(t, breaker.GetModelCircuitBreakerStats(ctx, second.ID, "gpt-4").ConsecutiveFailures)
+ }
+--- a/internal/server/orchestrator/orchestrator.go
++++ b/internal/server/orchestrator/orchestrator.go
+@@ -51,8 +51,7 @@ func NewChatCompletionOrchestrator(
+ 		channelLimiterMetrics = nil
+ 	}
+ 
+-	// Initialize model circuit breaker
+-	modelCircuitBreaker := biz.NewModelCircuitBreaker()
++	modelCircuitBreaker := channelService.ModelCircuitBreaker()
+ 
+ 	rateLimitStrategy := NewRateLimitAwareStrategy(rateLimitTracker, channelLimiterManager)
+ 
+@@ -253,6 +252,7 @@ func (processor *ChatCompletionOrchestra
+ 
+ 	state := &PersistenceState{
+ 		ResponsesContinuation: continuation,
++		circuitBreaker:        processor.modelCircuitBreaker,
+ 		APIKey:                apiKey,
+ 		RequestService:        processor.RequestService,
+ 		UsageLogService:       processor.UsageLogService,
+@@ -362,7 +362,7 @@ func (processor *ChatCompletionOrchestra
+ 		// Unified performance tracking middleware.
+ 		withoutResponsesRecoveryPenalty(withPerformanceRecording(outbound)),
+ 
+-		withoutResponsesRecoveryPenalty(withModelCircuitBreaker(outbound, processor.modelCircuitBreaker)),
++		withModelCircuitBreaker(outbound, processor.modelCircuitBreaker),
+ 
+ 		// The request execution middleware must be the final middleware
+ 		// to ensure that the request execution is created with the correct request bodys.
+--- a/internal/server/orchestrator/outbound.go
++++ b/internal/server/orchestrator/outbound.go
+@@ -63,6 +63,8 @@ type OutboundPersistentStream struct {
+ 	state           *PersistenceState
+ 	terminalTracker *StreamTerminalTracker
+ 	lifecycle       *streamLifecycle
++	circuitAttempt  *circuitAttempt
++	terminalEvent   *httpclient.StreamEvent
+ }
+ 
+ var _ streams.Stream[*httpclient.StreamEvent] = (*OutboundPersistentStream)(nil)
+@@ -97,6 +99,9 @@ func NewOutboundPersistentStream(
+ 		terminalTracker: NewStreamTerminalTrackerForRequest(request, state),
+ 		lifecycle:       streamLifecycleFromContext(ctx),
+ 	}
++	if state != nil {
++		s.circuitAttempt = state.circuitAttempt
++	}
+ 	if s.lifecycle != nil {
+ 		s.lifecycle.trackAttempt(s)
+ 	}
+@@ -109,7 +114,8 @@ func (ts *OutboundPersistentStream) cons
+ 		return nil
+ 	}
+ 	ts.responseChunks = append(ts.responseChunks, httpclient.SummarizeBinaryChunk(event))
+-	if ts.terminalState == streamTerminalNone && ts.terminalTracker.Observe(event) {
++	if ts.terminalState == streamTerminalNone && ts.observeTerminal(event) {
++		ts.terminalEvent = event
+ 		ts.terminalState = classifyAcceptedTerminalEvent(event)
+ 		ts.state.OutboundStreamTerminal = ts.terminalState
+ 		ts.outcome.observeTerminalEvent(ts.terminalState, event)
+@@ -154,7 +160,8 @@ func (ts *OutboundPersistentStream) reco
+ 		// summary to avoid buffering the full audio payload in memory.
+ 		ts.responseChunks = append(ts.responseChunks, httpclient.SummarizeBinaryChunk(event))
+ 		if ts.terminalState == streamTerminalNone {
+-			if ts.terminalTracker.Observe(event) {
++			if ts.observeTerminal(event) {
++				ts.terminalEvent = event
+ 				ts.terminalState = classifyAcceptedTerminalEvent(event)
+ 				ts.state.OutboundStreamTerminal = ts.terminalState
+ 				if ts.terminalState != streamTerminalCompleted {
+@@ -170,6 +177,13 @@ func (ts *OutboundPersistentStream) reco
+ 	}
+ }
+ 
++func (ts *OutboundPersistentStream) observeTerminal(event *httpclient.StreamEvent) bool {
++	if isResponsesFormat(ts.apiFormat) && string(event.Data) == "[DONE]" {
++		return false
++	}
++	return ts.terminalTracker.Observe(event)
++}
++
+ func (ts *OutboundPersistentStream) Err() error {
+ 	return ts.stream.Err()
+ }
+@@ -178,10 +192,14 @@ func (ts *OutboundPersistentStream) Err(
+ // stream lifecycle, Close collects the remaining source on the calling goroutine.
+ func (ts *OutboundPersistentStream) Close() error {
+ 	ts.closeOnce.Do(func() {
++		sourceEnd := ts.sourceEnd
+ 		if ts.lifecycle != nil {
+ 			ts.collectTail()
+ 		}
+ 		ts.closeErr = errors.Join(ts.finalizeClose(), ts.persistenceErr)
++		if ts.circuitAttempt != nil {
++			ts.circuitAttempt.closeStream(ts.ctx, ts.circuitOutcome(sourceEnd), ts.outcome.providerTerminal)
++		}
+ 	})
+ 
+ 	return ts.closeErr
+@@ -331,6 +349,35 @@ func (ts *OutboundPersistentStream) fina
+ 	return ts.closeSource()
+ }
+ 
++// Health depends on upstream completion, independently of downstream delivery.
++func (ts *OutboundPersistentStream) circuitOutcome(sourceEnd llm.SourceEndReason) biz.CircuitAttemptOutcome {
++	decision := ts.outcome.finalDecision()
++	if ts.terminalEvent != nil && ts.outcome.providerTerminal && !ts.outcome.deadlineBeforeTerminal {
++		switch decision.state {
++		case streamTerminalFailed:
++			return circuitProviderEventError(ts.terminalEvent.Data)
++		case streamTerminalIncomplete:
++			return circuitProviderIncomplete(ts.terminalEvent.Data)
++		}
++	}
++	if decision.state == streamTerminalCompleted {
++		return biz.CircuitAttemptSuccess
++	}
++	if circuitCallerCanceled(ts.ctx) {
++		return biz.CircuitAttemptNeutral
++	}
++	if streamErr := ts.circuitAttempt.streamError; streamErr != nil && !ts.outcome.providerTerminal {
++		return circuitUpstreamError(streamErr)
++	}
++	if sourceEnd == llm.SourceEndError {
++		return circuitUpstreamError(ts.stream.Err())
++	}
++	if sourceEnd == llm.SourceEndCleanEOF || ts.outcome.transportErr != nil {
++		return biz.CircuitAttemptFailure
++	}
++	return biz.CircuitAttemptNeutral
++}
++
+ func (ts *OutboundPersistentStream) markPerformanceTerminal(state streamTerminalState, message string) {
+ 	if ts.perf == nil || ts.perf.RequestCompleted {
+ 		return
+@@ -564,8 +611,6 @@ func accountingUnavailableReason(meta ll
+ 	return "absent"
+ }
+ 
+-var errSkipCandidateByCircuitBreaker = errors.New("skip candidate by circuit breaker")
+-
+ // PersistentOutboundTransformer wraps an outbound transformer with shared persistence state.
+ type PersistentOutboundTransformer struct {
+ 	wrapped                       transformer.Outbound
+@@ -656,6 +701,9 @@ func (p *PersistentOutboundTransformer)
+ }
+ 
+ func (p *PersistentOutboundTransformer) TransformRequest(ctx context.Context, llmRequest *llm.Request) (*httpclient.Request, error) {
++	if p.state.circuitBlocked != nil {
++		return nil, p.state.circuitBlocked
++	}
+ 	hasAdditionalTools := containsAdditionalToolsInputItems(llmRequest)
+ 
+ 	// Candidates should already be selected by inbound transformer
+@@ -1008,7 +1056,7 @@ func (p *PersistentOutboundTransformer)
+ 	}
+ 
+ 	if errors.Is(err, errSkipCandidateByCircuitBreaker) {
+-		return false
++		return p.state.CurrentModelIndex+1 < len(p.state.CurrentCandidate.Models)
+ 	}
+ 
+ 	// Retrying the same channel cannot resolve local capacity rejection.
+@@ -1101,6 +1149,20 @@ func (p *PersistentOutboundTransformer)
+ 	}
+ 
+ 	candidate := p.state.CurrentCandidate
++	nextModelIndex := min(p.state.CurrentModelIndex+1, len(candidate.Models)-1)
++	if p.state.circuitBreaker != nil && p.state.RoutingPolicy.LoadBalancerStrategy == biz.LoadBalancerStrategyCircuitBreaker {
++		var retryAt time.Time
++		for nextModelIndex < len(candidate.Models) {
++			retryAt = p.state.circuitBreaker.RetryAt(ctx, candidate.Channel.ID, candidate.Models[nextModelIndex].ActualModel)
++			if retryAt.IsZero() {
++				break
++			}
++			nextModelIndex++
++		}
++		if !retryAt.IsZero() {
++			return circuitUnavailable(p.state.OriginalModel, retryAt)
++		}
++	}
+ 
+ 	// Reset request execution for the same channel.
+ 	p.state.RequestExec = nil
+@@ -1112,9 +1174,9 @@ func (p *PersistentOutboundTransformer)
+ 	p.resetPassThroughStreamState()
+ 
+ 	// If there's another model in the list, advance to it.
+-	if p.state.CurrentModelIndex+1 < len(candidate.Models) {
++	if nextModelIndex > p.state.CurrentModelIndex {
+ 		// Increase the model index to the next model.
+-		p.state.CurrentModelIndex++
++		p.state.CurrentModelIndex = nextModelIndex
+ 		p.refreshCandidateAPIFormat(ctx, candidate, p.state.CurrentModelIndex, p.state.LlmRequest)
+ 		p.wrapped = selectOutboundForCandidate(candidate)
+ 		p.trackCurrentChannelSelection()
+--- a/internal/server/orchestrator/outbound_test.go
++++ b/internal/server/orchestrator/outbound_test.go
+@@ -800,7 +800,7 @@ func TestPersistentOutboundTransformer_C
+ 		require.False(t, outbound.CanRetry(nonRetryableErr))
+ 	})
+ 
+-	t.Run("skip-by-circuit-breaker should not trigger same-channel retry", func(t *testing.T) {
++	t.Run("skip-by-circuit-breaker can only retry an alternate model", func(t *testing.T) {
+ 		outbound := &PersistentOutboundTransformer{
+ 			wrapped: &mockTransformer{},
+ 			state: &PersistenceState{
+@@ -815,6 +815,8 @@ func TestPersistentOutboundTransformer_C
+ 			},
+ 		}
+ 
++		require.True(t, outbound.CanRetry(errSkipCandidateByCircuitBreaker))
++		outbound.state.CurrentModelIndex++
+ 		require.False(t, outbound.CanRetry(errSkipCandidateByCircuitBreaker))
+ 	})
+ 
+--- a/internal/server/orchestrator/responses_health.go
++++ b/internal/server/orchestrator/responses_health.go
+@@ -15,9 +15,6 @@ func withoutResponsesRecoveryPenalty(m p
+ 
+ func (m *responsesHealthMiddleware) OnOutboundRawError(ctx context.Context, err error) {
+ 	if shared.IsResponsesRecoveryError(err) {
+-		if tracker, ok := m.Middleware.(*modelCircuitBreakerTracker); ok {
+-			tracker.releaseProbeLease()
+-		}
+ 		return
+ 	}
+ 	m.Middleware.OnOutboundRawError(ctx, err)
+--- a/internal/server/orchestrator/select_candidates.go
++++ b/internal/server/orchestrator/select_candidates.go
+@@ -2,6 +2,7 @@ package orchestrator
+ 
+ import (
+ 	"context"
++	"errors"
+ 	"fmt"
+ 
+ 	"github.com/samber/lo"
+@@ -66,7 +67,7 @@ func selectCandidates(inbound *Persisten
+ 		gate := NewQuotaRoutingGate(quotaProvider, settings.QuotaRouting)
+ 
+ 		if len(inbound.state.LoadBalancers) > 0 {
+-			selector = WithRoutingPolicyLoadBalancedSelector(
++			balanced := WithRoutingPolicyLoadBalancedSelector(
+ 				selector,
+ 				inbound.state.LoadBalancers,
+ 				&settings.RetryPolicy,
+@@ -75,11 +76,19 @@ func selectCandidates(inbound *Persisten
+ 				&inbound.state.RoutingPolicy,
+ 				gate,
+ 			)
++			balanced.circuitBreaker = inbound.state.circuitBreaker
++			selector = balanced
+ 		} else {
+ 			selector = WithQuotaRoutingSelector(selector, gate)
+ 		}
+ 
+ 		candidates, err := selector.Select(ctx, llmRequest)
++		if errors.Is(err, errSkipCandidateByCircuitBreaker) {
++			// Let the request persistence middleware run before returning
++			// the temporary routing error. There is no upstream execution.
++			inbound.state.circuitBlocked = err
++			return llmRequest, nil
++		}
+ 		if err != nil {
+ 			return nil, err
+ 		}
+--- a/internal/server/orchestrator/state.go
++++ b/internal/server/orchestrator/state.go
+@@ -15,17 +15,21 @@ import (
+ type PersistenceState struct {
+ 	APIKey *ent.APIKey
+ 
+-	RequestService      *biz.RequestService
+-	UsageLogService     *biz.UsageLogService
+-	ChannelService      *biz.ChannelService
+-	PromptProvider      PromptProvider
+-	PromptProtecter     PromptProtecter
+-	CandidateSelector   CandidateSelector
+-	LoadBalancers       map[string]*LoadBalancer
+-	RoutingPolicy       EffectiveRoutingPolicy
++	RequestService    *biz.RequestService
++	UsageLogService   *biz.UsageLogService
++	ChannelService    *biz.ChannelService
++	PromptProvider    PromptProvider
++	PromptProtecter   PromptProtecter
++	CandidateSelector CandidateSelector
++	LoadBalancers     map[string]*LoadBalancer
++	RoutingPolicy     EffectiveRoutingPolicy
+ 	// Settings is the system settings snapshot taken when the request started.
+ 	Settings *RequestSettings
+ 
++	circuitAttempt *circuitAttempt
++	circuitBreaker *biz.ModelCircuitBreaker
++	circuitBlocked error
++
+ 	// Request state
+ 	ModelMapper *ModelMapper
+ 	// Proxy config, will be used to override channel's default proxy config.
+--- a/llm/pipeline/middleware.go
++++ b/llm/pipeline/middleware.go
+@@ -68,6 +68,13 @@ type Middleware interface {
+ 	OnOutboundLlmStream(ctx context.Context, stream streams.Stream[*llm.Response]) (streams.Stream[*llm.Response], error)
+ }
+ 
++// OutboundAttemptResultMiddleware observes the final result of an attempt,
++// after response validation and before retry. For streaming results the stream
++// has been handed off, but has not necessarily reached a terminal event.
++type OutboundAttemptResultMiddleware interface {
++	OnOutboundAttemptResult(context.Context, *Result, error)
++}
++
+ // OutboundLlmRequestMiddleware is an optional middleware extension for unified
+ // requests that must be processed once per outbound attempt. Dynamic outbound
+ // routers invoke it after selecting the attempt's API format and before the
+--- a/llm/pipeline/non_streaming.go
++++ b/llm/pipeline/non_streaming.go
+@@ -105,7 +105,7 @@ func (p *pipeline) autoAggregateStream(
+ 
+ 	if err := inboundStream.Err(); err != nil {
+ 		p.applyRawErrorResponseMiddlewares(ctx, err)
+-		return nil, err
++		return nil, WrapUpstreamError(err)
+ 	}
+ 
+ 	if len(chunks) == 0 {
+--- a/llm/pipeline/pipeline.go
++++ b/llm/pipeline/pipeline.go
+@@ -321,6 +321,11 @@ func (p *pipeline) Process(ctx context.C
+ 		llmRequest.Stream = originalStream
+ 
+ 		result, err := p.processRequest(ctx, llmRequest)
++		for i := len(p.middlewares) - 1; i >= 0; i-- {
++			if observer, ok := p.middlewares[i].(OutboundAttemptResultMiddleware); ok {
++				observer.OnOutboundAttemptResult(ctx, result, err)
++			}
++		}
+ 		if err == nil {
+ 			return result, nil
+ 		}
