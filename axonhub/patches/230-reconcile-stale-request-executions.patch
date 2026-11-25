@@ -1,0 +1,430 @@
+Subject: [PATCH] requests: reconcile interrupted requests on local SQLite
+
+--- a/cmd/axonhub-desktop/main.go
++++ b/cmd/axonhub-desktop/main.go
+@@ -154,7 +154,7 @@ func startServer() (desktopServer, *serv
+ 			}),
+ 			conf.Module,
+ 			fx.Provide(metrics.NewProvider),
+-			fx.Invoke(func(lc fx.Lifecycle, srv *server.Server, provider *sdk.MeterProvider, client *ent.Client, requestSvc *biz.RequestService, projectSvc *biz.ProjectService) {
++			fx.Invoke(func(lc fx.Lifecycle, srv *server.Server, provider *sdk.MeterProvider, client *ent.Client, projectSvc *biz.ProjectService) {
+ 				lc.Append(fx.Hook{
+ 					OnStart: func(ctx context.Context) error {
+ 						// Returning an error from OnStart makes fx exit the
+@@ -173,14 +173,6 @@ func startServer() (desktopServer, *serv
+ 								return err
+ 							}
+ 						}
+-						go func() {
+-							defer recoverLog("cancel stale processing")
+-							cleanupCtx, cleanupCancel := context.WithTimeout(context.Background(), 30*time.Second)
+-							defer cleanupCancel()
+-							if err := requestSvc.ClearStaleProcessingOnStartup(cleanupCtx); err != nil {
+-								log.Warn(context.Background(), "failed to cancel stale processing records on startup", log.Cause(err))
+-							}
+-						}()
+ 						listenErr := make(chan error, 1)
+ 						go func() {
+ 							defer recoverLog("http server")
+--- a/cmd/axonhub/main.go
++++ b/cmd/axonhub/main.go
+@@ -26,7 +26,6 @@ import (
+ 	"github.com/looplj/axonhub/internal/log"
+ 	"github.com/looplj/axonhub/internal/metrics"
+ 	"github.com/looplj/axonhub/internal/server"
+-	"github.com/looplj/axonhub/internal/server/biz"
+ 	"github.com/looplj/axonhub/internal/server/middleware"
+ 	"github.com/looplj/axonhub/llm/transformer/antigravity"
+ )
+@@ -98,7 +97,7 @@ func startServer() {
+ 				},
+ 			})
+ 		}),
+-		fx.Invoke(func(lc fx.Lifecycle, server *server.Server, provider *sdk.MeterProvider, ent *ent.Client, requestSvc *biz.RequestService) {
++		fx.Invoke(func(lc fx.Lifecycle, server *server.Server, provider *sdk.MeterProvider, ent *ent.Client) {
+ 			lc.Append(fx.Hook{
+ 				OnStart: func(ctx context.Context) error {
+ 					if provider != nil {
+@@ -117,16 +116,6 @@ func startServer() {
+ 			})
+ 			lc.Append(fx.Hook{
+ 				OnStart: func(ctx context.Context) error {
+-					// Run cleanup asynchronously with timeout to avoid blocking startup
+-					go func() {
+-						cleanupCtx, cancel := context.WithTimeout(context.Background(), 30*time.Second) //nolint:gosec // intentional detached context
+-						defer cancel()
+-
+-						if err := requestSvc.ClearStaleProcessingOnStartup(cleanupCtx); err != nil {
+-							log.Warn(context.Background(), "failed to cancel stale processing records on startup", log.Cause(err))
+-						}
+-					}()
+-
+ 					go func() {
+ 						err := server.Run()
+ 						if err != nil {
+--- a/conf/conf.go
++++ b/conf/conf.go
+@@ -276,6 +276,7 @@ func setDefaults(v *viper.Viper) {
+ 	v.SetDefault("server.llm_request_timeout", "600s")
+ 	v.SetDefault("server.llm_stream_request_timeout", "1800s")
+ 	v.SetDefault("server.llm_stream_idle_timeout", "600s")
++	v.SetDefault("server.single_instance_sqlite", false)
+ 	v.SetDefault("server.sse_keep_alive.enabled", false)
+ 	v.SetDefault("server.sse_keep_alive.interval", "15s")
+ 	v.SetDefault("server.trace.thread_header", "AH-Thread-Id")
+--- a/config.example.yml
++++ b/config.example.yml
+@@ -23,6 +23,7 @@ server:
+   llm_request_timeout: "600s"   # Non-streaming LLM total timeout; 0 disables (env: AXONHUB_SERVER_LLM_REQUEST_TIMEOUT)
+   llm_stream_request_timeout: "1800s" # Streaming LLM total timeout; 0 disables (env: AXONHUB_SERVER_LLM_STREAM_REQUEST_TIMEOUT)
+   llm_stream_idle_timeout: "600s" # Upstream stream read idle timeout; 0 disables (env: AXONHUB_SERVER_LLM_STREAM_IDLE_TIMEOUT)
++  single_instance_sqlite: false # Enable periodic orphan cleanup only for an exclusively owned SQLite DB (env: AXONHUB_SERVER_SINGLE_INSTANCE_SQLITE)
+   # Optional Claude Code auto-mode reviewer; empty classifier_model disables it.
+   # Select a model exposed by an existing channel, accessible to the calling API key.
+   # System Settings > Claude Code can override this entire configuration without restart.
+--- a/internal/server/biz/request.go
++++ b/internal/server/biz/request.go
+@@ -31,6 +31,7 @@ import (
+ 	"github.com/looplj/axonhub/internal/pkg/xcache"
+ 	"github.com/looplj/axonhub/internal/pkg/xcontext"
+ 	"github.com/looplj/axonhub/internal/pkg/xjson"
++	"github.com/looplj/axonhub/internal/server/scheduler"
+ 	"github.com/looplj/axonhub/llm"
+ 	"github.com/looplj/axonhub/llm/httpclient"
+ )
+@@ -1623,62 +1624,124 @@ func (s *RequestService) UpdateRequestSt
+ 	return chunkErr
+ }
+ 
+-// cancelStaleRecords updates records older than maxAge to canceled status.
+-func (s *RequestService) cancelStaleRecords(
+-	ctx context.Context,
+-	maxAge time.Duration,
+-	entityName string,
+-	updateFn func(ctx context.Context, cutoff time.Time) (int, error),
+-) error {
+-	cutoff := time.Now().UTC().Add(-maxAge)
+-	return authz.RunWithSystemBypassVoid(ctx, "cleanup-"+entityName, func(ctx context.Context) error {
+-		count, err := updateFn(ctx, cutoff)
+-		if err != nil {
+-			return fmt.Errorf("failed to cancel stale %s: %w", entityName, err)
+-		}
+-		if count > 0 {
+-			log.Info(ctx, "canceled stale processing records",
+-				log.String("entity", entityName),
+-				log.Int("count", count),
+-				log.Duration("maxAge", maxAge))
+-		}
+-		return nil
+-	})
+-}
+-
+-// maxProcessingDuration defines how long a record can be in "processing" state.
+-// Records exceeding this are considered stuck and will be canceled on startup.
++// maxProcessingDuration is the grace period for records from a former process.
+ const maxProcessingDuration = 1 * time.Hour
+ 
++// ClearStaleProcessingOnStartup preserves the historical grace period for
++// deployments that do not opt in to exclusive local ownership.
+ func (s *RequestService) ClearStaleProcessingOnStartup(ctx context.Context) error {
+-	var errs []error
++	return s.clearStaleProcessing(ctx, time.Now().UTC())
++}
+ 
+-	if err := s.cancelStaleRecords(ctx, maxProcessingDuration, "requests", func(ctx context.Context, cutoff time.Time) (int, error) {
+-		return s.entFromContext(ctx).Request.Update().
+-			Where(
+-				request.StatusEQ(request.StatusProcessing),
+-				request.CreatedAtLT(cutoff),
+-			).
+-			SetStatus(request.StatusCanceled).
+-			Save(ctx)
+-	}); err != nil {
+-		errs = append(errs, err)
+-	}
+-
+-	if err := s.cancelStaleRecords(ctx, maxProcessingDuration, "executions", func(ctx context.Context, cutoff time.Time) (int, error) {
+-		return s.entFromContext(ctx).RequestExecution.Update().
+-			Where(
+-				requestexecution.StatusEQ(requestexecution.StatusProcessing),
+-				requestexecution.CreatedAtLT(cutoff),
+-			).
+-			SetStatus(requestexecution.StatusCanceled).
+-			Save(ctx)
+-	}); err != nil {
+-		errs = append(errs, err)
++// RegisterStaleProcessingCleanup schedules cleanup for a process with exclusive
++// ownership of its SQLite database. Calls must precede request admission.
++func (s *RequestService) RegisterStaleProcessingCleanup(ctx context.Context, schedulerService *scheduler.Scheduler) error {
++	startedAt := time.Now().UTC()
++	run := func(ctx context.Context) error {
++		ctx, cancel := context.WithTimeout(ctx, 30*time.Second)
++		defer cancel()
++		return s.clearStaleProcessing(ctx, startedAt)
++	}
++	if err := schedulerService.RegisterWithError(ctx, scheduler.TaskSpec{
++		Name:        "stale-processing",
++		Description: "Cancel abandoned requests from previous process runs",
++		FixRate:     15 * time.Minute,
++	}, run); err != nil {
++		return err
+ 	}
++	go func() {
++		defer func() {
++			if r := recover(); r != nil {
++				log.Error(context.Background(), "stale request cleanup panicked", log.Any("panic", r))
++			}
++		}()
++		if err := run(context.Background()); err != nil {
++			log.Warn(context.Background(), "failed to cancel stale processing records on startup", log.Cause(err))
++		}
++	}()
++	return nil
++}
+ 
+-	if len(errs) > 0 {
+-		return fmt.Errorf("startup cleanup failed: %w", errors.Join(errs...))
++// clearStaleProcessing only finalizes records before both the supplied process
++// boundary and the grace period. Periodic callers need exclusive DB ownership.
++func (s *RequestService) clearStaleProcessing(ctx context.Context, startedAt time.Time) error {
++	const batchSize = 128
++	cutoff := time.Now().UTC().Add(-maxProcessingDuration)
++	videoFormats := make([]string, 0, 3)
++	for format := range llm.CapableAPIFormats(llm.RequestTypeVideo) {
++		videoFormats = append(videoFormats, format)
++	}
++	oldRequest := request.And(
++		request.CreatedAtLT(startedAt),
++		request.CreatedAtLT(cutoff),
++		// A provider video task can remain active across local restarts.
++		request.Not(request.And(request.FormatIn(videoFormats...), request.ExternalIDNotNil(), request.ExternalIDNEQ(""))),
++	)
++	unsettledRequest := request.StatusIn(request.StatusPending, request.StatusProcessing)
++	unsettledExecution := requestexecution.StatusIn(requestexecution.StatusPending, requestexecution.StatusProcessing)
++	var requestCount, executionCount int
++	_, err := authz.RunAsHost(ctx, s.entFromContext(ctx), "cleanup-stale-requests", func(ctx context.Context) (struct{}, error) {
++		for {
++			n := 0
++			err := s.RunInTransaction(ctx, func(txCtx context.Context) error {
++				client := s.entFromContext(txCtx)
++				ids, err := client.Request.Query().Where(oldRequest, unsettledRequest).
++					Order(ent.Asc(request.FieldID)).Limit(batchSize).IDs(txCtx)
++				if err != nil || len(ids) == 0 {
++					return err
++				}
++				execs, err := client.RequestExecution.Update().
++					Where(requestexecution.RequestIDIn(ids...), unsettledExecution,
++						requestexecution.CreatedAtLT(startedAt), requestexecution.CreatedAtLT(cutoff)).
++					SetStatus(requestexecution.StatusCanceled).Save(txCtx)
++				if err != nil {
++					return err
++				}
++				n, err = client.Request.Update().Where(request.IDIn(ids...), unsettledRequest).
++					SetStatus(request.StatusCanceled).Save(txCtx)
++				if err == nil {
++					requestCount += n
++					executionCount += execs
++				}
++				return err
++			})
++			if err != nil {
++				return struct{}{}, err
++			}
++			if n < batchSize {
++				break
++			}
++		}
++
++		// A completed main request can still have an unfinished older execution
++		// from an interrupted persistence operation. Reconcile it as well.
++		client := s.entFromContext(ctx)
++		for {
++			ids, err := client.RequestExecution.Query().Where(
++				unsettledExecution, requestexecution.CreatedAtLT(startedAt), requestexecution.CreatedAtLT(cutoff),
++				requestexecution.HasRequestWith(oldRequest,
++					request.StatusIn(request.StatusCanceled, request.StatusCompleted, request.StatusFailed)),
++			).Order(ent.Asc(requestexecution.FieldID)).Limit(batchSize).IDs(ctx)
++			if err != nil || len(ids) == 0 {
++				return struct{}{}, err
++			}
++			n, err := client.RequestExecution.Update().
++				Where(requestexecution.IDIn(ids...), unsettledExecution).
++				SetStatus(requestexecution.StatusCanceled).Save(ctx)
++			if err != nil {
++				return struct{}{}, err
++			}
++			executionCount += n
++			if len(ids) < batchSize {
++				return struct{}{}, nil
++			}
++		}
++	})
++	if err != nil {
++		return fmt.Errorf("cancel stale processing: %w", err)
++	}
++	if requestCount > 0 || executionCount > 0 {
++		log.Info(ctx, "canceled stale processing records", log.Int("requests", requestCount), log.Int("executions", executionCount))
+ 	}
+ 	return nil
+ }
+--- a/internal/server/biz/request_shutdown_test.go
++++ b/internal/server/biz/request_shutdown_test.go
+@@ -15,6 +15,7 @@ import (
+ 	"github.com/looplj/axonhub/internal/ent/request"
+ 	"github.com/looplj/axonhub/internal/ent/requestexecution"
+ 	"github.com/looplj/axonhub/internal/pkg/xcache"
++	"github.com/looplj/axonhub/llm"
+ )
+ 
+ func setupTestRequestService(t *testing.T) (*RequestService, *ent.Client, context.Context) {
+@@ -41,7 +42,7 @@ func setupTestRequestService(t *testing.
+ 	return requestService, client, ctx
+ }
+ 
+-func TestRequestService_ClearStaleProcessingOnStartup(t *testing.T) {
++func TestRequestService_ClearStaleProcessing(t *testing.T) {
+ 	svc, client, ctx := setupTestRequestService(t)
+ 	defer client.Close()
+ 
+@@ -125,7 +126,7 @@ func TestRequestService_ClearStaleProces
+ 		recentExecIDs = append(recentExecIDs, exec.ID)
+ 	}
+ 
+-	err = svc.ClearStaleProcessingOnStartup(ctx)
++	err = svc.clearStaleProcessing(ctx, time.Now().UTC())
+ 	require.NoError(t, err)
+ 
+ 	for _, id := range staleRequestIDs {
+@@ -151,9 +152,28 @@ func TestRequestService_ClearStaleProces
+ 		require.NoError(t, err)
+ 		require.Equal(t, requestexecution.StatusProcessing, exec.Status)
+ 	}
++
++	now := time.Now().UTC()
++	startedAt := now.Add(-3 * time.Hour)
++	ongoing, err := client.Request.Create().SetProjectID(proj.ID).SetModelID("gpt-4").
++		SetFormat(llm.APIFormatOpenAIChatCompletion.String()).SetStatus(request.StatusProcessing).
++		SetRequestBody([]byte(`{}`)).
++		SetCreatedAt(now.Add(-2 * time.Hour)).Save(ctx)
++	require.NoError(t, err)
++	video, err := client.Request.Create().SetProjectID(proj.ID).SetModelID("video-test").
++		SetFormat(llm.APIFormatOpenAIVideo.String()).SetExternalID("provider-task").
++		SetRequestBody([]byte(`{}`)).
++		SetStatus(request.StatusProcessing).SetCreatedAt(now.Add(-4 * time.Hour)).Save(ctx)
++	require.NoError(t, err)
++	require.NoError(t, svc.clearStaleProcessing(ctx, startedAt))
++	for _, id := range []int{ongoing.ID, video.ID} {
++		req, err := client.Request.Get(ctx, id)
++		require.NoError(t, err)
++		require.Equal(t, request.StatusProcessing, req.Status)
++	}
+ }
+ 
+-func TestRequestService_ClearStaleProcessingOnStartup_NoStaleRecords(t *testing.T) {
++func TestRequestService_ClearStaleProcessing_NoStaleRecords(t *testing.T) {
+ 	svc, client, ctx := setupTestRequestService(t)
+ 	defer client.Close()
+ 
+@@ -161,9 +181,7 @@ func TestRequestService_ClearStaleProces
+ 	require.NoError(t, err)
+ }
+ 
+-func TestRequestService_ClearStaleProcessingOnStartup_PartialFailure(t *testing.T) {
+-	// This test verifies that if one cleanup operation fails, others still run
+-	// and errors are properly aggregated
++func TestRequestService_ClearStaleProcessing_CompletedRequestWithOrphanedExecution(t *testing.T) {
+ 	svc, client, ctx := setupTestRequestService(t)
+ 	defer client.Close()
+ 
+@@ -186,7 +204,7 @@ func TestRequestService_ClearStaleProces
+ 		SetModelID("gpt-4").
+ 		SetFormat("openai/chat_completions").
+ 		SetRequestBody([]byte(`{"model":"gpt-4"}`)).
+-		SetStatus(request.StatusProcessing).
++		SetStatus(request.StatusCompleted).
+ 		SetStream(false).
+ 		SetCreatedAt(time.Now().UTC().Add(-2 * time.Hour)).
+ 		Save(ctx)
+@@ -204,8 +222,8 @@ func TestRequestService_ClearStaleProces
+ 		Save(ctx)
+ 	require.NoError(t, err)
+ 
+-	// Cleanup should succeed for both
+-	err = svc.ClearStaleProcessingOnStartup(ctx)
++	// Only the unfinished execution needs reconciliation.
++	err = svc.clearStaleProcessing(ctx, time.Now().UTC())
+ 	require.NoError(t, err)
+ 
+ 	// Verify execution was canceled
+@@ -213,8 +231,8 @@ func TestRequestService_ClearStaleProces
+ 	require.NoError(t, err)
+ 	require.Equal(t, requestexecution.StatusCanceled, exec.Status)
+ 
+-	// Verify request was also canceled
++	// Preserve the completed request's terminal state.
+ 	req, err = client.Request.Get(ctx, req.ID)
+ 	require.NoError(t, err)
+-	require.Equal(t, request.StatusCanceled, req.Status)
++	require.Equal(t, request.StatusCompleted, req.Status)
+ }
+--- a/internal/server/config.go
++++ b/internal/server/config.go
+@@ -105,6 +105,10 @@ type Config struct {
+ 	// Zero disables the stream idle deadline.
+ 	LLMStreamIdleTimeout time.Duration `conf:"llm_stream_idle_timeout" yaml:"llm_stream_idle_timeout" json:"llm_stream_idle_timeout"`
+ 
++	// SingleInstanceSQLite allows periodic reconciliation of requests left by an
++	// earlier process. Enable it only when this server alone uses the database.
++	SingleInstanceSQLite bool `conf:"single_instance_sqlite" yaml:"single_instance_sqlite" json:"single_instance_sqlite"`
++
+ 	Safeguards safeguards.Config `conf:"safeguards" yaml:"safeguards" json:"safeguards"`
+ 
+ 	SSEKeepAlive SSEKeepAlive `conf:"sse_keep_alive" yaml:"sse_keep_alive" json:"sse_keep_alive"`
+--- a/internal/server/server.go
++++ b/internal/server/server.go
+@@ -8,6 +8,7 @@ import (
+ 	"net"
+ 	"net/http"
+ 	"strconv"
++	"time"
+ 
+ 	"github.com/gin-gonic/gin"
+ 	"go.uber.org/fx"
+@@ -16,6 +17,7 @@ import (
+ 	"github.com/looplj/axonhub/internal/server/api"
+ 	"github.com/looplj/axonhub/internal/server/backup"
+ 	"github.com/looplj/axonhub/internal/server/biz"
++	"github.com/looplj/axonhub/internal/server/db"
+ 	"github.com/looplj/axonhub/internal/server/dependencies"
+ 	"github.com/looplj/axonhub/internal/server/events"
+ 	"github.com/looplj/axonhub/internal/server/gc"
+@@ -168,6 +170,29 @@ func Run(opts ...fx.Option) {
+ 					},
+ 				})
+ 			}),
++			fx.Invoke(func(lc fx.Lifecycle, svc *biz.RequestService, s *scheduler.Scheduler, cfg db.Config, serverConfig Config) {
++				// The operator opts in only when this service exclusively owns
++				// the SQLite database. Shared databases require instance ownership.
++				exclusiveLocalDB := (cfg.Dialect == "sqlite3" || cfg.Dialect == "sqlite") && serverConfig.SingleInstanceSQLite
++				lc.Append(fx.Hook{OnStart: func(ctx context.Context) error {
++					if exclusiveLocalDB {
++						return svc.RegisterStaleProcessingCleanup(ctx, s)
++					}
++					go func() {
++						defer func() {
++							if v := recover(); v != nil {
++								log.Error(context.Background(), "stale request cleanup panicked", log.Any("panic", v))
++							}
++						}()
++						cleanupCtx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
++						defer cancel()
++						if err := svc.ClearStaleProcessingOnStartup(cleanupCtx); err != nil {
++							log.Warn(cleanupCtx, "failed to cancel stale processing records on startup", log.Cause(err))
++						}
++					}()
++					return nil
++				}})
++			}),
+ 			fx.Invoke(SetupRoutes),
+ 			fx.Invoke(registerPprof),
+ 		}, opts...)...,

@@ -1,0 +1,632 @@
+Subject: [PATCH] metrics: record each final channel attempt once
+
+--- a/internal/server/biz/channel_metrics.go
++++ b/internal/server/biz/channel_metrics.go
+@@ -570,7 +570,11 @@ func (svc *ChannelService) RecordPerform
+ 
+ // AsyncRecordPerformance records performance metrics to in-memory cache asynchronously.
+ func (svc *ChannelService) AsyncRecordPerformance(ctx context.Context, perr *PerformanceRecord) {
+-	svc.perfCh <- perr
++	if perr == nil {
++		return
++	}
++	snapshot := *perr
++	svc.perfCh <- &snapshot
+ }
+ 
+ // cleanupExpiredSlots removes time slots older than the cutoff time.
+@@ -737,6 +741,9 @@ func (m *PerformanceRecord) CalculateRea
+ // MarkSuccess marks the request as completed.
+ func (m *PerformanceRecord) MarkSuccess() {
+ 	m.Success = true
++	m.Canceled = false
++	m.ResponseStatusCode = 0
++	m.ErrorMessage = ""
+ 	m.RequestCompleted = true
+ 	m.EndTime = time.Now()
+ }
+@@ -768,6 +775,8 @@ func (m *PerformanceRecord) MarkReasonin
+ // MarkFailed marks the request as failed.
+ func (m *PerformanceRecord) MarkFailed(errorCode int) {
+ 	m.Success = false
++	m.Canceled = false
++	m.ErrorMessage = ""
+ 	m.ResponseStatusCode = errorCode
+ 	m.RequestCompleted = true
+ 	m.EndTime = time.Now()
+@@ -783,6 +792,8 @@ func (m *PerformanceRecord) MarkFailedWi
+ func (m *PerformanceRecord) MarkCanceled() {
+ 	m.Success = false
+ 	m.Canceled = true
++	m.ResponseStatusCode = 0
++	m.ErrorMessage = ""
+ 	m.RequestCompleted = true
+ 	m.EndTime = time.Now()
+ }
+--- /dev/null
++++ b/internal/server/orchestrator/attempt_performance_test.go
+@@ -0,0 +1,69 @@
++// 职责: 验证请求的最终尝试结果只计入一次渠道性能统计。
++// 关联文件:
++//
++//	internal/server/orchestrator/performance.go
++//	internal/server/orchestrator/orchestrator.go
++package orchestrator
++
++import (
++	"testing"
++	"time"
++
++	"github.com/stretchr/testify/require"
++
++	"github.com/looplj/axonhub/internal/contexts"
++	"github.com/looplj/axonhub/internal/server/biz"
++	"github.com/looplj/axonhub/llm"
++	"github.com/looplj/axonhub/llm/httpclient"
++	"github.com/looplj/axonhub/llm/pipeline"
++	"github.com/looplj/axonhub/llm/transformer/openai"
++)
++
++func TestPerformanceRecordsFinalAttemptOnce(t *testing.T) {
++	ctx, client := setupTest(t)
++	channel := createTestChannel(t, ctx, client)
++	provider, err := openai.NewOutboundTransformer(channel.BaseURL, "fixture")
++	require.NoError(t, err)
++	selector := &staticChannelSelector{
++		candidates: channelsToTestCandidates([]*biz.Channel{{Channel: channel, Outbound: provider}}, "gpt-4"),
++	}
++	ctx = contexts.WithProjectID(ctx, createTestProject(t, ctx, client).ID)
++	executor := &mockExecutor{response: &httpclient.Response{
++		StatusCode: 200, Body: buildMockOpenAIResponse("empty", "gpt-4", "", 1, 0),
++	}}
++	orch := newTestOrchestrator(t, selector, client, executor)
++	t.Cleanup(orch.ChannelService.Stop)
++	require.NoError(t, orch.SystemService.SetRetryPolicy(ctx, &biz.RetryPolicy{
++		Enabled: true, EmptyResponseDetection: true, LoadBalancerStrategy: biz.LoadBalancerStrategyAdaptive,
++	}))
++	_, err = orch.Process(ctx, buildTestRequest("gpt-4", "hello", false))
++	require.ErrorIs(t, err, pipeline.ErrEmptyResponse)
++
++	executor.response = &httpclient.Response{StatusCode: 200, Body: buildMockOpenAIResponse("success", "gpt-4", "hello", 1, 1)}
++	_, err = orch.Process(ctx, buildTestRequest("gpt-4", "hello", false))
++	require.NoError(t, err)
++
++	executor.streamEvents = []*httpclient.StreamEvent{
++		{Data: []byte(`{"id":"stream","object":"chat.completion.chunk","model":"gpt-4","choices":[{"index":0,"delta":{"role":"assistant","content":"hello"}}]}`)},
++		{Data: []byte(`{"id":"stream","object":"chat.completion.chunk","model":"gpt-4","choices":[{"index":0,"delta":{},"finish_reason":"stop"}]}`)},
++		{Data: []byte(`{"id":"stream","object":"chat.completion.chunk","model":"gpt-4","choices":[],"usage":{"prompt_tokens":1,"completion_tokens":9,"total_tokens":10}}`)},
++		&llm.DoneStreamEvent,
++	}
++	result, err := orch.Process(ctx, buildTestRequest("gpt-4", "hello", true))
++	require.NoError(t, err)
++	for result.ChatCompletionStream.Next() {
++		_ = result.ChatCompletionStream.Current()
++	}
++	require.NoError(t, result.ChatCompletionStream.Err())
++	require.NoError(t, result.ChatCompletionStream.Close())
++
++	require.EqualValues(t, 3, executor.requestCalls.Load())
++	require.Eventually(t, func() bool {
++		metrics, err := orch.ChannelService.GetChannelMetrics(ctx, channel.ID)
++		return err == nil && metrics.SuccessCount >= 2 && metrics.FailureCount >= 1
++	}, time.Second, 10*time.Millisecond)
++	metrics, err := orch.ChannelService.GetChannelMetrics(ctx, channel.ID)
++	require.NoError(t, err)
++	require.EqualValues(t, 2, metrics.SuccessCount)
++	require.EqualValues(t, 1, metrics.FailureCount)
++}
+--- a/internal/server/orchestrator/orchestrator.go
++++ b/internal/server/orchestrator/orchestrator.go
+@@ -360,7 +360,7 @@ func (processor *ChatCompletionOrchestra
+ 	}
+ 	middlewares = append(middlewares,
+ 		// Unified performance tracking middleware.
+-		withoutResponsesRecoveryPenalty(withPerformanceRecording(outbound)),
++		withPerformanceRecording(outbound),
+ 
+ 		withoutResponsesRecoveryPenalty(withModelCircuitBreaker(outbound, processor.modelCircuitBreaker)),
+ 
+--- a/internal/server/orchestrator/outbound.go
++++ b/internal/server/orchestrator/outbound.go
+@@ -50,19 +50,20 @@ type OutboundPersistentStream struct {
+ 	perf           *biz.PerformanceRecord
+ 	responseChunks []*httpclient.StreamEvent
+ 	// First reported model only. Intra-stream changes are not tracked.
+-	upstreamModelID string
+-	terminalState   streamTerminalState
+-	terminalError   string
+-	outcome         streamOutcome
+-	closeOnce       sync.Once
+-	closeErr        error
+-	sourceCloseOnce sync.Once
+-	sourceCloseErr  error
+-	sourceEnd       llm.SourceEndReason
+-	persistenceErr  error
+-	state           *PersistenceState
+-	terminalTracker *StreamTerminalTracker
+-	lifecycle       *streamLifecycle
++	upstreamModelID    string
++	terminalState      streamTerminalState
++	terminalError      string
++	outcome            streamOutcome
++	closeOnce          sync.Once
++	closeErr           error
++	sourceCloseOnce    sync.Once
++	sourceCloseErr     error
++	sourceEnd          llm.SourceEndReason
++	persistenceErr     error
++	state              *PersistenceState
++	terminalTracker    *StreamTerminalTracker
++	lifecycle          *streamLifecycle
++	performanceAttempt *performanceAttempt
+ }
+ 
+ var _ streams.Stream[*httpclient.StreamEvent] = (*OutboundPersistentStream)(nil)
+@@ -97,6 +98,9 @@ func NewOutboundPersistentStream(
+ 		terminalTracker: NewStreamTerminalTrackerForRequest(request, state),
+ 		lifecycle:       streamLifecycleFromContext(ctx),
+ 	}
++	if state != nil {
++		s.performanceAttempt = state.performanceAttempt
++	}
+ 	if s.lifecycle != nil {
+ 		s.lifecycle.trackAttempt(s)
+ 	}
+@@ -182,6 +186,9 @@ func (ts *OutboundPersistentStream) Clos
+ 			ts.collectTail()
+ 		}
+ 		ts.closeErr = errors.Join(ts.finalizeClose(), ts.persistenceErr)
++		if ts.performanceAttempt != nil {
++			ts.performanceAttempt.closeStream(ts.ctx, ts.outcome.finalDecision(), ts.outcome.providerTerminal)
++		}
+ 	})
+ 
+ 	return ts.closeErr
+@@ -273,7 +280,6 @@ func (ts *OutboundPersistentStream) fina
+ 				ts.outcome.observeAggregatedCompletion(true)
+ 			}
+ 			ts.markPerformanceTerminal(streamTerminalCompleted, "")
+-			enqueueCompletedPerformance(ts.ctx, ts.state)
+ 		}
+ 	} else {
+ 		ts.logFinalizationDecision(ctx, "no_outbound_chunks_to_aggregate", streamErr, ctxErr, false, nil)
+@@ -282,7 +288,6 @@ func (ts *OutboundPersistentStream) fina
+ 		aggregatedCompleted = true
+ 		ts.outcome.observeValidatedCompletion()
+ 		ts.markPerformanceTerminal(streamTerminalCompleted, "")
+-		enqueueCompletedPerformance(ts.ctx, ts.state)
+ 	}
+ 	if ts.outcome.hasFinalEvidence() {
+ 		ts.terminalState = ts.outcome.finalState()
+@@ -451,6 +456,11 @@ func (ts *OutboundPersistentStream) pers
+ }
+ 
+ func (ts *OutboundPersistentStream) persistAggregatedResponse(ctx context.Context, responseBody []byte, meta llm.ResponseMeta, sourceEnd llm.SourceEndReason) {
++	if ts.perf != nil && accountingMayBeFinal(ts.apiFormat, meta, sourceEnd) {
++		if tokens := meta.Usage.GetCompletionTokens(); tokens != nil && *tokens > 0 {
++			ts.perf.CompletionTokens = *tokens
++		}
++	}
+ 	if ts.requestExec == nil {
+ 		return
+ 	}
+--- a/internal/server/orchestrator/performance.go
++++ b/internal/server/orchestrator/performance.go
+@@ -3,6 +3,8 @@ package orchestrator
+ import (
+ 	"context"
+ 	"errors"
++	"net/http"
++	"sync"
+ 	"time"
+ 
+ 	"github.com/looplj/axonhub/internal/contexts"
+@@ -13,6 +15,7 @@ import (
+ 	"github.com/looplj/axonhub/llm/httpclient"
+ 	"github.com/looplj/axonhub/llm/pipeline"
+ 	"github.com/looplj/axonhub/llm/streams"
++	"github.com/looplj/axonhub/llm/transformer/shared"
+ )
+ 
+ const errorMatchBodyLimit = 8 * 1024
+@@ -83,6 +86,10 @@ func (m *performanceRecording) OnOutboun
+ 	}
+ 
+ 	m.outbound.state.Perf = &perf
++	m.outbound.state.performanceAttempt = &performanceAttempt{
++		record:  &perf,
++		service: m.outbound.state.ChannelService,
++	}
+ 
+ 	log.Debug(ctx, "Started performance tracking",
+ 		log.Int("channel_id", channel.ID),
+@@ -107,8 +114,9 @@ func (m *performanceRecording) OnOutboun
+ 		}
+ 	}
+ 
++	// Preserve the response latency for persistence. The final attempt result
++	// can still reject this response (for example, during empty-response detection).
+ 	m.outbound.state.Perf.MarkSuccess()
+-	m.outbound.state.ChannelService.AsyncRecordPerformance(ctx, m.outbound.state.Perf)
+ 
+ 	return response, nil
+ }
+@@ -119,40 +127,127 @@ func (m *performanceRecording) OnOutboun
+ 
+ func (m *performanceRecording) OnOutboundLlmStream(ctx context.Context, stream streams.Stream[*llm.Response]) (streams.Stream[*llm.Response], error) {
+ 	return &recordPerformanceStream{
+-		stream: stream,
+-		state:  m.outbound.state,
+-		onClose: func() {
+-			enqueueCompletedPerformance(ctx, m.outbound.state)
+-		},
++		stream:  stream,
++		perf:    m.outbound.state.Perf,
++		attempt: m.outbound.state.performanceAttempt,
+ 	}, nil
+ }
+ 
+-func (m *performanceRecording) OnOutboundRawError(ctx context.Context, err error) {
+-	if isLocalAdmissionError(err) {
++func (m *performanceRecording) OnOutboundRawError(_ context.Context, err error) {
++	if attempt := m.outbound.state.performanceAttempt; attempt != nil {
++		attempt.rawError = err
++	}
++}
++
++func (m *performanceRecording) OnOutboundAttemptResult(ctx context.Context, result *pipeline.Result, err error) {
++	attempt := m.outbound.state.performanceAttempt
++	m.outbound.state.performanceAttempt = nil
++	if attempt == nil {
+ 		return
+ 	}
+-	// Record performance metrics for failed requests
+-	if m.outbound.state.Perf == nil {
++	if err == nil && result != nil && result.Stream {
++		attempt.acceptStream(ctx)
+ 		return
+ 	}
++	attempt.finish(ctx, err)
++}
+ 
+-	perf := m.outbound.state.Perf
+-	if errors.Is(err, context.Canceled) {
+-		perf.MarkCanceled()
+-	} else {
+-		errorCode := ExtractErrorCode(err)
+-		perf.MarkFailedWithMessage(errorCode, extractErrorMessageForMatching(err))
++// A stream can be closed before the pipeline decides whether it will be
++// returned, rejected or aggregated. Only its final attempt result may commit
++// the record to channel health.
++type performanceAttempt struct {
++	record      *biz.PerformanceRecord
++	service     *biz.ChannelService
++	rawError    error
++	streamError error
++
++	mu             sync.Mutex
++	streamAccepted bool
++	streamClosed   bool
++	finished       bool
++}
++
++func (a *performanceAttempt) acceptStream(ctx context.Context) {
++	a.mu.Lock()
++	defer a.mu.Unlock()
++	a.streamAccepted = true
++	if a.streamClosed {
++		a.submit(ctx)
+ 	}
++}
+ 
+-	m.outbound.state.ChannelService.AsyncRecordPerformance(ctx, perf)
++func (a *performanceAttempt) closeStream(ctx context.Context, decision streamOutcomeDecision, providerTerminal bool) {
++	a.mu.Lock()
++	defer a.mu.Unlock()
++	if a.finished {
++		return
++	}
++	a.streamClosed = true
++	switch {
++	case decision.state == streamTerminalCompleted || (providerTerminal && decision.state == streamTerminalIncomplete):
++		if !a.record.RequestCompleted || !a.record.Success {
++			a.record.MarkSuccess()
++		}
++	case decision.state == streamTerminalCanceled:
++		a.record.MarkCanceled()
++	default:
++		if decision.cause == nil {
++			decision.cause = ErrStreamIncomplete
++		}
++		detail := decision.cause
++		if ExtractStatusCodeFromError(a.streamError) > 0 {
++			detail = a.streamError
++		}
++		a.record.MarkFailedWithMessage(ExtractErrorCode(detail), extractErrorMessageForMatching(detail))
++	}
++	if a.streamAccepted {
++		a.submit(ctx)
++	}
++}
++
++func (a *performanceAttempt) finish(ctx context.Context, err error) {
++	a.mu.Lock()
++	defer a.mu.Unlock()
++	if a.finished {
++		return
++	}
++	if isLocalAdmissionError(err) || shared.IsResponsesRecoveryError(err) {
++		a.finished = true
++		return
++	}
++	if err != nil {
++		if errors.Is(err, context.Canceled) {
++			a.record.MarkCanceled()
++		} else {
++			detail := err
++			if ExtractStatusCodeFromError(a.rawError) > 0 {
++				detail = a.rawError
++			}
++			a.record.MarkFailedWithMessage(ExtractErrorCode(detail), extractErrorMessageForMatching(detail))
++		}
++	} else if !a.record.RequestCompleted {
++		a.record.MarkSuccess()
++	}
++	a.submit(ctx)
++}
++
++// submit is called with mu held. AsyncRecordPerformance takes a copy of the
++// finished record so that the metrics worker never reads live request state.
++func (a *performanceAttempt) submit(ctx context.Context) {
++	if a.finished {
++		return
++	}
++	a.finished = true
++	if a.service != nil {
++		a.service.AsyncRecordPerformance(ctx, a.record)
++	}
+ }
+ 
+ // recordPerformanceStream records performance metrics for a stream of responses.
+ type recordPerformanceStream struct {
+ 	stream  streams.Stream[*llm.Response]
+-	state   *PersistenceState
+-	onClose func()
+-	closed  bool
++	perf    *biz.PerformanceRecord
++	attempt *performanceAttempt
+ 
+ 	firstTokenSet     bool
+ 	reasoningStartSet bool
+@@ -165,30 +260,30 @@ func (s *recordPerformanceStream) Curren
+ 		return event
+ 	}
+ 
+-	if !s.firstTokenSet && s.state.Perf != nil && hasMeaningfulStreamOutput(event) {
+-		s.state.Perf.MarkFirstToken()
++	if !s.firstTokenSet && s.perf != nil && hasMeaningfulStreamOutput(event) {
++		s.perf.MarkFirstToken()
+ 		s.firstTokenSet = true
+ 	}
+ 
+-	if s.state.Perf != nil && len(event.Choices) > 0 {
++	if s.perf != nil && len(event.Choices) > 0 {
+ 		delta := event.Choices[0].Delta
+ 		if delta != nil {
+ 			if delta.ReasoningContent != nil && *delta.ReasoningContent != "" {
+ 				if !s.reasoningStartSet {
+-					s.state.Perf.MarkReasoningStart()
++					s.perf.MarkReasoningStart()
+ 					s.reasoningStartSet = true
+ 				}
+ 			} else if (delta.Content.Content != nil && *delta.Content.Content != "") || len(delta.Content.MultipleContent) > 0 || len(delta.ToolCalls) > 0 {
+ 				if s.reasoningStartSet && !s.reasoningEndSet {
+-					s.state.Perf.MarkReasoningEnd()
++					s.perf.MarkReasoningEnd()
+ 					s.reasoningEndSet = true
+ 				}
+ 			}
+ 		}
+ 	}
+ 
+-	if tokenCount := event.Usage.GetCompletionTokens(); tokenCount != nil && *tokenCount > 0 {
+-		s.state.Perf.CompletionTokens = *tokenCount
++	if tokenCount := event.Usage.GetCompletionTokens(); s.perf != nil && tokenCount != nil && *tokenCount > 0 {
++		s.perf.CompletionTokens = *tokenCount
+ 	}
+ 
+ 	return event
+@@ -225,30 +320,17 @@ func hasMeaningfulStreamOutput(event *ll
+ }
+ 
+ func (s *recordPerformanceStream) Next() bool {
+-	return s.stream.Next()
+-}
+-
+-func (s *recordPerformanceStream) Close() error {
+-	if s.closed {
+-		return nil
++	if s.stream.Next() {
++		return true
+ 	}
+-
+-	s.closed = true
+-	if s.onClose != nil {
+-		s.onClose()
++	if s.attempt != nil {
++		s.attempt.streamError = s.stream.Err()
+ 	}
+-
+-	return s.stream.Close()
++	return false
+ }
+ 
+-// enqueueCompletedPerformance submits a completed stream only after its normalized
+-// events have been consumed, so final usage is visible to the metrics worker.
+-func enqueueCompletedPerformance(ctx context.Context, state *PersistenceState) {
+-	if state == nil || state.Perf == nil || !state.Perf.RequestCompleted || state.ChannelService == nil {
+-		return
+-	}
+-
+-	state.ChannelService.AsyncRecordPerformance(ctx, state.Perf)
++func (s *recordPerformanceStream) Close() error {
++	return s.stream.Close()
+ }
+ 
+ func (s *recordPerformanceStream) Err() error {
+@@ -257,12 +339,13 @@ func (s *recordPerformanceStream) Err()
+ 
+ // ExtractErrorCode extracts HTTP error code from error.
+ func ExtractErrorCode(err error) int {
+-	// Check if error is an HTTP error
+-	httpErr := &httpclient.Error{}
+-	if errors.As(err, &httpErr) {
+-		code := httpErr.StatusCode
++	if code := ExtractStatusCodeFromError(err); code > 0 {
+ 		return code
+ 	}
++	if errors.Is(err, context.DeadlineExceeded) || errors.Is(err, pipeline.ErrStreamFirstEventTimeout) ||
++		errors.Is(err, pipeline.ErrNonStreamResponseTimeout) {
++		return http.StatusGatewayTimeout
++	}
+ 
+ 	// Default to 500
+ 	return 500
+--- a/internal/server/orchestrator/performance_test.go
++++ b/internal/server/orchestrator/performance_test.go
+@@ -349,7 +349,6 @@ func TestRecordPerformanceStream_UsageDo
+ 		StartTime: time.Now(),
+ 		Stream:    true,
+ 	}
+-	state := &PersistenceState{Perf: perf}
+ 	stream := &responseSliceStream{
+ 		events: []*llm.Response{
+ 			{
+@@ -361,7 +360,7 @@ func TestRecordPerformanceStream_UsageDo
+ 			},
+ 		},
+ 	}
+-	recording := &recordPerformanceStream{stream: stream, state: state}
++	recording := &recordPerformanceStream{stream: stream, perf: perf}
+ 
+ 	require.True(t, recording.Next())
+ 	recording.Current()
+@@ -381,7 +380,6 @@ func TestRecordPerformanceStream_QueuesC
+ 		StartTime: time.Now(),
+ 		Stream:    true,
+ 	}
+-	state := &PersistenceState{Perf: perf}
+ 	stream := &responseSliceStream{
+ 		events: []*llm.Response{
+ 			{Choices: []llm.Choice{{Delta: &llm.Message{}, FinishReason: lo.ToPtr("stop")}}},
+@@ -389,34 +387,31 @@ func TestRecordPerformanceStream_QueuesC
+ 		},
+ 	}
+ 
+-	var recorded *biz.PerformanceRecord
+-	recordCalls := 0
++	attempt := &performanceAttempt{record: perf}
+ 	recording := &recordPerformanceStream{
+-		stream: stream,
+-		state:  state,
+-		onClose: func() {
+-			recordCalls++
+-			recorded = state.Perf
+-		},
++		stream:  stream,
++		perf:    perf,
++		attempt: attempt,
+ 	}
+ 
+ 	// The raw terminal event is observed before the normalized finish and usage events.
+ 	perf.MarkSuccess()
++	attempt.acceptStream(t.Context())
+ 	require.True(t, recording.Next())
+ 	recording.Current()
+-	assert.Nil(t, recorded, "finish event must not submit metrics before the final usage event")
++	assert.False(t, attempt.finished, "finish event must not submit metrics before the final usage event")
+ 
+ 	require.True(t, recording.Next())
+ 	recording.Current()
+-	assert.Nil(t, recorded, "usage must be applied before metrics are submitted")
++	assert.False(t, attempt.finished, "usage must be applied before metrics are submitted")
+ 
+ 	require.NoError(t, recording.Close())
+ 
+-	require.Same(t, perf, recorded)
+-	assert.Equal(t, int64(9), recorded.CompletionTokens)
+-	assert.Equal(t, 1, recordCalls)
++	attempt.closeStream(t.Context(), streamOutcomeDecision{state: streamTerminalCompleted}, true)
++	assert.Equal(t, int64(9), perf.CompletionTokens)
++	assert.True(t, attempt.finished)
+ 	require.NoError(t, recording.Close())
+-	assert.Equal(t, 1, recordCalls)
++	assert.True(t, attempt.finished)
+ }
+ 
+ type responseSliceStream struct {
+--- a/internal/server/orchestrator/state.go
++++ b/internal/server/orchestrator/state.go
+@@ -15,14 +15,14 @@ import (
+ type PersistenceState struct {
+ 	APIKey *ent.APIKey
+ 
+-	RequestService      *biz.RequestService
+-	UsageLogService     *biz.UsageLogService
+-	ChannelService      *biz.ChannelService
+-	PromptProvider      PromptProvider
+-	PromptProtecter     PromptProtecter
+-	CandidateSelector   CandidateSelector
+-	LoadBalancers       map[string]*LoadBalancer
+-	RoutingPolicy       EffectiveRoutingPolicy
++	RequestService    *biz.RequestService
++	UsageLogService   *biz.UsageLogService
++	ChannelService    *biz.ChannelService
++	PromptProvider    PromptProvider
++	PromptProtecter   PromptProtecter
++	CandidateSelector CandidateSelector
++	LoadBalancers     map[string]*LoadBalancer
++	RoutingPolicy     EffectiveRoutingPolicy
+ 	// Settings is the system settings snapshot taken when the request started.
+ 	Settings *RequestSettings
+ 
+@@ -69,7 +69,8 @@ type PersistenceState struct {
+ 	// Perf records channel health and latency for the current request. For stream
+ 	// terminals, incomplete (token limit or content filtering) counts as channel
+ 	// success: it must not trigger channel failure counts or auto-disable rules.
+-	Perf *biz.PerformanceRecord
++	Perf               *biz.PerformanceRecord
++	performanceAttempt *performanceAttempt
+ 
+ 	// StreamCompleted tracks a successful generation outcome, not channel health.
+ 	// A recognized incomplete terminal keeps this false and is persisted as Failed
+--- a/llm/pipeline/middleware.go
++++ b/llm/pipeline/middleware.go
+@@ -68,6 +68,13 @@ type Middleware interface {
+ 	OnOutboundLlmStream(ctx context.Context, stream streams.Stream[*llm.Response]) (streams.Stream[*llm.Response], error)
+ }
+ 
++// OutboundAttemptResultMiddleware observes the final result of an attempt,
++// after response validation and before retry. For streaming results the stream
++// has been handed off, but has not necessarily reached a terminal event.
++type OutboundAttemptResultMiddleware interface {
++	OnOutboundAttemptResult(context.Context, *Result, error)
++}
++
+ // OutboundLlmRequestMiddleware is an optional middleware extension for unified
+ // requests that must be processed once per outbound attempt. Dynamic outbound
+ // routers invoke it after selecting the attempt's API format and before the
+--- a/llm/pipeline/pipeline.go
++++ b/llm/pipeline/pipeline.go
+@@ -321,6 +321,11 @@ func (p *pipeline) Process(ctx context.C
+ 		llmRequest.Stream = originalStream
+ 
+ 		result, err := p.processRequest(ctx, llmRequest)
++		for i := len(p.middlewares) - 1; i >= 0; i-- {
++			if observer, ok := p.middlewares[i].(OutboundAttemptResultMiddleware); ok {
++				observer.OnOutboundAttemptResult(ctx, result, err)
++			}
++		}
+ 		if err == nil {
+ 			return result, nil
+ 		}

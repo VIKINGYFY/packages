@@ -216,6 +216,7 @@ start_service() {
 		"GOMAXPROCS=$gomaxprocs" \
 		"AXONHUB_SERVER_HOST=0.0.0.0" \
 		"AXONHUB_SERVER_PORT=$port" \
+		"AXONHUB_SERVER_SINGLE_INSTANCE_SQLITE=true" \
 		"AXONHUB_DB_DIALECT=sqlite3" \
 		"AXONHUB_DB_DSN=$db_dsn" \
 		"AXONHUB_DB_MAX_OPEN_CONNS=$max_open_conns" \

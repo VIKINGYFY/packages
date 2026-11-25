@@ -1,10 +1,4 @@
-Subject: [PATCH] axonhub: recover model circuits across request paths
-
-Reserve probes atomically and classify each upstream attempt once.
-Preserve usable candidates across cooldown, retries and protocol changes.
-Use the provider terminal outcome for streaming health and bound recovery.
-
-Base-Commit: 9be15a35d7646a5d93759c36b6193fd79bcc693f
+Subject: [PATCH] routing: recover models and preserve eligible fallback routes
 
 --- a/internal/server/biz/channel.go
 +++ b/internal/server/biz/channel.go
@@ -678,11 +672,21 @@ Base-Commit: 9be15a35d7646a5d93759c36b6193fd79bcc693f
  	wrapped                 CandidateSelector
  	loadBalancer            *LoadBalancer
  	loadBalancers           map[string]*LoadBalancer
-@@ -780,11 +781,22 @@ func (s *LoadBalancedSelector) Select(ct
+@@ -780,49 +781,105 @@ func (s *LoadBalancedSelector) Select(ct
  		stickyID, stickyOK = s.resolveStickyChannelID(ctx, req, candidates)
  	}
  
 -	var quotaFallback []*ChannelModelsCandidate
++	var retryAt time.Time
++	circuitRouting := s.circuitBreaker != nil && s.effectiveRoutingPolicy != nil &&
++		s.effectiveRoutingPolicy.LoadBalancerStrategy == biz.LoadBalancerStrategyCircuitBreaker
++	if circuitRouting {
++		candidates = filterCircuitCandidates(ctx, s.circuitBreaker, candidates, &retryAt)
++		if len(candidates) == 0 && !retryAt.IsZero() {
++			return nil, circuitUnavailable(req.Model, retryAt)
++		}
++	}
++
 +	var lastResort []*ChannelModelsCandidate
  	if s.quotaGate != nil {
 -		var lastResort []*ChannelModelsCandidate
@@ -690,21 +694,58 @@ Base-Commit: 9be15a35d7646a5d93759c36b6193fd79bcc693f
 -		quotaFallback = quotaFallbackCandidates(lastResort, quotaFallbackLimit(retryPolicy))
 +	}
 +	fallbackLimit := quotaFallbackLimit(retryPolicy)
-+	var retryAt time.Time
-+	if s.circuitBreaker != nil && s.effectiveRoutingPolicy != nil &&
-+		s.effectiveRoutingPolicy.LoadBalancerStrategy == biz.LoadBalancerStrategyCircuitBreaker {
-+		candidates = filterCircuitCandidates(ctx, s.circuitBreaker, candidates, &retryAt)
-+		if fallbackLimit > 0 {
-+			lastResort = filterCircuitCandidates(ctx, s.circuitBreaker, lastResort, &retryAt)
-+		}
-+	}
-+	quotaFallback := quotaFallbackCandidates(lastResort, fallbackLimit)
-+	if len(candidates) == 0 && len(quotaFallback) == 0 && !retryAt.IsZero() {
-+		return nil, circuitUnavailable(req.Model, retryAt)
++	quotaPreferred, quotaStreamFallback := preferNativeStreamCandidates(req, lastResort)
++	quotaFallback := quotaFallbackCandidates(quotaPreferred, fallbackLimit)
++	quotaFallback = append(quotaFallback, quotaFallbackCandidates(quotaStreamFallback, fallbackLimit-len(quotaFallback))...)
++	if circuitRouting {
++		// Retain all normally eligible channels as finite alternatives for
++		// admission races. The pipeline still enforces the dispatch budget.
++		requiredCount = max(requiredCount, len(candidates))
  	}
  
++	preferred, streamFallback := preferNativeStreamCandidates(req, candidates)
++
  	// Prefer the parent only after quota admission, before load balancing trims
-@@ -823,6 +835,55 @@ func (s *LoadBalancedSelector) Select(ct
+ 	// the candidate list to fit the retry budget.
+-	pinned, remaining := extractStickyCandidate(candidates, guardianReviewParentChannelID(ctx))
++	pinned, remaining := extractStickyCandidate(preferred, guardianReviewParentChannelID(ctx))
+ 	if pinned == nil && stickyOK {
+-		pinned, remaining = s.pinStickyCandidate(candidates, stickyID)
++		pinned, remaining = s.pinStickyCandidate(preferred, stickyID)
+ 		if pinned != nil {
+ 			pinned.TraceSticky = true
+ 		}
+ 	}
++	result := make([]*ChannelModelsCandidate, 0, min(requiredCount, len(candidates))+len(quotaFallback))
+ 	if pinned != nil {
+-		fallbackCount := max(requiredCount-1, 0)
+-		fallbackCandidates := s.sortCandidates(ctx, loadBalancer, remaining, req, fallbackCount, requiredCount, false)
+-		result := make([]*ChannelModelsCandidate, 0, 1+len(fallbackCandidates)+len(quotaFallback))
+ 		result = append(result, pinned)
+-		result = append(result, fallbackCandidates...)
+-		result = append(result, quotaFallback...)
+-
+-		if loadBalancer != nil {
+-			loadBalancer.TrackSelection(pinned)
+-		}
+-
+-		return result, nil
++		preferred = remaining
+ 	}
+-
+-	preferred := s.sortCandidates(ctx, loadBalancer, candidates, req, requiredCount, requiredCount, true)
+-	if len(quotaFallback) == 0 {
+-		return preferred, nil
++	result = append(result, s.sortCandidates(ctx, loadBalancer, preferred, req, requiredCount-len(result), requiredCount, false)...)
++	result = append(result, s.sortCandidates(ctx, loadBalancer, streamFallback, req, requiredCount-len(result), requiredCount, false)...)
++	if len(result) > 0 && loadBalancer != nil {
++		loadBalancer.TrackSelection(result[0])
+ 	}
+-
+-	result := make([]*ChannelModelsCandidate, 0, len(preferred)+len(quotaFallback))
+-	result = append(result, preferred...)
+ 	result = append(result, quotaFallback...)
+ 
  	return result, nil
  }
  
@@ -760,6 +801,161 @@ Base-Commit: 9be15a35d7646a5d93759c36b6193fd79bcc693f
  func resolveLoadBalancer(loadBalancers map[string]*LoadBalancer, strategy string) (*LoadBalancer, string) {
  	if loadBalancer := loadBalancers[strategy]; loadBalancer != nil {
  		return loadBalancer, strategy
+--- a/internal/server/orchestrator/candidates_quota.go
++++ b/internal/server/orchestrator/candidates_quota.go
+@@ -252,9 +252,13 @@ func (s *QuotaRoutingSelector) Select(ct
+ 	}
+ 
+ 	preferred, lastResort := s.gate.Filter(ctx, candidates, req, 0)
++	preferred, streamFallback := preferNativeStreamCandidates(req, preferred)
+ 	if pinned, remaining := extractStickyCandidate(preferred, guardianReviewParentChannelID(ctx)); pinned != nil {
+ 		preferred = append([]*ChannelModelsCandidate{pinned}, remaining...)
+ 	}
++	preferred = append(preferred, streamFallback...)
++	quotaPreferred, quotaStreamFallback := preferNativeStreamCandidates(req, lastResort)
++	lastResort = append(quotaPreferred, quotaStreamFallback...)
+ 	if len(lastResort) == 0 {
+ 		return preferred, nil
+ 	}
+--- a/internal/server/orchestrator/candidates_stream_policy.go
++++ b/internal/server/orchestrator/candidates_stream_policy.go
+@@ -27,7 +27,7 @@ func (s *StreamPolicySelector) Select(ct
+ 		return candidates, nil
+ 	}
+ 
+-	if req.Stream != nil && *req.Stream {
++	if req != nil && req.Stream != nil && *req.Stream {
+ 		filtered := lo.Filter(candidates, func(c *ChannelModelsCandidate, _ int) bool {
+ 			return streamPolicyOf(c) != objects.CapabilityPolicyForbid
+ 		})
+@@ -35,17 +35,16 @@ func (s *StreamPolicySelector) Select(ct
+ 		return filtered, nil
+ 	}
+ 
++	if supportsAutoAggregateRequest(req) {
++		return candidates, nil
++	}
++
+ 	nativeCandidates := lo.Filter(candidates, func(c *ChannelModelsCandidate, _ int) bool {
+ 		return streamPolicyOf(c) != objects.CapabilityPolicyRequire
+ 	})
+ 	if len(nativeCandidates) > 0 {
+ 		return nativeCandidates, nil
+ 	}
+-
+-	if supportsAutoAggregateRequest(req) {
+-		return candidates, nil
+-	}
+-
+ 	if req != nil && req.RequestType == llm.RequestTypeDecisions {
+ 		return nil, NewStreamPolicyConflictError(req.Model)
+ 	}
+@@ -53,6 +52,26 @@ func (s *StreamPolicySelector) Select(ct
+ 	return nil, nil
+ }
+ 
++// Prefer native non-streaming candidates, while keeping aggregate-capable
++// streaming routes for use after the preferred candidates are exhausted.
++// Call this after quota and circuit availability have been evaluated.
++func preferNativeStreamCandidates(req *llm.Request, candidates []*ChannelModelsCandidate) (preferred, fallback []*ChannelModelsCandidate) {
++	if req == nil || (req.Stream != nil && *req.Stream) || !supportsAutoAggregateRequest(req) {
++		return candidates, nil
++	}
++	for _, candidate := range candidates {
++		if streamPolicyOf(candidate) == objects.CapabilityPolicyRequire {
++			fallback = append(fallback, candidate)
++		} else {
++			preferred = append(preferred, candidate)
++		}
++	}
++	if len(preferred) == 0 {
++		return fallback, nil
++	}
++	return preferred, fallback
++}
++
+ func streamPolicyOf(candidate *ChannelModelsCandidate) objects.CapabilityPolicy {
+ 	if candidate == nil || candidate.Channel == nil {
+ 		return objects.CapabilityPolicyUnlimited
+--- a/internal/server/orchestrator/candidates_stream_policy_test.go
++++ b/internal/server/orchestrator/candidates_stream_policy_test.go
+@@ -9,6 +9,7 @@ import (
+ 	"github.com/stretchr/testify/require"
+ 
+ 	"github.com/looplj/axonhub/internal/ent"
++	"github.com/looplj/axonhub/internal/ent/providerquotastatus"
+ 	"github.com/looplj/axonhub/internal/objects"
+ 	"github.com/looplj/axonhub/internal/server/biz"
+ 	"github.com/looplj/axonhub/llm"
+@@ -117,15 +118,15 @@ func TestStreamPolicySelector_Select(t *
+ 			wantModels: []string{"default"},
+ 		},
+ 		{
+-			name:      "mixed candidates, non-stream prefers native candidates only",
++			name:      "mixed candidates, non-stream keeps all compatible routes",
+ 			reqStream: lo.ToPtr(false),
+ 			candidates: []*ChannelModelsCandidate{
+ 				newCandidate("require", objects.CapabilityPolicyRequire),
+ 				newCandidate("forbid", objects.CapabilityPolicyForbid),
+ 				newCandidate("unlimited", objects.CapabilityPolicyUnlimited),
+ 			},
+-			wantCount:  2,
+-			wantModels: []string{"forbid", "unlimited"},
++			wantCount:  3,
++			wantModels: []string{"require", "forbid", "unlimited"},
+ 		},
+ 		{
+ 			name:      "require-only fallback is filtered for non-stream AI SDK text requests",
+@@ -228,14 +229,14 @@ func TestStreamPolicySelector_Select(t *
+ 			wantModels: []string{"unlimited"},
+ 		},
+ 		{
+-			name:      "mixed candidates for supported non-stream request keep native candidates ahead of require fallback",
++			name:      "mixed candidates for supported non-stream request keep both native and forced streaming",
+ 			reqStream: nil,
+ 			candidates: []*ChannelModelsCandidate{
+ 				newCandidate("require", objects.CapabilityPolicyRequire),
+ 				newCandidate("native", objects.CapabilityPolicyUnlimited),
+ 			},
+-			wantCount:  1,
+-			wantModels: []string{"native"},
++			wantCount:  2,
++			wantModels: []string{"require", "native"},
+ 			reqType:    llm.RequestTypeChat,
+ 			apiFormat:  llm.APIFormatOpenAIChatCompletion,
+ 		},
+@@ -314,3 +315,31 @@ func TestStreamPolicySelector_Select(t *
+ 		})
+ 	}
+ }
++
++func TestStreamPolicy_PrefersAvailableNativeBeforeForcedStream(t *testing.T) {
++	candidate := func(id, priority int, policy objects.CapabilityPolicy) *ChannelModelsCandidate {
++		return &ChannelModelsCandidate{
++			Channel: &biz.Channel{Channel: &ent.Channel{
++				ID: id, Policies: objects.ChannelPolicies{Stream: policy},
++			}},
++			Priority: priority,
++			Models:   []biz.ChannelModelEntry{{ActualModel: "model"}},
++		}
++	}
++	forced, native := candidate(1, 0, objects.CapabilityPolicyRequire), candidate(2, 1, objects.CapabilityPolicyUnlimited)
++	inner := WithStreamPolicySelector(&staticChannelSelector{candidates: []*ChannelModelsCandidate{forced, native}})
++	retry := &biz.RetryPolicy{Enabled: true, MaxChannelRetries: 1}
++	req := &llm.Request{Model: "model", RequestType: llm.RequestTypeChat}
++	balanced := WithLoadBalancedSelector(inner, nil, retry)
++	candidates, err := balanced.Select(t.Context(), req)
++	require.NoError(t, err)
++	require.Equal(t, []*ChannelModelsCandidate{native, forced}, candidates)
++
++	gate := NewQuotaRoutingGate(&mockQuotaStatusProvider{statuses: map[int]*biz.QuotaChannelStatus{
++		native.Channel.ID: {Status: providerquotastatus.StatusExhausted},
++	}}, biz.QuotaRoutingSettings{})
++	balanced.quotaGate = gate
++	candidates, err = balanced.Select(t.Context(), req)
++	require.NoError(t, err)
++	require.Equal(t, []*ChannelModelsCandidate{forced}, candidates)
++}
 --- a/internal/server/orchestrator/inbound.go
 +++ b/internal/server/orchestrator/inbound.go
 @@ -58,6 +58,7 @@ type InboundPersistentStream struct {
@@ -1083,7 +1279,7 @@ Base-Commit: 9be15a35d7646a5d93759c36b6193fd79bcc693f
  }
  
 -func (m *modelCircuitBreakerTracker) OnOutboundRawError(ctx context.Context, err error) {
--	if isLocalAdmissionError(err) || llm.IsContentPolicyRejection(err) {
+-	if isLocalAdmissionError(err) {
 -		m.releaseProbeLease()
 -		return
 +func (m *modelCircuitBreakerTracker) OnOutboundLlmResponse(_ context.Context, response *llm.Response) (*llm.Response, error) {
@@ -1392,7 +1588,7 @@ Base-Commit: 9be15a35d7646a5d93759c36b6193fd79bcc693f
  }
 --- a/internal/server/orchestrator/model_circuit_breaker_test.go
 +++ b/internal/server/orchestrator/model_circuit_breaker_test.go
-@@ -1,212 +1,274 @@
+@@ -1,156 +1,370 @@
 +// 职责: 验证熔断决策与实际请求、重试和流式收尾一致。
 +// 关联文件:
 +//   internal/server/orchestrator/model_circuit_breaker.go
@@ -1405,7 +1601,7 @@ Base-Commit: 9be15a35d7646a5d93759c36b6193fd79bcc693f
  	"context"
 +	"errors"
 +	"io"
- 	"net/http"
++	"net/http"
  	"testing"
  
  	"github.com/stretchr/testify/require"
@@ -1426,11 +1622,6 @@ Base-Commit: 9be15a35d7646a5d93759c36b6193fd79bcc693f
 -type stubResponseStream struct {
 -	events []*llm.Response
 -	index  int
--}
--
--func (s *stubResponseStream) Next() bool {
--	if s.index >= len(s.events) {
--		return false
 +func TestCircuitBreaker_ErrorClassification(t *testing.T) {
 +	ctx := t.Context()
 +	for _, tc := range []struct {
@@ -1458,16 +1649,12 @@ Base-Commit: 9be15a35d7646a5d93759c36b6193fd79bcc693f
 +		t.Run(tc.name, func(t *testing.T) {
 +			require.Equal(t, tc.want, classifyCircuitAttempt(ctx, tc.err, tc.raw))
 +		})
- 	}
--	s.index++
--	return true
++	}
  }
  
--func (s *stubResponseStream) Current() *llm.Response {
--	if s.index == 0 || s.index > len(s.events) {
--		return nil
--	}
--	return s.events[s.index-1]
+-func (s *stubResponseStream) Next() bool {
+-	if s.index >= len(s.events) {
+-		return false
 +func TestCircuitBreaker_SameRouteRetriesCountOnceAndCooldownReturns503(t *testing.T) {
 +	ctx, client := setupTest(t)
 +	project := createTestProject(t, ctx, client)
@@ -1496,7 +1683,9 @@ Base-Commit: 9be15a35d7646a5d93759c36b6193fd79bcc693f
 +		_, err = orch.Process(ctx, buildTestRequest("alias", "Hello", false))
 +		require.Error(t, err)
 +		require.Equal(t, i+1, breaker.GetModelCircuitBreakerStats(ctx, ch.ID, "gpt-4").ConsecutiveFailures)
-+	}
+ 	}
+-	s.index++
+-	return true
 +	require.Zero(t, breaker.GetModelCircuitBreakerStats(ctx, ch.ID, "alias").ConsecutiveFailures)
 +	before := breaker.GetModelCircuitBreakerStats(ctx, ch.ID, "gpt-4")
 +	calls := len(executor.requests)
@@ -1512,17 +1701,121 @@ Base-Commit: 9be15a35d7646a5d93759c36b6193fd79bcc693f
 +	require.Len(t, requests, threshold+1)
  }
  
+-func (s *stubResponseStream) Current() *llm.Response {
+-	if s.index == 0 || s.index > len(s.events) {
+-		return nil
++func TestCircuitBreaker_FiltersBeforePriorityStickyAndModelFallback(t *testing.T) {
++	ctx := t.Context()
++	breaker := biz.NewModelCircuitBreaker()
++	channel := func(id int) *biz.Channel { return &biz.Channel{Channel: &ent.Channel{ID: id}} }
++	primary := &ChannelModelsCandidate{Channel: channel(1), Priority: 0, TraceSticky: true,
++		Models: []biz.ChannelModelEntry{{ActualModel: "upstream-a"}}}
++	backup := &ChannelModelsCandidate{Channel: channel(2), Priority: 1,
++		Models: []biz.ChannelModelEntry{{ActualModel: "upstream-b"}}}
++	for range breaker.GetPolicy(ctx).OpenThreshold {
++		breaker.RecordError(ctx, 1, "upstream-a")
+ 	}
+-	return s.events[s.index-1]
++	state := EffectiveRoutingPolicy{}
++	strategy := biz.LoadBalancerStrategyCircuitBreaker
++	policy := &biz.RetryPolicy{LoadBalancerStrategy: strategy}
++	selector := &staticChannelSelector{candidates: []*ChannelModelsCandidate{primary, backup}}
++	balanced := WithRoutingPolicyLoadBalancedSelector(selector,
++		map[string]*LoadBalancer{strategy: NewLoadBalancer(nil, nil, NewModelAwareCircuitBreakerStrategy(breaker))},
++		policy, nil, nil, &state, nil)
++	balanced.circuitBreaker = breaker
++	found, err := balanced.Select(ctx, &llm.Request{Model: "alias"})
++	require.NoError(t, err)
++	require.Equal(t, []*ChannelModelsCandidate{backup}, found)
++
++	primary.Models = append(primary.Models, biz.ChannelModelEntry{ActualModel: "upstream-c"})
++	primary.modelAPIFormats = []string{"openai/chat", "openai/responses"}
++	found, err = balanced.Select(ctx, &llm.Request{Model: "alias"})
++	require.NoError(t, err)
++	require.Len(t, found, 2)
++	require.Equal(t, []biz.ChannelModelEntry{{ActualModel: "upstream-c"}}, found[0].Models)
++	require.Equal(t, "openai/responses", found[0].APIFormat)
++	require.Equal(t, backup, found[1])
++	require.Len(t, primary.Models, 2)
+ }
+ 
 -func (s *stubResponseStream) Err() error { return nil }
--
++func TestCircuitBreaker_SkipsAdmissionRaceWithoutSpendingTheFirstDispatch(t *testing.T) {
++	ctx, client := setupTest(t)
++	ctx = contexts.WithProjectID(ctx, createTestProject(t, ctx, client).ID)
++	primary := createTestChannel(t, ctx, client)
++	backup, err := client.Channel.Create().
++		SetType(primary.Type).
++		SetName("Backup").
++		SetBaseURL("http://127.0.0.1:9989/v1").
++		SetCredentials(primary.Credentials).
++		SetSupportedModels(primary.SupportedModels).
++		SetDefaultTestModel(primary.DefaultTestModel).
++		Save(ctx)
++	require.NoError(t, err)
++	var channels []*biz.Channel
++	for _, channel := range []*ent.Channel{primary, backup} {
++		provider, err := openai.NewOutboundTransformer(channel.BaseURL, "fixture")
++		require.NoError(t, err)
++		channels = append(channels, &biz.Channel{Channel: channel, Outbound: provider})
++	}
++	candidates := channelsToTestCandidates(channels, "gpt-4")
++	candidates[1].Priority = 1
++	executor := &mockExecutor{response: &httpclient.Response{
++		StatusCode: http.StatusOK, Body: buildMockOpenAIResponse("fallback", "gpt-4", "OK", 1, 1),
++	}}
++	orch := newTestOrchestrator(t, &staticChannelSelector{candidates: candidates}, client, executor)
++	t.Cleanup(orch.ChannelService.Stop)
++	breaker := orch.ChannelService.ModelCircuitBreaker()
++	orch.modelCircuitBreaker = breaker
++	orch.circuitBreakerLoadBalancer = NewLoadBalancer(nil, nil, NewModelAwareCircuitBreakerStrategy(breaker))
++	require.NoError(t, orch.SystemService.SetRetryPolicy(ctx, &biz.RetryPolicy{
++		Enabled: true, MaxChannelRetries: 0, LoadBalancerStrategy: biz.LoadBalancerStrategyCircuitBreaker,
++	}))
++	orch.Middlewares = append(orch.Middlewares, pipeline.OnRawRequest("open-after-ranking", func(ctx context.Context, req *httpclient.Request) (*httpclient.Request, error) {
++		for range breaker.GetPolicy(ctx).OpenThreshold {
++			breaker.RecordError(ctx, primary.ID, "gpt-4")
++		}
++		return req, nil
++	}))
+ 
 -func (s *stubResponseStream) Close() error { return nil }
--
++	result, err := orch.Process(ctx, buildTestRequest("gpt-4", "hello", false))
++	require.NoError(t, err)
++	require.Equal(t, backup.ID, result.Route.ChannelID)
++	require.EqualValues(t, 1, executor.requestCalls.Load())
++	execs, err := client.RequestExecution.Query().All(ctx)
++	require.NoError(t, err)
++	require.Len(t, execs, 1)
++	require.Equal(t, backup.ID, execs[0].ChannelID)
++}
+ 
 -func TestModelCircuitBreakerTracker_StreamSuccessUsesCurrentChannel(t *testing.T) {
 -	cb := biz.NewModelCircuitBreaker()
 -	ctx := context.Background()
 -	policy := biz.DefaultModelCircuitBreakerPolicy()
 -	for i := 0; i < policy.OpenThreshold; i++ {
 -		cb.RecordError(ctx, 42, "gpt-4", false)
--	}
++func TestCircuitBreaker_KeepsForcedStreamFallbackWhenNativeIsCoolingDown(t *testing.T) {
++	ctx, client := setupTest(t)
++	ctx = contexts.WithProjectID(ctx, createTestProject(t, ctx, client).ID)
++	primary := createTestChannel(t, ctx, client)
++	backup, err := client.Channel.Create().
++		SetType(primary.Type).
++		SetName("Forced stream").
++		SetBaseURL("http://127.0.0.1:9989/v1").
++		SetCredentials(primary.Credentials).
++		SetSupportedModels(primary.SupportedModels).
++		SetDefaultTestModel(primary.DefaultTestModel).
++		SetPolicies(objects.ChannelPolicies{Stream: objects.CapabilityPolicyRequire}).
++		Save(ctx)
++	require.NoError(t, err)
++	var channels []*biz.Channel
++	for _, channel := range []*ent.Channel{primary, backup} {
++		provider, err := openai.NewOutboundTransformer(channel.BaseURL, "fixture")
++		require.NoError(t, err)
++		channels = append(channels, &biz.Channel{Channel: channel, Outbound: provider})
+ 	}
 -	require.Equal(t, biz.StateOpen, cb.GetModelCircuitBreakerStats(ctx, 42, "gpt-4").State)
 -
 -	outbound := &PersistentOutboundTransformer{
@@ -1537,36 +1830,37 @@ Base-Commit: 9be15a35d7646a5d93759c36b6193fd79bcc693f
 -				},
 -			},
 -		},
--	}
++	candidates := channelsToTestCandidates(channels, "gpt-4")
++	candidates[1].Priority = 1
++	executor := &mockExecutor{streamEvents: []*httpclient.StreamEvent{
++		{Data: []byte(`{"id":"fallback","object":"chat.completion.chunk","model":"gpt-4","choices":[{"index":0,"delta":{"role":"assistant","content":"OK"}}]}`)},
++		{Data: []byte(`{"id":"fallback","object":"chat.completion.chunk","model":"gpt-4","choices":[{"index":0,"delta":{},"finish_reason":"stop"}]}`)},
++		&llm.DoneStreamEvent,
++	}}
++	orch := newTestOrchestrator(t, &staticChannelSelector{candidates: candidates}, client, executor)
++	t.Cleanup(orch.ChannelService.Stop)
++	breaker := orch.ChannelService.ModelCircuitBreaker()
++	orch.modelCircuitBreaker = breaker
++	orch.circuitBreakerLoadBalancer = NewLoadBalancer(nil, nil, NewModelAwareCircuitBreakerStrategy(breaker))
++	for range breaker.GetPolicy(ctx).OpenThreshold {
++		breaker.RecordError(ctx, primary.ID, "gpt-4")
+ 	}
 -	tracker := withModelCircuitBreaker(outbound, cb).(*modelCircuitBreakerTracker)
--
++	require.NoError(t, orch.SystemService.SetRetryPolicy(ctx, &biz.RetryPolicy{
++		Enabled: false, LoadBalancerStrategy: biz.LoadBalancerStrategyCircuitBreaker,
++	}))
+ 
 -	stream, err := tracker.OnOutboundLlmStream(ctx, &stubResponseStream{
 -		events: []*llm.Response{{
 -			Usage: &llm.Usage{CompletionTokens: 8},
 -		}},
 -	})
-+func TestCircuitBreaker_FiltersBeforePriorityStickyAndModelFallback(t *testing.T) {
-+	ctx := t.Context()
-+	breaker := biz.NewModelCircuitBreaker()
-+	channel := func(id int) *biz.Channel { return &biz.Channel{Channel: &ent.Channel{ID: id}} }
-+	primary := &ChannelModelsCandidate{Channel: channel(1), Priority: 0, TraceSticky: true,
-+		Models: []biz.ChannelModelEntry{{ActualModel: "upstream-a"}}}
-+	backup := &ChannelModelsCandidate{Channel: channel(2), Priority: 1,
-+		Models: []biz.ChannelModelEntry{{ActualModel: "upstream-b"}}}
-+	for range breaker.GetPolicy(ctx).OpenThreshold {
-+		breaker.RecordError(ctx, 1, "upstream-a")
-+	}
-+	state := EffectiveRoutingPolicy{}
-+	strategy := biz.LoadBalancerStrategyCircuitBreaker
-+	policy := &biz.RetryPolicy{LoadBalancerStrategy: strategy}
-+	selector := &staticChannelSelector{candidates: []*ChannelModelsCandidate{primary, backup}}
-+	balanced := WithRoutingPolicyLoadBalancedSelector(selector,
-+		map[string]*LoadBalancer{strategy: NewLoadBalancer(nil, nil, NewModelAwareCircuitBreakerStrategy(breaker))},
-+		policy, nil, nil, &state, nil)
-+	balanced.circuitBreaker = breaker
-+	found, err := balanced.Select(ctx, &llm.Request{Model: "alias"})
++	result, err := orch.Process(ctx, buildTestRequest("gpt-4", "hello", false))
  	require.NoError(t, err)
-+	require.Equal(t, []*ChannelModelsCandidate{backup}, found)
++	require.Equal(t, backup.ID, result.Route.ChannelID)
++	require.Contains(t, string(result.ChatCompletion.Body), "OK")
++	require.EqualValues(t, 1, executor.requestCalls.Load())
++}
  
 -	require.True(t, stream.Next())
 -	require.NotNil(t, stream.Current())
@@ -1589,64 +1883,6 @@ Base-Commit: 9be15a35d7646a5d93759c36b6193fd79bcc693f
 -			CurrentCandidate: &ChannelModelsCandidate{
 -				Channel: &biz.Channel{
 -					Channel: &ent.Channel{ID: 42, Name: "primary"},
--				},
--			},
--		},
--	}
--	tracker := withModelCircuitBreaker(outbound, cb).(*modelCircuitBreakerTracker)
--
--	// Force open so the next request is skipped instead of probed.
--	policy := biz.DefaultModelCircuitBreakerPolicy()
--	for i := 0; i < policy.OpenThreshold; i++ {
--		cb.RecordError(ctx, 42, "gpt-4", false)
--	}
--	before := cb.GetModelCircuitBreakerStats(ctx, 42, "gpt-4")
--	require.Equal(t, biz.StateOpen, before.State)
--	failuresBefore := before.ConsecutiveFailures
--	lastFailureBefore := before.LastFailureAt
--
--	_, err := tracker.OnOutboundRawRequest(ctx, &httpclient.Request{})
--	require.ErrorIs(t, err, errSkipCandidateByCircuitBreaker)
--	tracker.OnOutboundRawError(ctx, err)
--
--	after := cb.GetModelCircuitBreakerStats(ctx, 42, "gpt-4")
--	require.Equal(t, failuresBefore, after.ConsecutiveFailures)
--	require.Equal(t, lastFailureBefore, after.LastFailureAt)
-+	primary.Models = append(primary.Models, biz.ChannelModelEntry{ActualModel: "upstream-c"})
-+	primary.modelAPIFormats = []string{"openai/chat", "openai/responses"}
-+	found, err = balanced.Select(ctx, &llm.Request{Model: "alias"})
-+	require.NoError(t, err)
-+	require.Len(t, found, 1)
-+	require.Equal(t, []biz.ChannelModelEntry{{ActualModel: "upstream-c"}}, found[0].Models)
-+	require.Equal(t, "openai/responses", found[0].APIFormat)
-+	require.Len(t, primary.Models, 2)
- }
- 
--func TestModelCircuitBreakerTracker_ContentPolicyRejectionPreservesHealth(t *testing.T) {
--	ctx := t.Context()
--	cb := biz.NewModelCircuitBreaker()
--	outbound := &PersistentOutboundTransformer{
--		state: &PersistenceState{
--			OriginalModel: "gpt-4",
--			RoutingPolicy: EffectiveRoutingPolicy{
--				LoadBalancerStrategy: biz.LoadBalancerStrategyCircuitBreaker,
--			},
--			CurrentCandidate: &ChannelModelsCandidate{
--				Channel: &biz.Channel{Channel: &ent.Channel{ID: 42}},
--			},
--		},
--	}
--	tracker := withModelCircuitBreaker(outbound, cb).(*modelCircuitBreakerTracker)
--	tracker.OnOutboundRawError(ctx, &httpclient.Error{
--		StatusCode: http.StatusUnavailableForLegalReasons,
--		Body:       []byte(`{"error":{"code":"provider_unavailable","message":"cyber_policy is not the error code"}}`),
--	})
--	before := cb.GetModelCircuitBreakerStats(ctx, 42, "gpt-4")
--	require.Equal(t, 1, before.ConsecutiveFailures)
--
--	tests := []struct {
--		name string
--		err  error
 +func TestCircuitBreaker_StreamLifecycle(t *testing.T) {
 +	for _, tc := range []struct {
 +		name    string
@@ -1654,26 +1890,7 @@ Base-Commit: 9be15a35d7646a5d93759c36b6193fd79bcc693f
 +		pending error
 +		cancel  bool
 +		want    biz.CircuitAttemptOutcome
- 	}{
--		{
--			name: "stream failure",
--			err: &llm.ResponseError{
--				StatusCode: http.StatusBadRequest,
--				Detail:     llm.ErrorDetail{Code: llm.ErrorCodeCyberPolicy, Type: "invalid_request"},
--			},
--		},
--		{
--			name: "HTTP 451 from provider",
--			err: &httpclient.Error{
--				StatusCode: http.StatusUnavailableForLegalReasons,
--				Body:       []byte(`{"error":{"code":"cyber_policy","type":"invalid_request","message":"request rejected"}}`),
--			},
--		},
--	}
--	for _, tt := range tests {
--		t.Run(tt.name, func(t *testing.T) {
--			for range biz.DefaultModelCircuitBreakerPolicy().OpenThreshold {
--				tracker.OnOutboundRawError(ctx, tt.err)
++	}{
 +		{"success without usage", []*httpclient.StreamEvent{
 +			{Type: "response.completed", Data: []byte(`{"type":"response.completed","response":{"id":"resp_1","status":"completed"}}`)},
 +		}, nil, false, biz.CircuitAttemptSuccess},
@@ -1702,13 +1919,10 @@ Base-Commit: 9be15a35d7646a5d93759c36b6193fd79bcc693f
 +				CurrentCandidate: &ChannelModelsCandidate{
 +					Channel: &biz.Channel{Channel: &ent.Channel{ID: 42}},
 +					Models:  []biz.ChannelModelEntry{{ActualModel: "provider-model"}},
-+				},
- 			}
--
--			after := cb.GetModelCircuitBreakerStats(ctx, 42, "gpt-4")
--			require.Equal(t, biz.StateClosed, after.State)
--			require.Equal(t, before.ConsecutiveFailures, after.ConsecutiveFailures)
--			require.Equal(t, before.LastFailureAt, after.LastFailureAt)
+ 				},
+-			},
+-		},
++			}
 +			outbound := &PersistentOutboundTransformer{state: state}
 +			tracker := withModelCircuitBreaker(outbound, cb)
 +			_, err := tracker.OnOutboundRawRequest(ctx, &httpclient.Request{})
@@ -1732,10 +1946,30 @@ Base-Commit: 9be15a35d7646a5d93759c36b6193fd79bcc693f
 +				biz.CircuitAttemptSuccess: 0, biz.CircuitAttemptNeutral: 1, biz.CircuitAttemptFailure: 2,
 +			}[tc.want]
 +			require.Equal(t, want, cb.GetModelCircuitBreakerStats(ctx, 42, "provider-model").ConsecutiveFailures)
- 		})
++		})
  	}
- }
+-	tracker := withModelCircuitBreaker(outbound, cb).(*modelCircuitBreakerTracker)
++}
  
+-	// Force open so the next request is skipped instead of probed.
+-	policy := biz.DefaultModelCircuitBreakerPolicy()
+-	for i := 0; i < policy.OpenThreshold; i++ {
+-		cb.RecordError(ctx, 42, "gpt-4", false)
+-	}
+-	before := cb.GetModelCircuitBreakerStats(ctx, 42, "gpt-4")
+-	require.Equal(t, biz.StateOpen, before.State)
+-	failuresBefore := before.ConsecutiveFailures
+-	lastFailureBefore := before.LastFailureAt
+-
+-	_, err := tracker.OnOutboundRawRequest(ctx, &httpclient.Request{})
+-	require.ErrorIs(t, err, errSkipCandidateByCircuitBreaker)
+-	tracker.OnOutboundRawError(ctx, err)
+-
+-	after := cb.GetModelCircuitBreakerStats(ctx, 42, "gpt-4")
+-	require.Equal(t, failuresBefore, after.ConsecutiveFailures)
+-	require.Equal(t, lastFailureBefore, after.LastFailureAt)
+-}
+-
 -func TestModelCircuitBreakerTracker_NonCircuitBreakerSkipsStreamTracking(t *testing.T) {
 -	cb := biz.NewModelCircuitBreaker()
 -	ctx := context.Background()
@@ -1744,17 +1978,7 @@ Base-Commit: 9be15a35d7646a5d93759c36b6193fd79bcc693f
 -		cb.RecordError(ctx, 42, "gpt-4", false)
 -	}
 -	require.Equal(t, biz.StateOpen, cb.GetModelCircuitBreakerStats(ctx, 42, "gpt-4").State)
-+func TestCircuitBreaker_StreamClosedDuringPreReadUsesPipelineError(t *testing.T) {
-+	ctx := t.Context()
-+	breaker := biz.NewModelCircuitBreaker()
-+	admission, _ := breaker.BeginAttempt(ctx, 1, "model")
-+	state := &PersistenceState{circuitAttempt: &circuitAttempt{admission: admission}}
-+	tracker := withModelCircuitBreaker(&PersistentOutboundTransformer{state: state}, breaker)
-+	state.circuitAttempt.closeStream(ctx, biz.CircuitAttemptNeutral, false)
-+	tracker.OnOutboundAttemptResult(ctx, nil, pipeline.ErrStreamFirstEventTimeout)
-+	require.Equal(t, 1, breaker.GetModelCircuitBreakerStats(ctx, 1, "model").ConsecutiveFailures)
-+}
- 
+-
 -	outbound := &PersistentOutboundTransformer{
 -		state: &PersistenceState{
 -			OriginalModel: "gpt-4",
@@ -1769,14 +1993,32 @@ Base-Commit: 9be15a35d7646a5d93759c36b6193fd79bcc693f
 -		},
 -	}
 -	tracker := withModelCircuitBreaker(outbound, cb).(*modelCircuitBreakerTracker)
-+type forcedStreamBreakerExecutor struct {
-+	mockExecutor
-+	calls int
++func TestCircuitBreaker_StreamClosedDuringPreReadUsesPipelineError(t *testing.T) {
++	ctx := t.Context()
++	breaker := biz.NewModelCircuitBreaker()
++	admission, _ := breaker.BeginAttempt(ctx, 1, "model")
++	state := &PersistenceState{circuitAttempt: &circuitAttempt{admission: admission}}
++	tracker := withModelCircuitBreaker(&PersistentOutboundTransformer{state: state}, breaker)
++	state.circuitAttempt.closeStream(ctx, biz.CircuitAttemptNeutral, false)
++	tracker.OnOutboundAttemptResult(ctx, nil, pipeline.ErrStreamFirstEventTimeout)
++	require.Equal(t, 1, breaker.GetModelCircuitBreakerStats(ctx, 1, "model").ConsecutiveFailures)
 +}
  
 -	raw := &stubResponseStream{
 -		events: []*llm.Response{{
 -			Usage: &llm.Usage{CompletionTokens: 8},
+-		}},
+-	}
+-	stream, err := tracker.OnOutboundLlmStream(ctx, raw)
+-	require.NoError(t, err)
+-	require.Equal(t, streams.Stream[*llm.Response](raw), stream)
++type forcedStreamBreakerExecutor struct {
++	mockExecutor
++	calls int
++}
+ 
+-	require.True(t, stream.Next())
+-	require.NotNil(t, stream.Current())
 +func (e *forcedStreamBreakerExecutor) DoStream(ctx context.Context, request *httpclient.Request) (streams.Stream[*httpclient.StreamEvent], error) {
 +	e.calls++
 +	if e.calls > 1 {
@@ -1785,14 +2027,7 @@ Base-Commit: 9be15a35d7646a5d93759c36b6193fd79bcc693f
 +	return &errorAfterEventsStream{
 +		items: []*httpclient.StreamEvent{{
 +			Data: []byte(`{"id":"abc","object":"chat.completion.chunk","model":"gpt-4","choices":[{"index":0,"delta":{"content":"partial"}}]}`),
- 		}},
--	}
--	stream, err := tracker.OnOutboundLlmStream(ctx, raw)
--	require.NoError(t, err)
--	require.Equal(t, streams.Stream[*llm.Response](raw), stream)
--
--	require.True(t, stream.Next())
--	require.NotNil(t, stream.Current())
++		}},
 +		err: io.ErrUnexpectedEOF,
 +	}, nil
 +}
@@ -1865,7 +2100,7 @@ Base-Commit: 9be15a35d7646a5d93759c36b6193fd79bcc693f
  		UsageLogService:       processor.UsageLogService,
 @@ -362,7 +362,7 @@ func (processor *ChatCompletionOrchestra
  		// Unified performance tracking middleware.
- 		withoutResponsesRecoveryPenalty(withPerformanceRecording(outbound)),
+ 		withPerformanceRecording(outbound),
  
 -		withoutResponsesRecoveryPenalty(withModelCircuitBreaker(outbound, processor.modelCircuitBreaker)),
 +		withModelCircuitBreaker(outbound, processor.modelCircuitBreaker),
@@ -1874,26 +2109,25 @@ Base-Commit: 9be15a35d7646a5d93759c36b6193fd79bcc693f
  		// to ensure that the request execution is created with the correct request bodys.
 --- a/internal/server/orchestrator/outbound.go
 +++ b/internal/server/orchestrator/outbound.go
-@@ -63,6 +63,8 @@ type OutboundPersistentStream struct {
- 	state           *PersistenceState
- 	terminalTracker *StreamTerminalTracker
- 	lifecycle       *streamLifecycle
-+	circuitAttempt  *circuitAttempt
-+	terminalEvent   *httpclient.StreamEvent
+@@ -63,7 +63,9 @@ type OutboundPersistentStream struct {
+ 	state              *PersistenceState
+ 	terminalTracker    *StreamTerminalTracker
+ 	lifecycle          *streamLifecycle
++	circuitAttempt     *circuitAttempt
+ 	performanceAttempt *performanceAttempt
++	terminalEvent      *httpclient.StreamEvent
  }
  
  var _ streams.Stream[*httpclient.StreamEvent] = (*OutboundPersistentStream)(nil)
-@@ -97,6 +99,9 @@ func NewOutboundPersistentStream(
- 		terminalTracker: NewStreamTerminalTrackerForRequest(request, state),
+@@ -99,6 +101,7 @@ func NewOutboundPersistentStream(
  		lifecycle:       streamLifecycleFromContext(ctx),
  	}
-+	if state != nil {
+ 	if state != nil {
 +		s.circuitAttempt = state.circuitAttempt
-+	}
- 	if s.lifecycle != nil {
- 		s.lifecycle.trackAttempt(s)
+ 		s.performanceAttempt = state.performanceAttempt
  	}
-@@ -109,7 +114,8 @@ func (ts *OutboundPersistentStream) cons
+ 	if s.lifecycle != nil {
+@@ -113,7 +116,8 @@ func (ts *OutboundPersistentStream) cons
  		return nil
  	}
  	ts.responseChunks = append(ts.responseChunks, httpclient.SummarizeBinaryChunk(event))
@@ -1903,7 +2137,7 @@ Base-Commit: 9be15a35d7646a5d93759c36b6193fd79bcc693f
  		ts.terminalState = classifyAcceptedTerminalEvent(event)
  		ts.state.OutboundStreamTerminal = ts.terminalState
  		ts.outcome.observeTerminalEvent(ts.terminalState, event)
-@@ -154,7 +160,8 @@ func (ts *OutboundPersistentStream) reco
+@@ -158,7 +162,8 @@ func (ts *OutboundPersistentStream) reco
  		// summary to avoid buffering the full audio payload in memory.
  		ts.responseChunks = append(ts.responseChunks, httpclient.SummarizeBinaryChunk(event))
  		if ts.terminalState == streamTerminalNone {
@@ -1913,7 +2147,7 @@ Base-Commit: 9be15a35d7646a5d93759c36b6193fd79bcc693f
  				ts.terminalState = classifyAcceptedTerminalEvent(event)
  				ts.state.OutboundStreamTerminal = ts.terminalState
  				if ts.terminalState != streamTerminalCompleted {
-@@ -170,6 +177,13 @@ func (ts *OutboundPersistentStream) reco
+@@ -174,6 +179,13 @@ func (ts *OutboundPersistentStream) reco
  	}
  }
  
@@ -1927,7 +2161,7 @@ Base-Commit: 9be15a35d7646a5d93759c36b6193fd79bcc693f
  func (ts *OutboundPersistentStream) Err() error {
  	return ts.stream.Err()
  }
-@@ -178,10 +192,14 @@ func (ts *OutboundPersistentStream) Err(
+@@ -182,6 +194,7 @@ func (ts *OutboundPersistentStream) Err(
  // stream lifecycle, Close collects the remaining source on the calling goroutine.
  func (ts *OutboundPersistentStream) Close() error {
  	ts.closeOnce.Do(func() {
@@ -1935,14 +2169,17 @@ Base-Commit: 9be15a35d7646a5d93759c36b6193fd79bcc693f
  		if ts.lifecycle != nil {
  			ts.collectTail()
  		}
- 		ts.closeErr = errors.Join(ts.finalizeClose(), ts.persistenceErr)
+@@ -189,6 +202,9 @@ func (ts *OutboundPersistentStream) Clos
+ 		if ts.performanceAttempt != nil {
+ 			ts.performanceAttempt.closeStream(ts.ctx, ts.outcome.finalDecision(), ts.outcome.providerTerminal)
+ 		}
 +		if ts.circuitAttempt != nil {
 +			ts.circuitAttempt.closeStream(ts.ctx, ts.circuitOutcome(sourceEnd), ts.outcome.providerTerminal)
 +		}
  	})
  
  	return ts.closeErr
-@@ -331,6 +349,35 @@ func (ts *OutboundPersistentStream) fina
+@@ -336,6 +352,35 @@ func (ts *OutboundPersistentStream) fina
  	return ts.closeSource()
  }
  
@@ -1978,7 +2215,7 @@ Base-Commit: 9be15a35d7646a5d93759c36b6193fd79bcc693f
  func (ts *OutboundPersistentStream) markPerformanceTerminal(state streamTerminalState, message string) {
  	if ts.perf == nil || ts.perf.RequestCompleted {
  		return
-@@ -564,8 +611,6 @@ func accountingUnavailableReason(meta ll
+@@ -574,8 +619,6 @@ func accountingUnavailableReason(meta ll
  	return "absent"
  }
  
@@ -1987,7 +2224,7 @@ Base-Commit: 9be15a35d7646a5d93759c36b6193fd79bcc693f
  // PersistentOutboundTransformer wraps an outbound transformer with shared persistence state.
  type PersistentOutboundTransformer struct {
  	wrapped                       transformer.Outbound
-@@ -656,6 +701,9 @@ func (p *PersistentOutboundTransformer)
+@@ -666,6 +709,9 @@ func (p *PersistentOutboundTransformer)
  }
  
  func (p *PersistentOutboundTransformer) TransformRequest(ctx context.Context, llmRequest *llm.Request) (*httpclient.Request, error) {
@@ -1997,7 +2234,19 @@ Base-Commit: 9be15a35d7646a5d93759c36b6193fd79bcc693f
  	hasAdditionalTools := containsAdditionalToolsInputItems(llmRequest)
  
  	// Candidates should already be selected by inbound transformer
-@@ -1008,7 +1056,7 @@ func (p *PersistentOutboundTransformer)
+@@ -952,6 +998,11 @@ func (p *PersistentOutboundTransformer)
+ 	return p.state.CurrentCandidateIndex+1 < len(p.state.ChannelModelsCandidates)
+ }
+ 
++// CanSkipCandidate identifies a circuit admission refusal before dispatch.
++func (p *PersistentOutboundTransformer) CanSkipCandidate(err error) bool {
++	return errors.Is(err, errSkipCandidateByCircuitBreaker)
++}
++
+ // resetPassThroughStreamState releases the abandoned attempt's raw provider stream
+ // and clears its recorder so the next attempt starts with a clean slate.
+ func (p *PersistentOutboundTransformer) resetPassThroughStreamState() {
+@@ -1018,7 +1069,7 @@ func (p *PersistentOutboundTransformer)
  	}
  
  	if errors.Is(err, errSkipCandidateByCircuitBreaker) {
@@ -2006,7 +2255,7 @@ Base-Commit: 9be15a35d7646a5d93759c36b6193fd79bcc693f
  	}
  
  	// Retrying the same channel cannot resolve local capacity rejection.
-@@ -1101,6 +1149,20 @@ func (p *PersistentOutboundTransformer)
+@@ -1111,6 +1162,20 @@ func (p *PersistentOutboundTransformer)
  	}
  
  	candidate := p.state.CurrentCandidate
@@ -2027,7 +2276,7 @@ Base-Commit: 9be15a35d7646a5d93759c36b6193fd79bcc693f
  
  	// Reset request execution for the same channel.
  	p.state.RequestExec = nil
-@@ -1112,9 +1174,9 @@ func (p *PersistentOutboundTransformer)
+@@ -1122,9 +1187,9 @@ func (p *PersistentOutboundTransformer)
  	p.resetPassThroughStreamState()
  
  	// If there's another model in the list, advance to it.
@@ -2060,17 +2309,32 @@ Base-Commit: 9be15a35d7646a5d93759c36b6193fd79bcc693f
  	})
  
 --- a/internal/server/orchestrator/responses_health.go
-+++ b/internal/server/orchestrator/responses_health.go
-@@ -15,9 +15,6 @@ func withoutResponsesRecoveryPenalty(m p
- 
- func (m *responsesHealthMiddleware) OnOutboundRawError(ctx context.Context, err error) {
- 	if shared.IsResponsesRecoveryError(err) {
++++ /dev/null
+@@ -1,24 +0,0 @@
+-package orchestrator
+-
+-import (
+-	"context"
+-
+-	"github.com/looplj/axonhub/llm/pipeline"
+-	"github.com/looplj/axonhub/llm/transformer/shared"
+-)
+-
+-type responsesHealthMiddleware struct{ pipeline.Middleware }
+-
+-func withoutResponsesRecoveryPenalty(m pipeline.Middleware) pipeline.Middleware {
+-	return &responsesHealthMiddleware{Middleware: m}
+-}
+-
+-func (m *responsesHealthMiddleware) OnOutboundRawError(ctx context.Context, err error) {
+-	if shared.IsResponsesRecoveryError(err) {
 -		if tracker, ok := m.Middleware.(*modelCircuitBreakerTracker); ok {
 -			tracker.releaseProbeLease()
 -		}
- 		return
- 	}
- 	m.Middleware.OnOutboundRawError(ctx, err)
+-		return
+-	}
+-	m.Middleware.OnOutboundRawError(ctx, err)
+-}
 --- a/internal/server/orchestrator/select_candidates.go
 +++ b/internal/server/orchestrator/select_candidates.go
 @@ -2,6 +2,7 @@ package orchestrator
@@ -2112,26 +2376,7 @@ Base-Commit: 9be15a35d7646a5d93759c36b6193fd79bcc693f
  		}
 --- a/internal/server/orchestrator/state.go
 +++ b/internal/server/orchestrator/state.go
-@@ -15,17 +15,21 @@ import (
- type PersistenceState struct {
- 	APIKey *ent.APIKey
- 
--	RequestService      *biz.RequestService
--	UsageLogService     *biz.UsageLogService
--	ChannelService      *biz.ChannelService
--	PromptProvider      PromptProvider
--	PromptProtecter     PromptProtecter
--	CandidateSelector   CandidateSelector
--	LoadBalancers       map[string]*LoadBalancer
--	RoutingPolicy       EffectiveRoutingPolicy
-+	RequestService    *biz.RequestService
-+	UsageLogService   *biz.UsageLogService
-+	ChannelService    *biz.ChannelService
-+	PromptProvider    PromptProvider
-+	PromptProtecter   PromptProtecter
-+	CandidateSelector CandidateSelector
-+	LoadBalancers     map[string]*LoadBalancer
-+	RoutingPolicy     EffectiveRoutingPolicy
+@@ -26,6 +26,10 @@ type PersistenceState struct {
  	// Settings is the system settings snapshot taken when the request started.
  	Settings *RequestSettings
  
@@ -2142,22 +2387,6 @@ Base-Commit: 9be15a35d7646a5d93759c36b6193fd79bcc693f
  	// Request state
  	ModelMapper *ModelMapper
  	// Proxy config, will be used to override channel's default proxy config.
---- a/llm/pipeline/middleware.go
-+++ b/llm/pipeline/middleware.go
-@@ -68,6 +68,13 @@ type Middleware interface {
- 	OnOutboundLlmStream(ctx context.Context, stream streams.Stream[*llm.Response]) (streams.Stream[*llm.Response], error)
- }
- 
-+// OutboundAttemptResultMiddleware observes the final result of an attempt,
-+// after response validation and before retry. For streaming results the stream
-+// has been handed off, but has not necessarily reached a terminal event.
-+type OutboundAttemptResultMiddleware interface {
-+	OnOutboundAttemptResult(context.Context, *Result, error)
-+}
-+
- // OutboundLlmRequestMiddleware is an optional middleware extension for unified
- // requests that must be processed once per outbound attempt. Dynamic outbound
- // routers invoke it after selecting the attempt's API format and before the
 --- a/llm/pipeline/non_streaming.go
 +++ b/llm/pipeline/non_streaming.go
 @@ -105,7 +105,7 @@ func (p *pipeline) autoAggregateStream(
@@ -2171,15 +2400,81 @@ Base-Commit: 9be15a35d7646a5d93759c36b6193fd79bcc693f
  	if len(chunks) == 0 {
 --- a/llm/pipeline/pipeline.go
 +++ b/llm/pipeline/pipeline.go
-@@ -321,6 +321,11 @@ func (p *pipeline) Process(ctx context.C
- 		llmRequest.Stream = originalStream
+@@ -37,6 +37,20 @@ type ChannelRetryable interface {
+ 	PrepareForRetry(ctx context.Context) error
+ }
  
- 		result, err := p.processRequest(ctx, llmRequest)
-+		for i := len(p.middlewares) - 1; i >= 0; i-- {
-+			if observer, ok := p.middlewares[i].(OutboundAttemptResultMiddleware); ok {
-+				observer.OnOutboundAttemptResult(ctx, result, err)
-+			}
-+		}
- 		if err == nil {
- 			return result, nil
++// UndispatchedCandidateRetryable allows a transformer to move past a locally
++// unavailable candidate before any upstream request has been issued.
++type UndispatchedCandidateRetryable interface {
++	CanSkipCandidate(error) bool
++}
++
++type retryKind uint8
++
++const (
++	initialAttempt retryKind = iota
++	sameChannelRetry
++	channelSwitchRetry
++)
++
+ // ChannelSameChannelRetryLimit is an optional interface a ChannelRetryable may
+ // also implement to override the global max same-channel retries for the current
+ // channel. It is checked on every same-channel retry decision.
+@@ -315,6 +329,7 @@ func (p *pipeline) Process(ctx context.C
+ 
+ 	channelSwitches := 0
+ 	sameChannelRetries := 0
++	attemptKind := initialAttempt
+ 
+ 	// Step 3: Process the request
+ 	for {
+@@ -346,6 +361,32 @@ func (p *pipeline) Process(ctx context.C
+ 			return nil, lastErr
  		}
+ 
++		// A candidate rejected before dispatch has not spent the attempt that
++		// was reserved for it. Move forward through the eligible models/channels
++		// without charging another retry. If a reserved same-channel retry
++		// becomes a cross-channel attempt, the channel budget still applies.
++		if skippable, ok := p.Outbound.(UndispatchedCandidateRetryable); ok && skippable.CanSkipCandidate(lastErr) {
++			if retryable, ok := p.Outbound.(ChannelRetryable); ok && retryable.CanRetry(lastErr) {
++				if err := retryable.PrepareForRetry(ctx); err == nil {
++					continue
++				}
++			}
++			if attemptKind == sameChannelRetry && channelSwitches >= p.maxChannelRetries {
++				break
++			}
++			if retryable, ok := p.Outbound.(Retryable); ok && retryable.HasMoreChannels() {
++				if err := retryable.NextChannel(ctx); err == nil {
++					if attemptKind == sameChannelRetry {
++						channelSwitches++
++						attemptKind = channelSwitchRetry
++					}
++					sameChannelRetries = 0
++					continue
++				}
++			}
++			break
++		}
++
+ 		// Determine retry strategy
+ 		canRetry := false
+ 		timeoutRetry := isResponseTimeoutError(lastErr)
+@@ -356,6 +397,7 @@ func (p *pipeline) Process(ctx context.C
+ 				if sameChannelRetries < p.maxSameChannelRetriesFor() && channelRetryable.CanRetry(lastErr) {
+ 					if err := channelRetryable.PrepareForRetry(ctx); err == nil {
+ 						sameChannelRetries++
++						attemptKind = sameChannelRetry
+ 						canRetry = true
+ 
+ 						slog.DebugContext(ctx, "retrying same channel",
+@@ -375,6 +417,7 @@ func (p *pipeline) Process(ctx context.C
+ 				if channelSwitches < p.maxChannelRetries && retryable.HasMoreChannels() {
+ 					if err := retryable.NextChannel(ctx); err == nil {
+ 						channelSwitches++
++						attemptKind = channelSwitchRetry
+ 						sameChannelRetries = 0 // Reset same-channel attempts for new channel
+ 						canRetry = true
+ 
