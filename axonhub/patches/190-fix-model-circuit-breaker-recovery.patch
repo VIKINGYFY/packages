@@ -2234,7 +2234,7 @@ Subject: [PATCH] routing: recover models and preserve eligible fallback routes
  	hasAdditionalTools := containsAdditionalToolsInputItems(llmRequest)
  
  	// Candidates should already be selected by inbound transformer
-@@ -952,6 +998,11 @@ func (p *PersistentOutboundTransformer)
+@@ -963,6 +1009,11 @@ func (p *PersistentOutboundTransformer)
  	return p.state.CurrentCandidateIndex+1 < len(p.state.ChannelModelsCandidates)
  }
  
@@ -2246,7 +2246,7 @@ Subject: [PATCH] routing: recover models and preserve eligible fallback routes
  // resetPassThroughStreamState releases the abandoned attempt's raw provider stream
  // and clears its recorder so the next attempt starts with a clean slate.
  func (p *PersistentOutboundTransformer) resetPassThroughStreamState() {
-@@ -1018,7 +1069,7 @@ func (p *PersistentOutboundTransformer)
+@@ -1029,7 +1080,7 @@ func (p *PersistentOutboundTransformer)
  	}
  
  	if errors.Is(err, errSkipCandidateByCircuitBreaker) {
@@ -2255,7 +2255,7 @@ Subject: [PATCH] routing: recover models and preserve eligible fallback routes
  	}
  
  	// Retrying the same channel cannot resolve local capacity rejection.
-@@ -1111,6 +1162,20 @@ func (p *PersistentOutboundTransformer)
+@@ -1122,6 +1173,20 @@ func (p *PersistentOutboundTransformer)
  	}
  
  	candidate := p.state.CurrentCandidate
@@ -2276,7 +2276,7 @@ Subject: [PATCH] routing: recover models and preserve eligible fallback routes
  
  	// Reset request execution for the same channel.
  	p.state.RequestExec = nil
-@@ -1122,9 +1187,9 @@ func (p *PersistentOutboundTransformer)
+@@ -1133,9 +1198,9 @@ func (p *PersistentOutboundTransformer)
  	p.resetPassThroughStreamState()
  
  	// If there's another model in the list, advance to it.
