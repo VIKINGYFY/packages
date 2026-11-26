@@ -58,7 +58,7 @@ Link: https://github.com/Self-Hosting-Group/miniupnp/tree/upnp-igdv2-compat
  		bodylen = snprintf(body, sizeof(body), resp,
  				action, ns/*SERVICE_TYPE_WANIPC*/,
  				(unsigned int)iport, int_ip, desc, leaseduration,
-@@ -1208,6 +1216,14 @@ GetGenericPortMappingEntry(struct upnpht
+@@ -1210,6 +1218,14 @@ GetGenericPortMappingEntry(struct upnpht
  #ifdef ENABLE_PCP
  		hide_pcp_nonce(desc);
  #endif
