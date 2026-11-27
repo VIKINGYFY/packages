@@ -672,7 +672,7 @@ Subject: [PATCH] routing: recover models and preserve eligible fallback routes
  	wrapped                 CandidateSelector
  	loadBalancer            *LoadBalancer
  	loadBalancers           map[string]*LoadBalancer
-@@ -780,49 +781,105 @@ func (s *LoadBalancedSelector) Select(ct
+@@ -793,49 +794,109 @@ func (s *LoadBalancedSelector) selectCan
  		stickyID, stickyOK = s.resolveStickyChannelID(ctx, req, candidates)
  	}
  
@@ -692,19 +692,20 @@ Subject: [PATCH] routing: recover models and preserve eligible fallback routes
 -		var lastResort []*ChannelModelsCandidate
  		candidates, lastResort = s.quotaGate.Filter(ctx, candidates, req, stickyID)
 -		quotaFallback = quotaFallbackCandidates(lastResort, quotaFallbackLimit(retryPolicy))
-+	}
+ 	}
 +	fallbackLimit := quotaFallbackLimit(retryPolicy)
 +	quotaPreferred, quotaStreamFallback := preferNativeStreamCandidates(req, lastResort)
 +	quotaFallback := quotaFallbackCandidates(quotaPreferred, fallbackLimit)
-+	quotaFallback = append(quotaFallback, quotaFallbackCandidates(quotaStreamFallback, fallbackLimit-len(quotaFallback))...)
++	quotaFallback = append(quotaFallback,
++		quotaFallbackCandidates(quotaStreamFallback, fallbackLimit-len(quotaFallback))...)
 +	if circuitRouting {
 +		// Retain all normally eligible channels as finite alternatives for
 +		// admission races. The pipeline still enforces the dispatch budget.
 +		requiredCount = max(requiredCount, len(candidates))
- 	}
- 
-+	preferred, streamFallback := preferNativeStreamCandidates(req, candidates)
++	}
 +
++	preferred, streamFallback := preferNativeStreamCandidates(req, candidates)
+ 
  	// Prefer the parent only after quota admission, before load balancing trims
  	// the candidate list to fit the retry budget.
 -	pinned, remaining := extractStickyCandidate(candidates, guardianReviewParentChannelID(ctx))
@@ -716,6 +717,7 @@ Subject: [PATCH] routing: recover models and preserve eligible fallback routes
  			pinned.TraceSticky = true
  		}
  	}
++
 +	result := make([]*ChannelModelsCandidate, 0, min(requiredCount, len(candidates))+len(quotaFallback))
  	if pinned != nil {
 -		fallbackCount := max(requiredCount-1, 0)
@@ -725,7 +727,7 @@ Subject: [PATCH] routing: recover models and preserve eligible fallback routes
 -		result = append(result, fallbackCandidates...)
 -		result = append(result, quotaFallback...)
 -
--		if loadBalancer != nil {
+-		if loadBalancer != nil && !selectAll {
 -			loadBalancer.TrackSelection(pinned)
 -		}
 -
@@ -733,12 +735,14 @@ Subject: [PATCH] routing: recover models and preserve eligible fallback routes
 +		preferred = remaining
  	}
 -
--	preferred := s.sortCandidates(ctx, loadBalancer, candidates, req, requiredCount, requiredCount, true)
+-	preferred := s.sortCandidates(ctx, loadBalancer, candidates, req, requiredCount, requiredCount, !selectAll)
 -	if len(quotaFallback) == 0 {
 -		return preferred, nil
-+	result = append(result, s.sortCandidates(ctx, loadBalancer, preferred, req, requiredCount-len(result), requiredCount, false)...)
-+	result = append(result, s.sortCandidates(ctx, loadBalancer, streamFallback, req, requiredCount-len(result), requiredCount, false)...)
-+	if len(result) > 0 && loadBalancer != nil {
++	result = append(result,
++		s.sortCandidates(ctx, loadBalancer, preferred, req, requiredCount-len(result), requiredCount, false)...)
++	result = append(result,
++		s.sortCandidates(ctx, loadBalancer, streamFallback, req, requiredCount-len(result), requiredCount, false)...)
++	if len(result) > 0 && loadBalancer != nil && !selectAll {
 +		loadBalancer.TrackSelection(result[0])
  	}
 -
@@ -2308,6 +2312,183 @@ Subject: [PATCH] routing: recover models and preserve eligible fallback routes
  		require.False(t, outbound.CanRetry(errSkipCandidateByCircuitBreaker))
  	})
  
+--- a/internal/server/orchestrator/realtime.go
++++ b/internal/server/orchestrator/realtime.go
+@@ -96,13 +96,12 @@ type RealtimeTarget struct {
+ 	SafetyIdentifier        string
+ 	Channel                 *biz.Channel
+ 	Model, ClientModel, URL string
+-	RoutingModel            string
+ 	Price                   *biz.RealtimePriceSnapshot
+ 	APIKey                  *ent.APIKey
+ 	Native                  bool
+ 	Translation             bool
+ 	CircuitBreakerEnabled   bool
+-	CircuitBreakerProbe     bool
++	circuitAttempt          *biz.ModelCircuitAttempt
+ }
+ 
+ type realtimeCandidateRoute struct {
+@@ -157,19 +156,16 @@ func (s *RealtimeService) prepare(ctx co
+ 	if err != nil {
+ 		return nil, err
+ 	}
+-	probeBlocked := false
++	circuitBreakerEnabled := routingPolicy.LoadBalancerStrategy == biz.LoadBalancerStrategyCircuitBreaker && s.modelCircuitBreaker != nil
++	circuitBlocked := false
+ 	for _, candidate := range candidates {
+ 		for _, route := range routes[candidate] {
+-			probe := false
+-			circuitBreakerEnabled := routingPolicy.LoadBalancerStrategy == biz.LoadBalancerStrategyCircuitBreaker && s.modelCircuitBreaker != nil
++			var attempt *biz.ModelCircuitAttempt
+ 			if circuitBreakerEnabled {
+-				stats := s.modelCircuitBreaker.GetModelCircuitBreakerStats(ctx, candidate.Channel.ID, mapped)
+-				if stats.State == biz.StateOpen {
+-					if !s.modelCircuitBreaker.TryBeginProbe(ctx, candidate.Channel.ID, mapped) {
+-						probeBlocked = true
+-						continue
+-					}
+-					probe = true
++				attempt, _ = s.modelCircuitBreaker.BeginAttempt(ctx, candidate.Channel.ID, route.entry.ActualModel)
++				if attempt == nil {
++					circuitBlocked = true
++					continue
+ 				}
+ 			}
+ 			if loadBalancer := s.LoadBalancers[routingPolicy.LoadBalancerStrategy]; loadBalancer != nil {
+@@ -186,7 +182,6 @@ func (s *RealtimeService) prepare(ctx co
+ 				Channel:               candidate.Channel,
+ 				Model:                 route.entry.ActualModel,
+ 				ClientModel:           model,
+-				RoutingModel:          mapped,
+ 				URL:                   route.url,
+ 				Price:                 route.price,
+ 				APIKey:                key,
+@@ -195,11 +190,11 @@ func (s *RealtimeService) prepare(ctx co
+ 				APIFormat:             llm.APIFormat(route.format),
+ 				SafetyIdentifier:      hex.EncodeToString(identifier[:]),
+ 				CircuitBreakerEnabled: circuitBreakerEnabled,
+-				CircuitBreakerProbe:   probe,
++				circuitAttempt:        attempt,
+ 			}, nil
+ 		}
+ 	}
+-	if probeBlocked {
++	if circuitBlocked {
+ 		return nil, ErrRealtimeCircuitBreakerOpen
+ 	}
+ 	return nil, biz.ErrInvalidModel
+@@ -208,11 +203,20 @@ func (s *RealtimeService) prepare(ctx co
+ var ErrRealtimeCircuitBreakerOpen = errors.New("all eligible realtime channels are circuit open")
+ 
+ func (s *RealtimeService) ReleaseRealtimeProbe(target *RealtimeTarget) {
+-	if s.modelCircuitBreaker == nil || target == nil || !target.CircuitBreakerProbe || target.Channel == nil {
+-		return
++	if target != nil {
++		target.finishCircuitAttempt(context.Background(), biz.CircuitAttemptNeutral)
++	}
++}
++
++// The first upstream outcome owns the admission made when the session started.
++// Later responses from the established session still provide health evidence.
++func (target *RealtimeTarget) finishCircuitAttempt(ctx context.Context, outcome biz.CircuitAttemptOutcome) bool {
++	if target.circuitAttempt == nil {
++		return false
+ 	}
+-	s.modelCircuitBreaker.EndProbe(target.Channel.ID, target.RoutingModel)
+-	target.CircuitBreakerProbe = false
++	target.circuitAttempt.Finish(ctx, outcome)
++	target.circuitAttempt = nil
++	return true
+ }
+ 
+ func (s *RealtimeService) RecordRealtimeSuccess(ctx context.Context, target *RealtimeTarget) {
+@@ -235,8 +239,9 @@ func (s *RealtimeService) RecordRealtime
+ 	if s.modelCircuitBreaker == nil || !target.CircuitBreakerEnabled {
+ 		return
+ 	}
+-	s.ReleaseRealtimeProbe(target)
+-	s.modelCircuitBreaker.RecordSuccess(ctx, target.Channel.ID, target.RoutingModel)
++	if !target.finishCircuitAttempt(ctx, biz.CircuitAttemptSuccess) {
++		s.modelCircuitBreaker.RecordSuccess(ctx, target.Channel.ID, target.Model)
++	}
+ }
+ 
+ func (s *RealtimeService) RecordRealtimeFailure(ctx context.Context, target *RealtimeTarget) {
+@@ -255,9 +260,9 @@ func (s *RealtimeService) RecordRealtime
+ 	if s.modelCircuitBreaker == nil || !target.CircuitBreakerEnabled {
+ 		return
+ 	}
+-	wasProbe := target.CircuitBreakerProbe
+-	s.ReleaseRealtimeProbe(target)
+-	s.modelCircuitBreaker.RecordError(ctx, target.Channel.ID, target.RoutingModel, wasProbe)
++	if !target.finishCircuitAttempt(ctx, biz.CircuitAttemptFailure) {
++		s.modelCircuitBreaker.RecordError(ctx, target.Channel.ID, target.Model)
++	}
+ }
+ 
+ func newRealtimePerformanceRecord(target *RealtimeTarget, started time.Time, firstOutput *time.Time, completionTokens int64) *biz.PerformanceRecord {
+--- a/internal/server/orchestrator/realtime_routing_test.go
++++ b/internal/server/orchestrator/realtime_routing_test.go
+@@ -52,27 +52,51 @@ func TestRealtimeCandidateSelectionAppli
+ }
+ 
+ func TestRealtimeCircuitBreakerRecordsUpstreamFailuresAndSuccesses(t *testing.T) {
+-	ctx := context.Background()
++	ctx := t.Context()
+ 	breaker := biz.NewModelCircuitBreaker()
+ 	service := &RealtimeService{modelCircuitBreaker: breaker}
+ 	target := &RealtimeTarget{
+ 		Channel:               &biz.Channel{Channel: &ent.Channel{ID: 17}},
+-		RoutingModel:          "mapped-realtime-model",
++		Model:                 "upstream-realtime-model",
+ 		CircuitBreakerEnabled: true,
+-		CircuitBreakerProbe:   true,
+ 	}
++	attempt, _ := breaker.BeginAttempt(ctx, target.Channel.ID, target.Model)
++	require.NotNil(t, attempt)
++	target.circuitAttempt = attempt
+ 
+ 	service.RecordRealtimeFailure(ctx, target)
+-	stats := breaker.GetModelCircuitBreakerStats(ctx, 17, "mapped-realtime-model")
++	stats := breaker.GetModelCircuitBreakerStats(ctx, target.Channel.ID, target.Model)
+ 	require.Equal(t, 1, stats.ConsecutiveFailures)
+-	require.False(t, target.CircuitBreakerProbe, "a failed probe must release its lease")
++	require.Nil(t, target.circuitAttempt)
+ 
+ 	service.RecordRealtimeSuccess(ctx, target)
+-	stats = breaker.GetModelCircuitBreakerStats(ctx, 17, "mapped-realtime-model")
+-	require.Equal(t, 0, stats.ConsecutiveFailures)
++	stats = breaker.GetModelCircuitBreakerStats(ctx, target.Channel.ID, target.Model)
++	require.Zero(t, stats.ConsecutiveFailures)
+ 	require.Equal(t, biz.StateClosed, stats.State)
+ }
+ 
++func TestRealtimeCircuitBreakerIgnoresStaleAdmission(t *testing.T) {
++	ctx := t.Context()
++	breaker := biz.NewModelCircuitBreaker()
++	service := &RealtimeService{modelCircuitBreaker: breaker}
++	target := &RealtimeTarget{
++		Channel:               &biz.Channel{Channel: &ent.Channel{ID: 17}},
++		Model:                 "upstream-realtime-model",
++		CircuitBreakerEnabled: true,
++	}
++	attempt, _ := breaker.BeginAttempt(ctx, target.Channel.ID, target.Model)
++	require.NotNil(t, attempt)
++	target.circuitAttempt = attempt
++	for range breaker.GetPolicy(ctx).OpenThreshold {
++		breaker.RecordError(ctx, target.Channel.ID, target.Model)
++	}
++
++	service.RecordRealtimeSuccess(ctx, target)
++	stats := breaker.GetModelCircuitBreakerStats(ctx, target.Channel.ID, target.Model)
++	require.Equal(t, biz.StateOpen, stats.State)
++	require.Nil(t, target.circuitAttempt)
++}
++
+ func TestRealtimeOutcomesFeedLoadBalancerMetrics(t *testing.T) {
+ 	ctx, db := setupTest(t)
+ 	channels := newTestChannelServiceForChannels(db)
 --- a/internal/server/orchestrator/responses_health.go
 +++ /dev/null
 @@ -1,24 +0,0 @@

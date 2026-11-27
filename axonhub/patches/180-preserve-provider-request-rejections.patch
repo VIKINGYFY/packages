@@ -2,7 +2,7 @@ Subject: [PATCH] responses: preserve provider rejection and stop retries
 
 --- a/llm/model.go
 +++ b/llm/model.go
-@@ -1069,6 +1069,26 @@ func (e ResponseError) Error() string {
+@@ -1085,6 +1085,26 @@ func (e ResponseError) Error() string {
  	return sb.String()
  }
  

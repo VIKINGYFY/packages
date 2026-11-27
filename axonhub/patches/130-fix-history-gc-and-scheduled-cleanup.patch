@@ -2,7 +2,7 @@ Subject: [PATCH] gc: protect retained data and control scheduled cleanup
 
 --- a/conf/conf.go
 +++ b/conf/conf.go
-@@ -364,9 +364,13 @@ func setDefaults(v *viper.Viper) {
+@@ -375,9 +375,13 @@ func setDefaults(v *viper.Viper) {
  	v.SetDefault("metrics.exporter.insecure", false)
  
  	// GC defaults

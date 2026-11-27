@@ -47,7 +47,7 @@ Base-Commit: 0896305eeee89435049575d55a813f72901f703b
  }
  
  type providerQuotaConfig struct {
-@@ -260,6 +261,9 @@ func customizedDecodeHook(srcType reflec
+@@ -263,6 +264,9 @@ func customizedDecodeHook(srcType reflec
  
  // setDefaults sets default configuration values.
  func setDefaults(v *viper.Viper) {

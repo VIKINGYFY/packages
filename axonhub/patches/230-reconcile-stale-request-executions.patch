@@ -64,14 +64,14 @@ Subject: [PATCH] requests: reconcile interrupted requests on local SQLite
  						if err != nil {
 --- a/conf/conf.go
 +++ b/conf/conf.go
-@@ -276,6 +276,7 @@ func setDefaults(v *viper.Viper) {
+@@ -279,6 +279,7 @@ func setDefaults(v *viper.Viper) {
  	v.SetDefault("server.llm_request_timeout", "600s")
  	v.SetDefault("server.llm_stream_request_timeout", "1800s")
  	v.SetDefault("server.llm_stream_idle_timeout", "600s")
 +	v.SetDefault("server.single_instance_sqlite", false)
- 	v.SetDefault("server.sse_keep_alive.enabled", false)
- 	v.SetDefault("server.sse_keep_alive.interval", "15s")
- 	v.SetDefault("server.trace.thread_header", "AH-Thread-Id")
+ 	v.SetDefault("server.realtime.idle_timeout", "2m")
+ 	v.SetDefault("server.realtime.max_duration", "15m")
+ 	v.SetDefault("server.realtime.handshake_timeout", "15s")
 --- a/config.example.yml
 +++ b/config.example.yml
 @@ -23,6 +23,7 @@ server:
@@ -369,7 +369,7 @@ Subject: [PATCH] requests: reconcile interrupted requests on local SQLite
  }
 --- a/internal/server/config.go
 +++ b/internal/server/config.go
-@@ -105,6 +105,10 @@ type Config struct {
+@@ -106,6 +106,10 @@ type Config struct {
  	// Zero disables the stream idle deadline.
  	LLMStreamIdleTimeout time.Duration `conf:"llm_stream_idle_timeout" yaml:"llm_stream_idle_timeout" json:"llm_stream_idle_timeout"`
  
@@ -377,9 +377,9 @@ Subject: [PATCH] requests: reconcile interrupted requests on local SQLite
 +	// earlier process. Enable it only when this server alone uses the database.
 +	SingleInstanceSQLite bool `conf:"single_instance_sqlite" yaml:"single_instance_sqlite" json:"single_instance_sqlite"`
 +
- 	Safeguards safeguards.Config `conf:"safeguards" yaml:"safeguards" json:"safeguards"`
+ 	Realtime realtime.Config `conf:"realtime" yaml:"realtime" json:"realtime"`
  
- 	SSEKeepAlive SSEKeepAlive `conf:"sse_keep_alive" yaml:"sse_keep_alive" json:"sse_keep_alive"`
+ 	Safeguards safeguards.Config `conf:"safeguards" yaml:"safeguards" json:"safeguards"`
 --- a/internal/server/server.go
 +++ b/internal/server/server.go
 @@ -8,6 +8,7 @@ import (
@@ -398,7 +398,7 @@ Subject: [PATCH] requests: reconcile interrupted requests on local SQLite
  	"github.com/looplj/axonhub/internal/server/dependencies"
  	"github.com/looplj/axonhub/internal/server/events"
  	"github.com/looplj/axonhub/internal/server/gc"
-@@ -168,6 +170,29 @@ func Run(opts ...fx.Option) {
+@@ -170,6 +172,29 @@ func Run(opts ...fx.Option) {
  					},
  				})
  			}),
