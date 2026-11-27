@@ -10,7 +10,7 @@ on:
         type: boolean
   schedule:
     # 中国时间 02:00
-    - cron: '0 18 * * *'
+    - cron: '20 10 * * *'
 
 permissions:
   actions: write
