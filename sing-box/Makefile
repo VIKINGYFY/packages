@@ -5,7 +5,7 @@
 include $(TOPDIR)/rules.mk
 
 PKG_NAME:=sing-box
-PKG_UPSTREAM_VERSION:=1.15.0-alpha.14
+PKG_UPSTREAM_VERSION:=1.15.0-alpha.15
 # APK requires compact prerelease suffixes such as _alpha12.
 PKG_VERSION:=$(subst -alpha.,_alpha,$(PKG_UPSTREAM_VERSION))
 PKG_VERSION:=$(subst -beta.,_beta,$(PKG_VERSION))
@@ -14,7 +14,7 @@ PKG_RELEASE:=1
 
 PKG_SOURCE:=$(PKG_NAME)-$(PKG_UPSTREAM_VERSION).tar.gz
 PKG_SOURCE_URL:=https://codeload.github.com/SagerNet/sing-box/tar.gz/v$(PKG_UPSTREAM_VERSION)?
-PKG_HASH:=44dfb316c9b2a67eb42590322dc227048269156343d15608b1504ea65a0801ff
+PKG_HASH:=c48d10835b222d61ff45e0d857b6b811c390682d2a2f88850cdafaffb75ef04f
 PKG_BUILD_DIR:=$(BUILD_DIR)/$(PKG_NAME)-$(PKG_UPSTREAM_VERSION)
 
 PKG_LICENSE:=GPL-3.0-or-later
